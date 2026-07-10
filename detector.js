@@ -262,7 +262,17 @@
   // resting ABOVE price (within ±25%) outweighs the fuel below — the Coinglass-style magnet map.
   function runQuant(c, p, a, pools) {
     const n = c.length, trades = [];
-    if (n < p.tsmomMa + 2) return { trades, advice: null };
+    // TIMEFRAME SCALING: every lookback param is denominated in DAYS and converted to bars,
+    // so "SMA200" is 200 days on any TF (1200 bars on 4h, ~29 bars on 1w) — the same economic
+    // signal everywhere. Stop multiples scale by √(bars/day) so stop DISTANCES stay constant
+    // in daily-vol terms (per-bar ATR shrinks ~√bpd on lower TFs).
+    const dt = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+    const bpd = 86400 / dt;
+    const S = (days) => Math.max(2, Math.round(days * bpd));
+    const sf = Math.max(0.8, Math.sqrt(bpd));   // floor: above-daily TFs keep a workable stop distance
+    const maLen = S(p.tsmomMa), lookLen = S(p.tsmomLook), inLen = S(p.donchIn), outLen = S(p.donchOut),
+      w20 = S(20), volWin = S(30), holdLen = S(p.mrHold);
+    if (n < maLen + 2) return { trades, advice: null };
     const closes = c.map((x) => x.close);
     const sma = (len) => {
       const out = new Array(n).fill(NaN);
@@ -270,32 +280,33 @@
       for (let i = 0; i < n; i++) { s += closes[i]; if (i >= len) s -= closes[i - len]; if (i >= len - 1) out[i] = s / len; }
       return out;
     };
-    const maL = sma(p.tsmomMa), ma20 = sma(20);
+    const maL = sma(maLen), ma20 = sma(w20);
     const std20 = new Array(n).fill(NaN);
-    for (let i = 19; i < n; i++) {
+    for (let i = w20 - 1; i < n; i++) {
       let s = 0;
-      for (let j = i - 19; j <= i; j++) { const d = closes[j] - ma20[i]; s += d * d; }
-      std20[i] = Math.sqrt(s / 20);
+      for (let j = i - w20 + 1; j <= i; j++) { const d = closes[j] - ma20[i]; s += d * d; }
+      std20[i] = Math.sqrt(s / w20);
     }
     const hiN = new Array(n).fill(Infinity), loN = new Array(n).fill(-Infinity), loIn = new Array(n).fill(Infinity);
     for (let i = 1; i < n; i++) {                                  // prior n-day extremes (exclusive of today)
       let h = -Infinity, l = Infinity, li = Infinity;
-      for (let j = Math.max(0, i - p.donchIn); j < i; j++) { if (c[j].high > h) h = c[j].high; if (c[j].low < li) li = c[j].low; }
-      for (let j = Math.max(0, i - p.donchOut); j < i; j++) if (c[j].low < l) l = c[j].low;
+      for (let j = Math.max(0, i - inLen); j < i; j++) { if (c[j].high > h) h = c[j].high; if (c[j].low < li) li = c[j].low; }
+      for (let j = Math.max(0, i - outLen); j < i; j++) if (c[j].low < l) l = c[j].low;
       hiN[i] = h; loN[i] = l; loIn[i] = li;
     }
     // realized 30d volatility, annualized — the denominator of vol targeting
     const volA = new Array(n).fill(0);
     {
       const lr = new Array(n).fill(0);
+      const ann = Math.sqrt(365 * bpd);
       for (let i = 1; i < n; i++) lr[i] = Math.log(closes[i] / closes[i - 1]);
-      for (let i = 31; i < n; i++) {
+      for (let i = volWin + 1; i < n; i++) {
         let m = 0;
-        for (let j = i - 29; j <= i; j++) m += lr[j];
-        m /= 30;
+        for (let j = i - volWin + 1; j <= i; j++) m += lr[j];
+        m /= volWin;
         let s = 0;
-        for (let j = i - 29; j <= i; j++) { const d = lr[j] - m; s += d * d; }
-        volA[i] = Math.sqrt(s / 29) * Math.sqrt(365);
+        for (let j = i - volWin + 1; j <= i; j++) { const d = lr[j] - m; s += d * d; }
+        volA[i] = Math.sqrt(s / (volWin - 1)) * ann;
       }
     }
     const volFrac = (i) => Math.min(1, Math.max(0.15, p.volTarget / (volA[i] || 1)));
@@ -310,7 +321,7 @@
       return { up, dn, nearUp, nearDn };
     };
     const magnetOK = (i, px) => !p.liqTargets || !(pools && pools.length) || (() => { const b = liqBal(i, px); return b.up >= b.dn; })();
-    const compScore = (i, px) => (px > maL[i] ? 1 : 0) + (i >= p.tsmomLook && px > closes[i - p.tsmomLook] ? 1 : 0) + (px > (hiN[i] + loIn[i]) / 2 ? 1 : 0);
+    const compScore = (i, px) => (px > maL[i] ? 1 : 0) + (i >= lookLen && px > closes[i - lookLen] ? 1 : 0) + (px > (hiN[i] + loIn[i]) / 2 ? 1 : 0);
 
     let pos = null, sigRun = 0;
     const close = (i, exit, why) => {
@@ -322,38 +333,39 @@
         rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4) });
       pos = null;
     };
-    for (let i = p.tsmomMa; i < n; i++) {
+    const persistN = Math.max(1, S(p.persist));                   // persistence is day-denominated too
+    for (let i = maLen; i < n; i++) {
       const px = closes[i];
       if (p.strategy === 'composite') {
         const score = compScore(i, px);
         sigRun = score >= 2 ? sigRun + 1 : 0;                    // persistence: whipsaw filter
         if (pos) {
           if (px > pos.hi) pos.hi = px;
-          const trail = Math.max(pos.stop, pos.hi - p.chandMult * a[i]);  // chandelier: trail the highest close
+          const trail = Math.max(pos.stop, pos.hi - p.chandMult * sf * a[i]);  // chandelier: trail the highest close
           if (px <= trail) close(i, px, 'TRAIL');
           else if (score <= p.compExit) close(i, px, 'ENSEMBLE');
-        } else if (sigRun >= p.persist && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.qStop * a[i], hi: px, entryIdx: i, frac: volFrac(i) };
+        } else if (sigRun >= persistN && magnetOK(i, px)) {
+          pos = { entry: px, stop: px - p.qStop * sf * a[i], hi: px, entryIdx: i, frac: volFrac(i) };
         }
       } else if (p.strategy === 'tsmom') {
-        const on = px > maL[i] && i >= p.tsmomLook && px > closes[i - p.tsmomLook];
+        const on = px > maL[i] && i >= lookLen && px > closes[i - lookLen];
         sigRun = on ? sigRun + 1 : 0;
-        if (!pos && sigRun >= p.persist && magnetOK(i, px)) pos = { entry: px, stop: px - p.qStop * a[i], entryIdx: i };
+        if (!pos && sigRun >= persistN && magnetOK(i, px)) pos = { entry: px, stop: px - p.qStop * sf * a[i], entryIdx: i };
         else if (pos && !on) close(i, px, 'TREND');
       } else if (p.strategy === 'meanrev') {
         if (pos) {
           if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
           else if (px >= ma20[i]) close(i, px, 'MEAN');
-          else if (i - pos.entryIdx >= p.mrHold) close(i, px, 'TIME');
+          else if (i - pos.entryIdx >= holdLen) close(i, px, 'TIME');
         } else if (px > maL[i] && std20[i] > 0 && (px - ma20[i]) / std20[i] <= p.mrZ && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.mrStop * a[i], entryIdx: i };
+          pos = { entry: px, stop: px - p.mrStop * sf * a[i], entryIdx: i };
         }
       } else {                                                     // donch
         if (pos) {
           if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
           else if (px < loN[i]) close(i, px, 'TRAIL');
         } else if (px > hiN[i] && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.qStop * a[i], entryIdx: i };
+          pos = { entry: px, stop: px - p.qStop * sf * a[i], entryIdx: i };
         }
       }
     }
@@ -371,7 +383,7 @@
       px, stance: (trades.length && trades[trades.length - 1].outcome === 'open') ? 'IN' : 'CASH',
       signals: [
         { name: 'Above 200-day average', ok: px > maL[i] },
-        { name: '90-day momentum positive', ok: px > closes[i - p.tsmomLook] },
+        { name: '90-day momentum positive', ok: px > closes[i - lookLen] },
         { name: 'Above 55-day channel mid', ok: px > (hiN[i] + loIn[i]) / 2 },
       ],
       z: std20[i] > 0 ? +((px - ma20[i]) / std20[i]).toFixed(2) : 0,

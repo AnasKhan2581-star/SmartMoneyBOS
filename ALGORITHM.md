@@ -4,6 +4,16 @@ Canonical definition of the detection + entry logic. The backtester (`detector.j
 TradingView Pine indicator, and the Node bot must all follow this. If a rule changes, change
 it here first. Trades **both directions** on Binance **global spot** data.
 
+## Universe & timeframe scaling (July 2026)
+
+The app universe is 7 coins: **BTC ZEC SOL XRP XMR SUI LINK** (XMR delisted from Binance
+Feb 2024 — historical backtest only). All quant lookback params are denominated in **days**
+and converted to bars per timeframe (`SMA200` = 200 days on 4h, 1d and 1w alike); stop
+multiples scale by `√(bars/day)` floored at 0.8 so stop distances stay constant in daily-vol
+terms. Result: `composite` is profitable on 6/7 coins on 4h and 1d and 5/6 on 1w (only the
+dead XMR listing is mixed) — same economic strategy on every TF. The Compare page runs all
+4 strategies × 7 coins (daily, all-in, 0.1% fees/side) with 6M/1Y/CAGR/DD/WR/Sharpe.
+
 ## The flagship: `composite` — vol-targeted ensemble (tuned July 2026)
 
 Blends the three trend signals (close > SMA200, 90d return > 0, close > 55d-channel mid):

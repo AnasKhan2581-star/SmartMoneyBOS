@@ -3,7 +3,9 @@
 Long-only daily **crypto investment advisor webapp**. Fully static — no build step, no deps.
 
 ## Files
-- `index.html` — UI: chart (lightweight-charts CDN), strategy dropdown, Advisor panel, equity backtest. Fetches Binance spot klines client-side (`api.binance.com`, fallback `data-api.binance.vision`).
+- `index.html` — UI: two tabs (Chart / **Compare** — all strategies × the 7-coin universe), strategy dropdown, Advisor panel, equity backtest, mobile-responsive (media query at END of `<style>` so it wins the cascade). Fetches Binance spot klines client-side (`api.binance.com`, fallback `data-api.binance.vision`).
+- Universe: **BTC ZEC SOL XRP XMR SUI LINK** only (XMR delisted Feb 2024, historical). Any Binance pair still works via free-text search.
+- Lookbacks are **day-denominated** and scaled to bars per TF in `runQuant` (stop mults × √(bars/day), floor 0.8) — that's what makes strategies consistent across 4h/1d/1w. Don't add bar-count params.
 - `detector.js` — the engine (`window.SMC` / Node module). Quant strategies live in `runQuant`; legacy SMC structure code (pivots/FVG/liquidity/walkStructure) remains for chart context and hidden params.
 - `ALGORITHM.md` — **single source of truth** for strategy rules, tuned defaults, and benchmark results (including rejected ideas — read before re-testing anything).
 
