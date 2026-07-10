@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bos-backtester",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8910", "--directory", "C:\\Users\\anass\\ClaudeProjects\\SmartMoneyBOS"],
+      "port": 8910
+    }
+  ]
+}

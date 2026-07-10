@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SMC BOS Trend Backtester — Binance Spot</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b22; --line:#222a35; --txt:#d4d8df; --muted:#8b949e;
+    --green:#26a69a; --red:#ef5350; --gold:#e3c34c; --lime:#7ee787; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column}
+  header{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{font-size:14px;margin:0 6px 0 0;font-weight:600}
+  header h1 span{color:var(--muted);font-weight:400}
+  label{font-size:11px;color:var(--muted);display:inline-flex;flex-direction:column;gap:2px}
+  input,select,button{background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:13px system-ui}
+  input.sym{width:104px;text-transform:uppercase}
+  input.num{width:58px}
+  button{cursor:pointer;background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600}
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:#0d1117;color:var(--txt);border-color:var(--line);font-weight:500}
+  #status{font-size:12px;color:var(--muted);margin-left:auto;text-align:right}
+  #status b.bull{color:var(--lime)} #status b.bear{color:var(--red)}
+  #stratInfo{flex:0 0 auto;padding:6px 12px;font-size:12px;color:var(--muted);background:var(--panel);border-bottom:1px solid var(--line)}
+  #stratInfo b{color:var(--txt)}
+  main{flex:1 1 auto;display:flex;min-height:0}
+  #chartWrap{position:relative;flex:1;min-width:0}
+  #chart{position:absolute;inset:0}
+  #overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+  aside{width:330px;flex:0 0 330px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  aside h2{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0;padding:8px 12px;border-bottom:1px solid var(--line)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  #log{overflow:auto;flex:1 1 auto;min-height:60px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--panel)}
+  .pill{padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+  /* backtest equity panel */
+  #bt{flex:0 0 auto;border-top:1px solid var(--line);background:#12161d}
+  #bt .row{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+  #bt .row label{flex-direction:row;align-items:center;gap:6px;color:var(--muted)}
+  #bt .grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  #bt .cell{background:#12161d;padding:8px 12px}
+  #bt .cell .k{font-size:11px;color:var(--muted)}
+  #bt .cell .v{font-size:16px;font-weight:700}
+  .up{color:#3fb950} .down{color:#f85149}
+</style>
+</head>
+<body>
+<header>
+  <h1>SMC BOS Trend <span>· Binance spot</span></h1>
+  <label>Strategy
+    <select id="strategy">
+      <option value="composite" selected>Composite · vol-targeted ensemble</option>
+      <option value="tsmom">Trend Follow · CTA momentum</option>
+      <option value="meanrev">Dip Buyer · mean reversion</option>
+      <option value="donch">Turtle · channel breakout</option>
+    </select>
+  </label>
+  <label>Symbol<input id="sym" class="sym" value="BTCUSDT" list="symList" /></label>
+  <datalist id="symList"><option>BTCUSDT</option><option>ETHUSDT</option><option>XRPUSDT</option><option>BNBUSDT</option><option>SOLUSDT</option><option>DOGEUSDT</option><option>TRXUSDT</option><option>ADAUSDT</option><option>LINKUSDT</option><option>AVAXUSDT</option><option>XLMUSDT</option><option>SUIUSDT</option><option>BCHUSDT</option><option>TONUSDT</option><option>SHIBUSDT</option><option>LTCUSDT</option><option>DOTUSDT</option><option>UNIUSDT</option><option>PEPEUSDT</option><option>NEARUSDT</option></datalist>
+  <label>TF
+    <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
+  </label>
+  <label>Bars<input id="bars" class="num" type="number" value="4500" min="200" max="10000" step="500" /></label>
+  <label>ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
+  <label>Liq
+    <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
+  </label>
+  <button id="run">Run ▶</button>
+  <button id="recalc" class="ghost">Recalc</button>
+  <button id="scaleMode" class="ghost" title="toggle log / linear price scale">Log</button>
+  <span id="status">idle</span>
+</header>
+<div id="stratInfo"></div>
+<main>
+  <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas></div>
+  <aside>
+    <h2>Advisor</h2>
+    <div id="advisor" style="padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.7">—</div>
+    <h2>Trades</h2>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>winning hold</span>
+      <span><i style="background:#f85149"></i>losing hold</span>
+      <span><i style="background:#f85149;opacity:.4"></i>risk zone</span>
+      <span><i style="background:#e3c34c;opacity:.5"></i>liq heat</span>
+      <span style="color:#7ee787">▲ buy</span>
+      <span style="color:#ef5350">▼ sell</span>
+    </div>
+    <div id="log"><table><thead><tr><th>Entry</th><th>Days</th><th>Move</th><th>P/L</th><th>Balance</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    <div id="bt">
+      <div class="row">
+        <label>Capital $<input id="cap" class="num" type="number" value="1000" min="1" step="100" style="width:78px" /></label>
+        <label>Invest %<input id="risk" class="num" type="number" value="100" min="1" max="100" step="5" style="width:56px" /></label>
+        <span style="font-size:11px;color:var(--muted)">of equity per hold, compounded, 0.1% fees/side</span>
+      </div>
+      <div class="grid" id="btGrid"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
+let chart, candleSeries, candles = [], lastResult = null, logScale = true;
+const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
+const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
+
+async function fetchKlines(symbol, interval, total){
+  let collected = [], endTime;
+  while (collected.length < total){
+    const limit = Math.min(1000, total - collected.length);
+    const qs = `symbol=${symbol}&interval=${interval}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : '');
+    let rows = null, lastErr = null;
+    for (const base of ENDPOINTS){
+      try{ const r = await fetch(`${base}/api/v3/klines?${qs}`); if(!r.ok){ lastErr=`${base} HTTP ${r.status}`; continue; } rows = await r.json(); break; }
+      catch(e){ lastErr = `${base}: ${e.message}`; }
+    }
+    if(!rows) throw new Error(lastErr || 'fetch failed');
+    if(!rows.length) break;
+    const mapped = rows.map(k => ({ time: Math.floor(k[0]/1000), open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5] }));
+    collected = mapped.concat(collected);
+    endTime = rows[0][0] - 1;
+    if(rows.length < limit) break;
+  }
+  const seen = new Set();
+  return collected.filter(c => !seen.has(c.time) && seen.add(c.time)).sort((a,b)=>a.time-b.time);
+}
+
+function ensureChart(){
+  if(chart) return;
+  chart = LightweightCharts.createChart($('chart'), {
+    autoSize:true, width:$('chartWrap').clientWidth, height:$('chartWrap').clientHeight,
+    layout:{ background:{color:'#0e1117'}, textColor:'#8b949e' },
+    grid:{ vertLines:{color:'#161b22'}, horzLines:{color:'#161b22'} },
+    rightPriceScale:{ borderColor:'#222a35', mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal },
+    timeScale:{ borderColor:'#222a35', timeVisible:true, secondsVisible:false, rightOffset:4, minBarSpacing:0.02 },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+    // TradingView-style axis interactions: drag the price axis to scale, drag the time axis
+    // to zoom, double-click either axis to reset it
+    handleScroll:{ mouseWheel:true, pressedMouseMove:true, horzTouchDrag:true, vertTouchDrag:true },
+    handleScale:{ mouseWheel:true, pinch:true, axisPressedMouseMove:{ time:true, price:true }, axisDoubleClickReset:{ time:true, price:true } },
+  });
+  // double-click on the chart itself = reset everything (autoscale + fit full history)
+  $('chartWrap').addEventListener('dblclick', ()=>{ chart.priceScale('right').applyOptions({autoScale:true}); chart.timeScale().fitContent(); });
+  candleSeries = chart.addCandlestickSeries({
+    upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a',
+    borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+  });
+  chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
+  new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); }).observe($('chartWrap'));
+}
+
+let priceLines = [];
+const clearPriceLines = () => { priceLines.forEach(l=>candleSeries.removePriceLine(l)); priceLines=[]; };
+
+// ---- backtest equity: EXPOSURE model. Each hold invests `invest%` of current equity (scaled
+// by the strategy's own vol-sizing `frac`) at the entry price and sells at the exit price —
+// so Invest 100% = genuinely all-in, and the number here matches reality. Drawdown is marked
+// to market DAILY inside every hold, not just at exits. The open position is marked at the
+// last close and included in Final capital.
+function equityStats(trades, cap0, investPct){
+  const alloc = investPct/100;
+  let eq=cap0, peak=cap0, maxDD=0, gp=0, gl=0, w=0, l=0, daysIn=0, mvSum=0, dSum=0;
+  const list = trades.filter(t=>t.exitPrice!=null).sort((a,b)=>a.entryIdx-b.entryIdx);
+  const ledger = new Map();
+  for(const t of list){
+    const f = (t.frac||1)*alloc;
+    for(let j=t.entryIdx;j<=t.exitIdx;j++){
+      const v = eq*(1+f*(candles[j].close/t.entry-1));
+      if(v>peak) peak=v; const dd=peak>0?(peak-v)/peak:0; if(dd>maxDD) maxDD=dd;
+      daysIn++;
+    }
+    const pl = eq*f*((t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1);   // 0.1% fee each side
+    eq += pl; if(eq<0) eq=0;
+    if(eq>peak) peak=eq;
+    if(t.outcome!=='open'){ if(pl>=0){gp+=pl;w++;} else {gl+=-pl;l++;} mvSum+=(t.exitPrice/t.entry-1); dSum+=(t.exitIdx-t.entryIdx); }
+    ledger.set(t, { pl, bal:eq });
+    if(eq<=0) break;
+  }
+  const yrs = candles.length>1 ? (candles[candles.length-1].time-candles[0].time)/31557600 : 1;
+  return { cap0, final:eq, netPL:eq-cap0, ret:(eq-cap0)/cap0,
+    cagr: eq>0 ? Math.pow(eq/cap0, 1/Math.max(yrs,0.1))-1 : -1,
+    closed:w+l, w, l, maxDD, expo: candles.length? daysIn/candles.length : 0,
+    avgMove:(w+l)?mvSum/(w+l):0, avgDays:(w+l)?dSum/(w+l):0,
+    pf: gl>0 ? gp/gl : (gp>0?Infinity:0), winRate:(w+l)? w/(w+l):0, ledger };
+}
+// renders BOTH the trade ledger (with per-trade $ P/L + running balance) and the summary grid
+function backtest(){
+  if(!lastResult) return;
+  const c=candles, cap0=+$('cap').value||1000, investPct=Math.min(100,Math.max(1,+$('risk').value||100));
+  const trades=lastResult.trades||[];
+  const s=equityStats(trades, cap0, investPct);
+  const bh = c.length>1 ? (c[c.length-1].close/c[0].close - 1) : 0;
+  const money=(x)=>'$'+Math.round(x).toLocaleString();
+  const pm=(x)=>(x>=0?'+':'−')+'$'+Math.abs(Math.round(x)).toLocaleString();
+  const sign=(x)=> x>=0?'up':'down';
+  // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
+  $('logBody').innerHTML = trades.slice().reverse().map(t=>{
+    const led=s.ledger.get(t);
+    const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
+    const open=t.outcome==='open';
+    const pl = led ? (open?`<span style="color:#58a6ff">${pm(led.pl)} open</span>`:`<span class="${led.pl>=0?'up':'down'}">${pm(led.pl)}</span>`) : '—';
+    return `<tr><td>${fmtTime(c[t.entryIdx].time)}</td><td>${t.exitIdx-t.entryIdx}d</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
+  // summary grid
+  $('btGrid').innerHTML = `
+    <div class="cell"><div class="k">Final capital</div><div class="v ${sign(s.ret)}">${money(s.final)}</div></div>
+    <div class="cell"><div class="k">Net profit</div><div class="v ${sign(s.ret)}">${pm(s.netPL)} <span style="font-size:11px;color:var(--muted)">(${(s.ret*100>=0?'+':'')}${(s.ret*100).toFixed(1)}%)</span></div></div>
+    <div class="cell"><div class="k">CAGR</div><div class="v ${sign(s.cagr)}">${(s.cagr*100>=0?'+':'')}${(s.cagr*100).toFixed(1)}%<span style="font-size:11px;color:var(--muted)">/yr</span></div></div>
+    <div class="cell"><div class="k">Buy & hold</div><div class="v ${sign(bh)}">${(bh>=0?'+':'')}${(bh*100).toFixed(1)}%</div></div>
+    <div class="cell"><div class="k">Win rate</div><div class="v">${(s.winRate*100).toFixed(0)}% <span style="font-size:11px;color:var(--muted)">(${s.w}W/${s.l}L)</span></div></div>
+    <div class="cell"><div class="k">Profit factor</div><div class="v">${s.pf===Infinity?'∞':s.pf.toFixed(2)}</div></div>
+    <div class="cell"><div class="k">Max drawdown</div><div class="v down">-${(s.maxDD*100).toFixed(1)}%</div></div>
+    <div class="cell"><div class="k">Time in market</div><div class="v">${(s.expo*100).toFixed(0)}%</div></div>
+    <div class="cell"><div class="k">Avg hold</div><div class="v ${sign(s.avgMove)}">${(s.avgMove*100>=0?'+':'')}${(s.avgMove*100).toFixed(1)}% <span style="font-size:11px;color:var(--muted)">· ${Math.round(s.avgDays)}d</span></div></div>
+    <div class="cell"><div class="k">Closed holds</div><div class="v">${s.closed}</div></div>`;
+}
+
+function render(result){
+  lastResult = result; window.__r = result; window.__c = candles;
+  const c = candles, trades = result.trades||[];
+  candleSeries.setData(c);
+  // fresh data = fresh view: re-enable autoscale (a manual axis drag disables it, and the next
+  // symbol can be 1000× cheaper — without this the candles land far off-screen) and refit time
+  chart.priceScale('right').applyOptions({ autoScale:true });
+  chart.timeScale().resetTimeScale();
+  chart.timeScale().fitContent();
+
+  // TradingView-style position markers: ▲ buy at entry, ▼ sell at exit
+  const markers = [];
+  trades.forEach(t=>{
+    markers.push({ time:c[t.entryIdx].time, position:'belowBar', color:'#7ee787', shape:'arrowUp', text:'buy' });
+    if(t.outcome!=='open') markers.push({ time:c[t.exitIdx].time, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown', text:'sell' });
+  });
+  markers.sort((a,b)=>a.time-b.time);
+  candleSeries.setMarkers(markers);
+
+  clearPriceLines();
+  const L=LightweightCharts.LineStyle;
+  const pl=(price,color,style,title)=>priceLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));
+  const openT = trades.find(t=>t.outcome==='open');
+  if(openT){ pl(openT.entry,'#e2b93d',L.Dashed,'Entry'); pl(openT.stop,'#f85149',L.Dotted,'Stop'); }
+
+  sizeOverlay(); drawOverlay(); backtest(); advisor(result);
+  const sm = result.summary;
+  const inMkt = openT ? 'IN THE MARKET' : 'in cash';
+  $('status').innerHTML = `${c.length} bars • ${sm.trades} holds • ${sm.wins}W/${sm.losses}L • <b class="${openT?'bull':'bear'}">${inMkt}</b>`;
+}
+
+function sizeOverlay(){
+  const cv=$('overlay'), w=$('chartWrap'), dpr=window.devicePixelRatio||1;
+  cv.width=w.clientWidth*dpr; cv.height=w.clientHeight*dpr;
+  cv.style.width=w.clientWidth+'px'; cv.style.height=w.clientHeight+'px';
+  cv.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+}
+function box(ctx,x1,x2,yT,yB,fill,stroke,label){
+  ctx.fillStyle=fill; ctx.fillRect(x1,yT,x2-x1,yB-yT);
+  if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.strokeRect(x1,yT,x2-x1,yB-yT); }
+  if(label){ ctx.fillStyle=stroke||'#fff'; ctx.font='10px system-ui'; ctx.fillText(label,x1+3,yT-3); }
+}
+function drawOverlay(){
+  if(!chart || !lastResult) return;
+  const cv=$('overlay'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
+  const ts=chart.timeScale(), rightX=cv.clientWidth-70, r=lastResult;
+  const X=(i)=> (i>=0&&i<candles.length)? ts.timeToCoordinate(candles[i].time) : null;
+  const Y=(p)=> candleSeries.priceToCoordinate(p);
+
+  // Coinglass-style liquidation heat (context layer): unswept estimated bands, opacity ∝ size
+  if(r.params && r.params.useLiq && r.pools){
+    const un=r.pools.filter(q=>q.liq && q.sweptIdx===-1);
+    const maxW=Math.max(1,...un.map(q=>q.weight));
+    for(const q of un){
+      const y=Y(q.price); if(y==null||y<0||y>cv.clientHeight) continue;
+      const x1v=X(q.i), x1=(x1v==null?0:Math.max(0,x1v));
+      ctx.save();
+      ctx.strokeStyle='#e3c34c'; ctx.globalAlpha=0.10+0.45*Math.min(1,q.weight/maxW); ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(rightX,y); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // TradingView-style long positions: red RISK zone (entry→stop) and a result zone
+  // (entry→exit) over the holding period — green profit, red loss, blue still open.
+  (r.trades||[]).forEach(t=>{
+    const exit = t.exitPrice!=null ? t.exitPrice : t.target;
+    const x1=X(t.entryIdx); if(x1==null) return;
+    const x2v=X(t.exitIdx), x2=(x2v==null?rightX:Math.min(x2v,rightX));
+    const yE=Y(t.entry), yX=Y(exit), yS=Y(t.stop); if(yE==null||yX==null) return;
+    if(yS!=null) box(ctx,x1,x2,yE,yS,'#f8514915','#f8514966',null);        // risk zone below entry
+    const pct=(exit/t.entry-1)*100;
+    const col= t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
+    box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+(t.outcome==='open'?' open':''));
+    ctx.save();
+    ctx.strokeStyle='#e2b93d'; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x1,yE); ctx.lineTo(x2,yE); ctx.stroke();     // entry line
+    ctx.restore();
+  });
+}
+
+async function run(){
+  ensureChart();
+  const sym=$('sym').value.trim().toUpperCase(), tf=$('tf').value;
+  const bars=Math.max(200, Math.min(10000, +$('bars').value||3000));
+  $('status').textContent = `fetching ${sym} ${tf}…`;
+  try{ candles = await fetchKlines(sym, tf, bars); if(!candles.length){ $('status').textContent='no data'; return; } recalc(); }
+  catch(e){ $('status').textContent='error: '+e.message; }
+}
+function recalc(){
+  if(!candles.length) return;
+  const liq=$('liq').value;
+  const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
+    useLiq:liq!=='off', liqTargets:liq==='trade' };
+  render(SMC.detectAll(candles, params));
+}
+// what the selected system does, in one breath
+const STRAT_INFO = {
+  composite: '<b>Composite (vol-targeted ensemble)</b> — blends three trend signals (200-day average, 90-day momentum, 55-day channel mid): invests after ≥2 agree for 3 straight days (whipsaw filter), exits when all fail or on a 2.5×ATR chandelier trail from the highest close. Position size shrinks when volatility runs above the 30% annualized target. Signal blending + persistence + vol targeting + trailed exits — the way an actual CTA book is run. Validated on 8 coins: ~20–33% CAGR net of fees with ~30–40% drawdowns on most.',
+  tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
+  meanrev: '<b>Dip Buyer (mean reversion)</b> — only inside an uptrend (price above its 200-day average), buys panic closes 2.5σ below the 20-day mean and sells the bounce back to the mean (3×ATR stop, 10-day timeout). High win rate, small steady gains — stat-arb style.',
+  donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
+};
+const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
+// the ADVISOR: current stance + every context signal, from the last closed candle
+function advisor(result){
+  const ad=result.advice, el=$('advisor');
+  if(!ad){ el.textContent='—'; return; }
+  const fmtP=(x)=> x>=100? Math.round(x).toLocaleString() : x.toFixed(2);
+  const stance = ad.stance==='IN'
+    ? '<b style="color:#7ee787">INVESTED</b> — trend intact, stay with the position'
+    : '<b style="color:#f85149">IN CASH</b> — no entry signal, capital protected';
+  const sig = ad.signals.map(s=>`<div>${s.ok?'<span style="color:#7ee787">✔</span>':'<span style="color:#f85149">✘</span>'} ${s.name}</div>`).join('');
+  const vol = `<div style="color:var(--muted)">Volatility ${(ad.volAnn*100).toFixed(0)}%/yr → suggested size ${(ad.alloc*100).toFixed(0)}% · panic z ${ad.z}</div>`;
+  const liq = (ad.liqUp||ad.liqDn)
+    ? `<div style="color:var(--muted)">Liq magnets ${ad.liqUp>=ad.liqDn?'<span style="color:#7ee787">pull UP</span>':'<span style="color:#f85149">pull DOWN</span>'}${ad.nearUp?` · above @ ${fmtP(ad.nearUp)}`:''}${ad.nearDn?` · below @ ${fmtP(ad.nearDn)}`:''}</div>` : '';
+  el.innerHTML = `<div style="margin-bottom:4px">${stance}</div>${sig}${vol}${liq}`;
+}
+$('run').addEventListener('click', run);
+$('recalc').addEventListener('click', recalc);
+$('strategy').addEventListener('change', ()=>{ stratInfo(); recalc(); });
+$('liq').addEventListener('change', recalc);
+$('sym').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+$('tf').addEventListener('change', run);
+$('bars').addEventListener('change', run);
+$('scaleMode').addEventListener('click', ()=>{
+  logScale=!logScale; $('scaleMode').textContent=logScale?'Log':'Lin';
+  if(chart) chart.priceScale('right').applyOptions({ mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal, autoScale:true });
+});
+$('cap').addEventListener('input', backtest);
+$('risk').addEventListener('input', backtest);
+stratInfo();
+// load the engine fresh every time (no cache) then run
+const _ds = document.createElement('script');
+_ds.src = 'detector.js?t=' + Date.now();
+_ds.onload = run;
+_ds.onerror = () => { $('status').textContent = 'failed to load detector.js'; };
+document.head.appendChild(_ds);
+</script>
+</body>
+</html>
