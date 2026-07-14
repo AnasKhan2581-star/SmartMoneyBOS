@@ -162,9 +162,9 @@
       <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
       <th data-k="m6" data-label="6M">6M</th><th data-k="y1" data-label="1Y">1Y</th>
       <th data-k="cagr" data-label="CAGR">CAGR</th><th data-k="dd" data-label="Max DD">Max DD</th>
-      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th><th>✓</th>
+      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th><th data-k="yrs" data-label="Yrs" title="history covered — 4h reaches back ~4.6y max, so cross-TF numbers grade different periods">Yrs</th><th>✓</th>
     </tr></thead>
-    <tbody id="cmpBody"><tr><td colspan="9" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
+    <tbody id="cmpBody"><tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
 </section>
 
@@ -408,7 +408,7 @@ function advisor(result){
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
 const CMP_SYMS=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
 const CMP_STRATS=[['composite','Composite'],['tsmom','Trend Follow'],['meanrev','Dip Buyer'],['donch','Turtle']];
-const CMP_BARS={ '4h':8000, '1d':4500, '1w':600 };
+const CMP_BARS={ '4h':10000, '1d':4500, '1w':600 };   // 4h maxed: ~4.6y is all Binance serves
 const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
 let cmpSort={k:'cagr',d:-1}, cmpBusy=false;
 // per-bar strategy return path → 6M/1Y windows (day-aware per TF), CAGR, DD, Sharpe
@@ -428,14 +428,14 @@ function pathStats(trades,c){
   const win=(days)=>{ const k=Math.max(0,eq.length-1-Math.round(days*bpd)); return last/eq[k]-1; };
   const yrs=(c[c.length-1].time-c[0].time)/31557600;
   return { m6:win(183), y1:win(365), cagr:Math.pow(Math.max(last,0.01),1/Math.max(yrs,0.2))-1,
-    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann };
+    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann, yrs };
 }
 async function runCompare(force){
   const tf=$('cmpTf').value;
   if(cmpBusy) return;
   if(!force && cmpRowsTf[tf]){ renderCmp(); return; }
   cmpBusy=true;
-  $('cmpBody').innerHTML='<tr><td colspan="9" style="color:#8b949e;padding:14px">Loading…</td></tr>';
+  $('cmpBody').innerHTML='<tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr>';
   const rows=[];
   for(const sym of CMP_SYMS){
     $('cmpStatus').textContent='fetching '+sym+' '+tf+'…';
@@ -467,8 +467,8 @@ function renderCmp(){
   const vp=(v)=> v<0.45?'<span class="volpill" style="background:#1d3b2a;color:#7ee787">LOW VOL</span>':v<0.8?'<span class="volpill" style="background:#3b331d;color:#e3c34c">MED VOL</span>':'<span class="volpill" style="background:#3b1d1d;color:#f85149">HIGH VOL</span>';
   $('cmpBody').innerHTML=view.map(r=>{
     const ok=r.e.cagr>=0.12&&r.e.wr>=0.30&&r.e.dd<=0.60;
-    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(r.e.vol)}</td><td>${pc(r.e.m6)}</td><td>${pc(r.e.y1)}</td><td><b>${pc(r.e.cagr)}</b></td><td><span class="down">-${(r.e.dd*100).toFixed(0)}%</span></td><td>${(r.e.wr*100).toFixed(0)}%</td><td>${r.e.sharpe.toFixed(2)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
-  }).join('') || '<tr><td colspan="9" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(r.e.vol)}</td><td>${pc(r.e.m6)}</td><td>${pc(r.e.y1)}</td><td><b>${pc(r.e.cagr)}</b></td><td><span class="down">-${(r.e.dd*100).toFixed(0)}%</span></td><td>${(r.e.wr*100).toFixed(0)}%</td><td>${r.e.sharpe.toFixed(2)}</td><td style="color:#8b949e">${r.e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
+  }).join('') || '<tr><td colspan="10" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     stratInfo(); showView('chart'); run();
