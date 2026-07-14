@@ -37,6 +37,10 @@
   #cmpWrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
   #cmpTable{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
   #cmpTable th{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);text-align:right;padding:10px 12px;background:var(--panel);position:sticky;top:0}
+  #cmpTable th[data-k]{cursor:pointer;user-select:none}
+  #cmpTable th[data-k]:hover{color:var(--txt)}
+  #cmpCtl{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  body.cmp .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
   #cmpTable tbody tr{cursor:pointer}
@@ -86,7 +90,7 @@
     <button class="tab on" data-v="chart">Chart</button>
     <button class="tab" data-v="compare">Compare</button>
   </nav>
-  <label>Strategy
+  <label class="cc">Strategy
     <select id="strategy">
       <option value="composite" selected>Composite · vol-targeted ensemble</option>
       <option value="tsmom">Trend Follow · CTA momentum</option>
@@ -94,20 +98,20 @@
       <option value="donch">Turtle · channel breakout</option>
     </select>
   </label>
-  <label>Symbol<input id="sym" class="sym" value="BTCUSDT" list="symList" /></label>
+  <label class="cc">Symbol<input id="sym" class="sym" value="BTCUSDT" list="symList" /></label>
   <datalist id="symList"><option>BTCUSDT</option><option>ZECUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>XMRUSDT</option><option>SUIUSDT</option><option>LINKUSDT</option></datalist>
-  <label>TF
+  <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
   </label>
-  <label>Bars<input id="bars" class="num" type="number" value="4500" min="200" max="10000" step="500" /></label>
-  <label>ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
-  <label>Liq
+  <label class="cc">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="10000" step="500" /></label>
+  <label class="cc">ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
+  <label class="cc">Liq
     <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
   </label>
-  <button id="run">Run ▶</button>
-  <button id="recalc" class="ghost">Recalc</button>
-  <button id="scaleMode" class="ghost" title="toggle log / linear price scale">Log</button>
-  <span id="status">idle</span>
+  <button id="run" class="cc">Run ▶</button>
+  <button id="recalc" class="ghost cc">Recalc</button>
+  <button id="scaleMode" class="ghost cc" title="toggle log / linear price scale">Log</button>
+  <span id="status" class="cc">idle</span>
 </header>
 <div id="stratInfo"></div>
 <main>
@@ -137,9 +141,29 @@
 </main>
 <section id="compareView">
   <h2>Compare All Strategies</h2>
-  <div class="sub">Every strategy on the 7-coin universe · daily bars, full history, all-in, 0.1% fees/side · click a row to open it on the chart. <span id="cmpStatus"></span></div>
+  <div class="sub">The 7-coin universe · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart. <span id="cmpStatus"></span></div>
+  <div id="cmpCtl">
+    <label>Strategy
+      <select id="cmpStrat">
+        <option value="all" selected>All strategies</option>
+        <option value="composite">Composite</option>
+        <option value="tsmom">Trend Follow</option>
+        <option value="meanrev">Dip Buyer</option>
+        <option value="donch">Turtle</option>
+      </select>
+    </label>
+    <label>Timeframe
+      <select id="cmpTf"><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+    </label>
+    <button id="cmpGo" class="ghost">↻ Refresh data</button>
+  </div>
   <div id="cmpWrap"><table id="cmpTable">
-    <thead><tr><th>Coin / Strategy</th><th>Vol</th><th>6M</th><th>1Y</th><th>CAGR</th><th>Max DD</th><th>Win rate</th><th>Sharpe</th><th>✓</th></tr></thead>
+    <thead><tr>
+      <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
+      <th data-k="m6" data-label="6M">6M</th><th data-k="y1" data-label="1Y">1Y</th>
+      <th data-k="cagr" data-label="CAGR">CAGR</th><th data-k="dd" data-label="Max DD">Max DD</th>
+      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th><th>✓</th>
+    </tr></thead>
     <tbody id="cmpBody"><tr><td colspan="9" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
 </section>
@@ -381,12 +405,15 @@ function advisor(result){
     ? `<div style="color:var(--muted)">Liq magnets ${ad.liqUp>=ad.liqDn?'<span style="color:#7ee787">pull UP</span>':'<span style="color:#f85149">pull DOWN</span>'}${ad.nearUp?` · above @ ${fmtP(ad.nearUp)}`:''}${ad.nearDn?` · below @ ${fmtP(ad.nearDn)}`:''}</div>` : '';
   el.innerHTML = `<div style="margin-bottom:4px">${stance}</div>${sig}${vol}${liq}`;
 }
-// ---- Compare page: every strategy × the 7-coin universe -------------------
+// ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
 const CMP_SYMS=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
 const CMP_STRATS=[['composite','Composite'],['tsmom','Trend Follow'],['meanrev','Dip Buyer'],['donch','Turtle']];
-const cmpCache={}; let cmpDone=false;
-// per-bar strategy return path → 6M/1Y windows, CAGR, DD, Sharpe
+const CMP_BARS={ '4h':8000, '1d':4500, '1w':600 };
+const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
+let cmpSort={k:'cagr',d:-1}, cmpBusy=false;
+// per-bar strategy return path → 6M/1Y windows (day-aware per TF), CAGR, DD, Sharpe
 function pathStats(trades,c){
+  const dt=c.length>1?Math.max(60,c[1].time-c[0].time):86400, bpd=86400/dt, ann=Math.sqrt(365*bpd);
   const r=new Array(c.length).fill(0);
   let w=0,l=0;
   for(const t of trades){ if(t.exitPrice==null) continue;
@@ -398,44 +425,69 @@ function pathStats(trades,c){
   for(let j=1;j<c.length;j++){ eq[j]=eq[j-1]*(1+r[j]); if(eq[j]>pk)pk=eq[j]; const x=(pk-eq[j])/pk; if(x>dd)dd=x; m+=r[j]; s2+=r[j]*r[j]; nn++; }
   m/=nn; const sd=Math.sqrt(Math.max(s2/nn-m*m,1e-12));
   const last=eq[eq.length-1];
-  const win=(days)=>{ const k=Math.max(0,eq.length-1-days); return last/eq[k]-1; };
+  const win=(days)=>{ const k=Math.max(0,eq.length-1-Math.round(days*bpd)); return last/eq[k]-1; };
   const yrs=(c[c.length-1].time-c[0].time)/31557600;
   return { m6:win(183), y1:win(365), cagr:Math.pow(Math.max(last,0.01),1/Math.max(yrs,0.2))-1,
-    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*Math.sqrt(365):0, vol:sd*Math.sqrt(365) };
+    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann };
 }
-async function runCompare(){
-  if(cmpDone) return;
+async function runCompare(force){
+  const tf=$('cmpTf').value;
+  if(cmpBusy) return;
+  if(!force && cmpRowsTf[tf]){ renderCmp(); return; }
+  cmpBusy=true;
+  $('cmpBody').innerHTML='<tr><td colspan="9" style="color:#8b949e;padding:14px">Loading…</td></tr>';
   const rows=[];
   for(const sym of CMP_SYMS){
-    $('cmpStatus').textContent='fetching '+sym+'…';
-    try{ if(!cmpCache[sym]) cmpCache[sym]=await fetchKlines(sym,'1d',4500); }catch(e){ continue; }
-    const c=cmpCache[sym];
-    for(const [st,label] of CMP_STRATS){
-      const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
-      const e=pathStats(res.trades,c);
-      rows.push({sym,st,label,e});
-    }
+    $('cmpStatus').textContent='fetching '+sym+' '+tf+'…';
+    try{
+      const key=sym+'|'+tf;
+      if(!cmpCache[key]||force) cmpCache[key]=await fetchKlines(sym,tf,CMP_BARS[tf]||4500);
+      const c=cmpCache[key];
+      if(!c||c.length<250) continue;
+      for(const [st,label] of CMP_STRATS){
+        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
+        rows.push({sym,st,label,e:pathStats(res.trades,c)});
+      }
+    }catch(e){}
   }
-  rows.sort((a,b)=>b.e.cagr-a.e.cagr);
-  const pc=(x,dec=1)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(dec)}%</span>`;
+  cmpRowsTf[tf]=rows; cmpBusy=false;
+  $('cmpStatus').textContent='';
+  renderCmp();
+}
+function renderCmp(){
+  const tf=$('cmpTf').value, all=cmpRowsTf[tf]||[];
+  const f=$('cmpStrat').value;
+  const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
+  const {k,d}=cmpSort;
+  view.sort((a,b)=> k==='coin' ? d*a.sym.localeCompare(b.sym) : d*((a.e[k]||0)-(b.e[k]||0)));
+  document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>{
+    th.textContent=th.dataset.label+(th.dataset.k===k?(d<0?' ↓':' ↑'):'');
+  });
+  const pc=(x)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</span>`;
   const vp=(v)=> v<0.45?'<span class="volpill" style="background:#1d3b2a;color:#7ee787">LOW VOL</span>':v<0.8?'<span class="volpill" style="background:#3b331d;color:#e3c34c">MED VOL</span>':'<span class="volpill" style="background:#3b1d1d;color:#f85149">HIGH VOL</span>';
-  $('cmpBody').innerHTML=rows.map(r=>{
+  $('cmpBody').innerHTML=view.map(r=>{
     const ok=r.e.cagr>=0.12&&r.e.wr>=0.30&&r.e.dd<=0.60;
     return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(r.e.vol)}</td><td>${pc(r.e.m6)}</td><td>${pc(r.e.y1)}</td><td><b>${pc(r.e.cagr)}</b></td><td><span class="down">-${(r.e.dd*100).toFixed(0)}%</span></td><td>${(r.e.wr*100).toFixed(0)}%</td><td>${r.e.sharpe.toFixed(2)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
-  }).join('');
-  $('cmpStatus').textContent='';
-  cmpDone=true;
-  $('cmpBody').querySelectorAll('tr').forEach(tr=>tr.addEventListener('click',()=>{
-    $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value='1d';
+  }).join('') || '<tr><td colspan="9" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+  $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
+    $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     stratInfo(); showView('chart'); run();
   }));
 }
+document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
+  cmpSort = cmpSort.k===th.dataset.k ? {k:cmpSort.k,d:-cmpSort.d} : {k:th.dataset.k,d:-1};
+  renderCmp();
+}));
+$('cmpStrat').addEventListener('change',renderCmp);
+$('cmpTf').addEventListener('change',()=>runCompare(false));
+$('cmpGo').addEventListener('click',()=>runCompare(true));
 function showView(v){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  document.body.classList.toggle('cmp', v==='compare');
   document.querySelector('main').style.display = v==='chart'?'flex':'none';
   $('stratInfo').style.display = v==='chart'?'block':'none';
   $('compareView').style.display = v==='compare'?'block':'none';
-  if(v==='compare') runCompare();
+  if(v==='compare') runCompare(false);
   if(v==='chart' && chart){ sizeOverlay(); drawOverlay(); }
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.v)));
