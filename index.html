@@ -93,6 +93,7 @@
   <label class="cc">Strategy
     <select id="strategy">
       <option value="composite" selected>Composite · vol-targeted ensemble</option>
+      <option value="cycle">BTC Cycle · halving playbook</option>
       <option value="tsmom">Trend Follow · CTA momentum</option>
       <option value="meanrev">Dip Buyer · mean reversion</option>
       <option value="donch">Turtle · channel breakout</option>
@@ -336,6 +337,33 @@ function drawOverlay(){
   const X=(i)=> (i>=0&&i<candles.length)? ts.timeToCoordinate(candles[i].time) : null;
   const Y=(p)=> candleSeries.priceToCoordinate(p);
 
+  // BTC Cycle zones: green = generational buy band (200w MA → ×1.1), red = Mayer euphoria
+  // sell band (1.85–2.4 × 200d MA), blue dashed = the 40-week bull/bear line. The right-edge
+  // values are TODAY'S actionable zones — they drift with the MAs over time.
+  if(r.cycleLines){
+    const cl=r.cycleLines, n=candles.length;
+    const stride=Math.max(1,Math.floor(n/900));
+    const band=(loArr,hiF,loF,fill,edge)=>{
+      ctx.save(); ctx.beginPath(); let started=false; const pts=[];
+      for(let i=0;i<n;i+=stride){ const v=loArr[i]; if(!v||isNaN(v)) continue; const x=X(i),yT=Y(v*hiF); if(x==null||yT==null) continue; if(!started){ctx.moveTo(x,yT);started=true;} else ctx.lineTo(x,yT); pts.push([x,Y(v*loF)]); }
+      for(let k=pts.length-1;k>=0;k--) if(pts[k][1]!=null) ctx.lineTo(pts[k][0],pts[k][1]);
+      ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
+      ctx.strokeStyle=edge; ctx.globalAlpha=.6; ctx.lineWidth=1; ctx.stroke(); ctx.restore();
+    };
+    band(cl.zLo,1.1,1.0,'rgba(126,231,135,.08)','#7ee787');           // buy zone
+    band(cl.ma200,2.4,1.85,'rgba(248,81,73,.07)','#f85149');          // euphoria sell zone
+    ctx.save(); ctx.strokeStyle='#58a6ff'; ctx.setLineDash([6,4]); ctx.lineWidth=1.2; ctx.beginPath(); let st=false;
+    for(let i=0;i<n;i+=stride){ const v=cl.trend[i]; if(!v||isNaN(v)) continue; const x=X(i),y=Y(v); if(x==null||y==null){st=false;continue;} if(!st){ctx.moveTo(x,y);st=true;} else ctx.lineTo(x,y); }
+    ctx.stroke(); ctx.restore();
+    // right-edge labels: today's zones
+    const last=(arr)=>{ for(let i=n-1;i>=0;i--) if(arr[i]&&!isNaN(arr[i])) return arr[i]; return null; };
+    const zv=last(cl.zLo), mv=last(cl.ma200);
+    ctx.save(); ctx.font='10px system-ui';
+    if(zv){ const y=Y(zv*1.05); if(y!=null){ ctx.fillStyle='#7ee787'; ctx.fillText('BUY ZONE '+Math.round(zv).toLocaleString()+'–'+Math.round(zv*1.1).toLocaleString(),rightX-150,y); } }
+    if(mv){ const y=Y(mv*2.1); if(y!=null){ ctx.fillStyle='#f85149'; ctx.fillText('SELL ZONE '+Math.round(mv*1.85).toLocaleString()+'–'+Math.round(mv*2.4).toLocaleString(),rightX-150,y); } }
+    ctx.restore();
+  }
+
   // Coinglass-style liquidation heat (context layer): unswept estimated bands, opacity ∝ size
   if(r.params && r.params.useLiq && r.pools){
     const un=r.pools.filter(q=>q.liq && q.sweptIdx===-1);
@@ -385,6 +413,7 @@ function recalc(){
 }
 // what the selected system does, in one breath
 const STRAT_INFO = {
+  cycle: '<b>BTC Cycle (halving playbook)</b> — built from the signals that repeated at every cycle turn since 2015 (2013 confirmed visually): BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} plus a sweep-reclaim or 20-day breakout; SELL on the Pi-Cycle cross (called the 2017 and Apr-2021 tops to the day) or a persistent 40-week MA break. Green band = the generational buy zone, red band = the 1.85–2.4× Mayer euphoria zone. Backtest 2018→2026: +3535% vs +767% buy&hold, max DD 59%, 7 positions. BTC-specific.',
   composite: '<b>Composite (vol-targeted ensemble)</b> — blends three trend signals (200-day average, 90-day momentum, 55-day channel mid): invests after ≥2 agree for 3 straight days (whipsaw filter), exits when all fail or on a 2.5×ATR chandelier trail from the highest close. Position size shrinks when volatility runs above the 30% annualized target. Signal blending + persistence + vol targeting + trailed exits — the way an actual CTA book is run. Validated on 8 coins: ~20–33% CAGR net of fees with ~30–40% drawdowns on most.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
   meanrev: '<b>Dip Buyer (mean reversion)</b> — only inside an uptrend (price above its 200-day average), buys panic closes 2.5σ below the 20-day mean and sells the bounce back to the mean (3×ATR stop, 10-day timeout). High win rate, small steady gains — stat-arb style.',
@@ -403,11 +432,21 @@ function advisor(result){
   const vol = `<div style="color:var(--muted)">Volatility ${(ad.volAnn*100).toFixed(0)}%/yr → suggested size ${(ad.alloc*100).toFixed(0)}% · panic z ${ad.z}</div>`;
   const liq = (ad.liqUp||ad.liqDn)
     ? `<div style="color:var(--muted)">Liq magnets ${ad.liqUp>=ad.liqDn?'<span style="color:#7ee787">pull UP</span>':'<span style="color:#f85149">pull DOWN</span>'}${ad.nearUp?` · above @ ${fmtP(ad.nearUp)}`:''}${ad.nearDn?` · below @ ${fmtP(ad.nearDn)}`:''}</div>` : '';
-  el.innerHTML = `<div style="margin-bottom:4px">${stance}</div>${sig}${vol}${liq}`;
+  let cyc='';
+  if(ad.cycle){
+    const cy=ad.cycle;
+    const zoneCol = cy.zone>=2?'#7ee787':'var(--muted)';
+    cyc = `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:4px">`
+      + `<div>Mayer <b>${cy.mayer}</b> <span style="color:var(--muted)">(buy&lt;0.8 · euphoria&gt;2.4)</span></div>`
+      + `<div>200-week MA <b class="${cy.d200w>=0?'up':'down'}">${cy.d200w>=0?'+':''}${cy.d200w}%</b> away · weekly RSI <b>${cy.wRSI}</b></div>`
+      + `<div style="color:${zoneCol}">Buy-zone score <b>${cy.zone}/3</b>${cy.zone>=2?' — IN THE GENERATIONAL BUY ZONE':''}</div>`
+      + `<div style="color:var(--muted)">Pi-Cycle ratio ${cy.piRatio} (top risk at 1.00)${cy.mode?` · holding: ${cy.mode}`:''}</div></div>`;
+  }
+  el.innerHTML = `<div style="margin-bottom:4px">${stance}</div>${sig}${vol}${liq}${cyc}`;
 }
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
 const CMP_SYMS=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
-const CMP_STRATS=[['composite','Composite'],['tsmom','Trend Follow'],['meanrev','Dip Buyer'],['donch','Turtle']];
+const CMP_STRATS=[['composite','Composite'],['cycle','BTC Cycle'],['tsmom','Trend Follow'],['meanrev','Dip Buyer'],['donch','Turtle']];
 const CMP_BARS={ '4h':10000, '1d':4500, '1w':600 };   // 4h maxed: ~4.6y is all Binance serves
 const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
 let cmpSort={k:'cagr',d:-1}, cmpBusy=false;

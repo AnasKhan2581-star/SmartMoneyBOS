@@ -14,6 +14,26 @@ terms. Result: `composite` is profitable on 6/7 coins on 4h and 1d and 5/6 on 1w
 dead XMR listing is mixed) — same economic strategy on every TF. The Compare page runs all
 4 strategies × 7 coins (daily, all-in, 0.1% fees/side) with 6M/1Y/CAGR/DD/WR/Sharpe.
 
+## `cycle` — the BTC halving playbook (July 2026)
+
+BTC-specific full-cycle machine built from the signals that repeated at every cycle turn
+in-data (2015→2026; 2013 supported by documented history only — no keyless source reaches it):
+
+- **Bottom signals (all four fired at every cycle low, incl. Feb–Jun 2026):** price at the
+  200-week MA (×1.1), Mayer multiple < 0.8, weekly RSI < 35, and SMC sweep-reclaim of a major
+  low (fired 3 days before the exact FTX bottom).
+- **Top signals diminish each cycle:** Pi-Cycle (111d MA × 2 > 350d MA) sold 2017-12-17 and
+  2021-04-12 to the day but did NOT fire at the Oct 2025 top; Mayer > 2.4 and weekly RSI > 84
+  fire too early mid-bull. So the sell side is Pi-Cycle when it fires, else a persistent
+  (5-day, `cyclePersist`) 40-week MA break.
+- **Machine:** CASH → ACCUM (zone score ≥2 + sweep-reclaim/20d-breakout; holds without the
+  trend stop) → TREND (price > 40w MA) → exit on Pi or trend break; post-Pi cooldown until
+  price < 40w MA. Backtest 2018→2026 all-in, 0.1% fees: **+3535% vs +767% B&H, CAGR 50–57%,
+  maxDD 59%, 7 positions, 67% WR** (persist 3/5/7 all beat B&H ≥2.7× — plateau, not a spike).
+- Chart draws the live zones: green buy band (200w MA → ×1.1), red euphoria band
+  (1.85–2.4 × 200d MA), blue dashed 40w line. Zone prices at the right edge are TODAY'S
+  actionable levels and drift with the MAs.
+
 ## The flagship: `composite` — vol-targeted ensemble (tuned July 2026)
 
 Blends the three trend signals (close > SMA200, 90d return > 0, close > 55d-channel mid):

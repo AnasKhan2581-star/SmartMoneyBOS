@@ -27,8 +27,9 @@
   'use strict';
 
   const DEFAULTS = {
-    strategy: 'fvg', // quant: 'composite' = vol-targeted ensemble | 'tsmom' = CTA trend | 'meanrev' = dip buyer | 'donch' = turtle breakout
+    strategy: 'fvg', // quant: 'composite' = vol-targeted ensemble | 'cycle' = BTC halving playbook | 'tsmom' | 'meanrev' | 'donch'
                      // smc: 'regime' | 'fvg' | 'momo' | 'scalp' (kept for reference/experiments)
+    cyclePersist: 5, // cycle: days beyond the 40w band before a trend entry/exit confirms
     volTarget: 0.3,  // composite: annualized volatility target — exposure = volTarget / realizedVol, capped at 1
     persist: 3,      // composite/tsmom: entry signal must hold this many consecutive days (whipsaw filter)
     compExit: 0,     // composite: exit when the ensemble score falls to this level or below
@@ -333,10 +334,54 @@
         rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4) });
       pos = null;
     };
+    // CYCLE (BTC halving playbook) precomputes — validated 2018→2026: +3535% vs B&H +767%,
+    // maxDD 59%, 7 positions. BUY ZONE = ≥2 of {price<1.1×200w MA, Mayer<0.8, weekly RSI<35}
+    // + confirmation (sweep-reclaim of a major low, or a 20d-high breakout). SELL = Pi-Cycle
+    // cross (111d MA crossing 2×350d MA — sold 2017-12-17 and 2021-04-12 to the day) or a
+    // persistent 40-week MA break. Zone entries hold WITHOUT the trend stop (accumulation).
+    let cy = null;
+    if (p.strategy === 'cycle') {
+      const ma111 = sma(S(111)), ma350 = sma(S(350)), ma280 = sma(S(280)), ma1400 = sma(S(1400));
+      const step = Math.max(1, S(7)), wRSI = new Array(n).fill(NaN);
+      let g = 0, ls = 0, k = 0, lastR = NaN;
+      for (let i = step; i < n; i += step) {
+        const ch = closes[i] - closes[i - step];
+        g = (g * 13 + Math.max(ch, 0)) / 14; ls = (ls * 13 + Math.max(-ch, 0)) / 14; k++;
+        if (k >= 14) lastR = 100 - 100 / (1 + (ls > 0 ? g / ls : 100));
+        for (let j = i; j < Math.min(i + step, n); j++) wRSI[j] = lastR;
+      }
+      const swp = new Array(n).fill(false), h20 = new Array(n).fill(Infinity);
+      const wA = S(120), wB = S(10), w20 = S(20);
+      for (let i = wA + wB; i < n; i++) {
+        let prior = Infinity;
+        for (let j = i - wA; j < i - wB; j++) if (c[j].low < prior) prior = c[j].low;
+        if (c[i].low < prior && c[i].close > prior) swp[i] = true;
+      }
+      for (let i = 1; i < n; i++) { let h = 0; for (let j = Math.max(0, i - w20); j < i; j++) if (c[j].high > h) h = c[j].high; h20[i] = h; }
+      cy = { ma111, ma350, ma280, ma1400, wRSI, swp, h20,
+        zone: (i) => ((closes[i] < 1.1 * ma1400[i]) ? 1 : 0) + ((closes[i] / maL[i] < 0.8) ? 1 : 0) + ((wRSI[i] < 35) ? 1 : 0),
+        pi: (i) => i > 0 && ma111[i] > 2 * ma350[i] && ma111[i - 1] <= 2 * ma350[i - 1] };
+    }
+    let cyUp = 0, cyDn = 0, cyCool = false, cyMode = null;
+    const cyPersist = Math.max(1, S(p.cyclePersist));
+
     const persistN = Math.max(1, S(p.persist));                   // persistence is day-denominated too
     for (let i = maLen; i < n; i++) {
       const px = closes[i];
-      if (p.strategy === 'composite') {
+      if (p.strategy === 'cycle') {
+        const above = px > cy.ma280[i] * 1.02, below = px < cy.ma280[i] * 0.97;
+        cyUp = above ? cyUp + 1 : 0; cyDn = below ? cyDn + 1 : 0;
+        if (cyCool && px < cy.ma280[i]) cyCool = false;            // top has played out → normal rules
+        if (pos) {
+          if (cy.pi(i)) { close(i, px, 'PI-TOP'); cyCool = true; cyMode = null; }
+          else if (cyMode === 'ACCUM') { if (px > cy.ma280[i]) cyMode = 'TREND'; }
+          else if (cyDn >= cyPersist) { close(i, px, 'TREND'); cyMode = null; }
+        } else if (cy.zone(i) >= 2 && (cy.swp[i] || px > cy.h20[i])) {
+          pos = { entry: px, stop: px * 0.8, entryIdx: i }; cyMode = 'ACCUM';
+        } else if (!cyCool && cyUp >= cyPersist) {
+          pos = { entry: px, stop: cy.ma280[i] * 0.97, entryIdx: i }; cyMode = 'TREND';
+        }
+      } else if (p.strategy === 'composite') {
         const score = compScore(i, px);
         sigRun = score >= 2 ? sigRun + 1 : 0;                    // persistence: whipsaw filter
         if (pos) {
@@ -390,7 +435,14 @@
       volAnn: +volA[i].toFixed(2), alloc: +volFrac(i).toFixed(2),
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,
     };
-    return { trades, advice };
+    let cycleLines = null;
+    if (cy) {
+      advice.cycle = { mayer: +(px / maL[i]).toFixed(2), d200w: +((px / cy.ma1400[i] - 1) * 100).toFixed(1),
+        wRSI: +(cy.wRSI[i] || 0).toFixed(0), zone: cy.zone(i), piRatio: +(cy.ma111[i] / (2 * cy.ma350[i])).toFixed(2),
+        mode: cyMode, cooldown: cyCool };
+      cycleLines = { zLo: cy.ma1400, trend: cy.ma280, ma200: maL };   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
+    }
+    return { trades, advice, cycleLines };
   }
 
   // ---- arm a resting order after a confirmed break --------------------------
@@ -681,7 +733,7 @@
     const ws = walkStructure(c, extPiv, fvgs, p, a, htfBias, false, pools);
 
     // quant strategies replace the SMC trade stream; structure/pools remain as chart context
-    const quant = p.strategy === 'composite' || p.strategy === 'tsmom' || p.strategy === 'meanrev' || p.strategy === 'donch';
+    const quant = ['composite', 'cycle', 'tsmom', 'meanrev', 'donch'].indexOf(p.strategy) >= 0;
     const rq = quant ? runQuant(c, p, a, pools) : null;
     const trades = quant ? rq.trades : ws.trades;
     const longs = trades.filter((t) => t.dir === 'long'), shorts = trades.filter((t) => t.dir === 'short');
@@ -705,7 +757,7 @@
     return { params: p, atr: a, intPivots: intPiv, extPivots: extPiv, fvgs, unmitigated, htfBias, pools,
       legs: ws.legs, events: ws.events, trades, trend: ws.trend, strong: ws.strong,
       ssIdx: ws.ssIdx, ssPrice: ws.ssPrice, majorLowIdx: ws.majorLowIdx, summary,
-      advice: quant ? rq.advice : null };
+      advice: quant ? rq.advice : null, cycleLines: quant ? rq.cycleLines : null };
   }
 
   const api = { detectAll, detectPivots, labelStructure, detectFVG, detectUnmitigated, detectLiquidity, detectLiqClusters, armOrder, pickTarget, simTrade, runQuant, walkStructure, aggregateHTF, computeHtfBias, atr, DEFAULTS };
