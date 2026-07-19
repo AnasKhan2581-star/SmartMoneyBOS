@@ -10,9 +10,9 @@ Long-only daily **crypto investment advisor webapp**. Fully static — no build 
 - `ALGORITHM.md` — **single source of truth** for strategy rules, tuned defaults, and benchmark results (including rejected ideas — read before re-testing anything).
 
 ## Strategies (dropdown → `strategy` param)
-- `composite` (default) — vol-targeted trend ensemble; tuned July 2026: `persist:3`, `compExit:0`, `chandMult:2.5`, `volTarget:0.3`. Validated on 8 coins net of 0.1%/side fees; 6/8 pass (CAGR≥15%, dd≤60%, WR≥30%).
-- `tsmom`, `meanrev`, `donch` — pure CTA trend / mean reversion / turtle breakout.
-- Hidden legacy params: `fvg`, `scalp`, `momo`, `regime` (SMC playbook — benched weaker, kept for experiments).
+- `cycle` (default) — BTC halving playbook: two-tranche accumulation at the 200-week MA (zone A + deep zone B, harmonic avg entry, stop 0.65×200w), Pi-Cycle / 40-week exits. See ALGORITHM.md for the validated cycle signals.
+- `tsmom`, `donch` — pure CTA trend / turtle breakout.
+- Removed July 2026 (user decision): `composite`, `meanrev` (git history has them). Hidden legacy params: `fvg`, `scalp`, `momo`, `regime`.
 
 ## Conventions
 - Run locally: `python -m http.server 8910` (or preview config `bos-backtester` in `.claude/launch.json`).

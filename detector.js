@@ -27,18 +27,13 @@
   'use strict';
 
   const DEFAULTS = {
-    strategy: 'fvg', // quant: 'composite' = vol-targeted ensemble | 'cycle' = BTC halving playbook | 'tsmom' | 'meanrev' | 'donch'
+    strategy: 'cycle', // quant: 'cycle' = BTC halving playbook | 'tsmom' = CTA trend | 'donch' = turtle breakout
                      // smc: 'regime' | 'fvg' | 'momo' | 'scalp' (kept for reference/experiments)
     cyclePersist: 5, // cycle: days beyond the 40w band before a trend entry/exit confirms
-    volTarget: 0.3,  // composite: annualized volatility target — exposure = volTarget / realizedVol, capped at 1
-    persist: 3,      // composite/tsmom: entry signal must hold this many consecutive days (whipsaw filter)
-    compExit: 0,     // composite: exit when the ensemble score falls to this level or below
-    chandMult: 2.5,  // composite: chandelier trailing stop, ×ATR below the highest close since entry
+    volTarget: 0.3,  // advisor sizing suggestion: annualized vol target / realized vol, capped at 1
+    persist: 3,      // tsmom: entry signal must hold this many consecutive days (whipsaw filter)
     tsmomMa: 200,    // tsmom: long-term trend filter, close > SMA(n)
     tsmomLook: 90,   // tsmom: momentum lookback — n-day return must also be positive
-    mrZ: -2.5,       // meanrev: entry z-score of close vs SMA20 (buy real panic — benched best at −2.5)
-    mrHold: 10,      // meanrev: max holding days before giving up on the bounce
-    mrStop: 3.0,     // meanrev: stop, ×ATR below entry
     donchIn: 55,     // donch: entry = close above the n-day high (Turtle S2)
     donchOut: 20,    // donch: exit = close below the n-day low
     qStop: 2.0,      // tsmom/donch: initial stop ×ATR below entry (risk unit for R accounting)
@@ -272,7 +267,7 @@
     const S = (days) => Math.max(2, Math.round(days * bpd));
     const sf = Math.max(0.8, Math.sqrt(bpd));   // floor: above-daily TFs keep a workable stop distance
     const maLen = S(p.tsmomMa), lookLen = S(p.tsmomLook), inLen = S(p.donchIn), outLen = S(p.donchOut),
-      w20 = S(20), volWin = S(30), holdLen = S(p.mrHold);
+      w20 = S(20), volWin = S(30);
     if (n < maLen + 2) return { trades, advice: null };
     const closes = c.map((x) => x.close);
     const sma = (len) => {
@@ -372,39 +367,31 @@
         const above = px > cy.ma280[i] * 1.02, below = px < cy.ma280[i] * 0.97;
         cyUp = above ? cyUp + 1 : 0; cyDn = below ? cyDn + 1 : 0;
         if (cyCool && px < cy.ma280[i]) cyCool = false;            // top has played out → normal rules
+        // ZONE A = 200w MA → ×1.1 (classic). ZONE B = 0.72–1.0 ×200w MA: every real bottom
+        // PIERCES the 200w (2020 −30%, 2022 −31%, 2026 −8%), so accumulation is TWO tranches —
+        // half in zone A, half on the zone-B recovery, entry = the tranche average (harmonic:
+        // equal dollars), stop below zone B at 0.65×200w (under the deepest pierce on record).
+        const zoneB = px < 0.97 * cy.ma1400[i];
         if (pos) {
           if (cy.pi(i)) { close(i, px, 'PI-TOP'); cyCool = true; cyMode = null; }
-          else if (cyMode === 'ACCUM') { if (px > cy.ma280[i]) cyMode = 'TREND'; }
+          else if (cyMode === 'ACCUM') {
+            if (pos.frac < 1 && zoneB && (cy.swp[i] || px > closes[i - 1])) {   // tranche 2: average down on a deep-zone recovery day
+              pos.entry = 2 / (1 / pos.entry + 1 / px); pos.frac = 1; pos.stop = 0.65 * cy.ma1400[i];
+            }
+            if (c[i].low <= pos.stop) { close(i, pos.stop, 'STOP'); cyMode = null; }
+            else if (px > cy.ma280[i]) cyMode = 'TREND';
+          }
           else if (cyDn >= cyPersist) { close(i, px, 'TREND'); cyMode = null; }
         } else if (cy.zone(i) >= 2 && (cy.swp[i] || px > cy.h20[i])) {
-          pos = { entry: px, stop: px * 0.8, entryIdx: i }; cyMode = 'ACCUM';
+          pos = { entry: px, stop: 0.65 * cy.ma1400[i], entryIdx: i, frac: zoneB ? 1 : 0.5 }; cyMode = 'ACCUM';
         } else if (!cyCool && cyUp >= cyPersist) {
           pos = { entry: px, stop: cy.ma280[i] * 0.97, entryIdx: i }; cyMode = 'TREND';
-        }
-      } else if (p.strategy === 'composite') {
-        const score = compScore(i, px);
-        sigRun = score >= 2 ? sigRun + 1 : 0;                    // persistence: whipsaw filter
-        if (pos) {
-          if (px > pos.hi) pos.hi = px;
-          const trail = Math.max(pos.stop, pos.hi - p.chandMult * sf * a[i]);  // chandelier: trail the highest close
-          if (px <= trail) close(i, px, 'TRAIL');
-          else if (score <= p.compExit) close(i, px, 'ENSEMBLE');
-        } else if (sigRun >= persistN && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.qStop * sf * a[i], hi: px, entryIdx: i, frac: volFrac(i) };
         }
       } else if (p.strategy === 'tsmom') {
         const on = px > maL[i] && i >= lookLen && px > closes[i - lookLen];
         sigRun = on ? sigRun + 1 : 0;
         if (!pos && sigRun >= persistN && magnetOK(i, px)) pos = { entry: px, stop: px - p.qStop * sf * a[i], entryIdx: i };
         else if (pos && !on) close(i, px, 'TREND');
-      } else if (p.strategy === 'meanrev') {
-        if (pos) {
-          if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
-          else if (px >= ma20[i]) close(i, px, 'MEAN');
-          else if (i - pos.entryIdx >= holdLen) close(i, px, 'TIME');
-        } else if (px > maL[i] && std20[i] > 0 && (px - ma20[i]) / std20[i] <= p.mrZ && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.mrStop * sf * a[i], entryIdx: i };
-        }
       } else {                                                     // donch
         if (pos) {
           if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
@@ -733,7 +720,7 @@
     const ws = walkStructure(c, extPiv, fvgs, p, a, htfBias, false, pools);
 
     // quant strategies replace the SMC trade stream; structure/pools remain as chart context
-    const quant = ['composite', 'cycle', 'tsmom', 'meanrev', 'donch'].indexOf(p.strategy) >= 0;
+    const quant = ['cycle', 'tsmom', 'donch'].indexOf(p.strategy) >= 0;
     const rq = quant ? runQuant(c, p, a, pools) : null;
     const trades = quant ? rq.trades : ws.trades;
     const longs = trades.filter((t) => t.dir === 'long'), shorts = trades.filter((t) => t.dir === 'short');

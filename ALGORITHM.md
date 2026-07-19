@@ -26,13 +26,21 @@ in-data (2015→2026; 2013 supported by documented history only — no keyless s
   2021-04-12 to the day but did NOT fire at the Oct 2025 top; Mayer > 2.4 and weekly RSI > 84
   fire too early mid-bull. So the sell side is Pi-Cycle when it fires, else a persistent
   (5-day, `cyclePersist`) 40-week MA break.
-- **Machine:** CASH → ACCUM (zone score ≥2 + sweep-reclaim/20d-breakout; holds without the
-  trend stop) → TREND (price > 40w MA) → exit on Pi or trend break; post-Pi cooldown until
-  price < 40w MA. Backtest 2018→2026 all-in, 0.1% fees: **+3535% vs +767% B&H, CAGR 50–57%,
-  maxDD 59%, 7 positions, 67% WR** (persist 3/5/7 all beat B&H ≥2.7× — plateau, not a spike).
-- Chart draws the live zones: green buy band (200w MA → ×1.1), red euphoria band
+- **Two-tranche accumulation (July 2026):** every real bottom PIERCES the 200w MA (2020 −30%,
+  2022 −31%, 2026 −8%), so ACCUM buys **half in zone A** (200w→×1.1) and **half on a zone-B
+  recovery day** (zone B = 0.72–1.0×200w; trigger = close <0.97×200w then sweep-reclaim or an
+  up-close). Entry = harmonic tranche average (equal dollars), **stop 0.65×200w** — under the
+  deepest pierce on record; the 2022 hold survived the $15.5k FTX wick by 3% by design.
+- **Machine:** CASH → ACCUM (zone entries, zone-based stop) → TREND (price > 40w MA) → exit
+  on Pi or persistent 40w break; post-Pi cooldown until price < 40w MA. Full-run 2015→2026
+  all-in with fees: 10 positions, the 2015 $262→Pi-2017 $18,860 and 2022 avg-$22.2k→$92.2k
+  holds carry it; maxDD 56%.
+- Chart draws the live zones: green buy band A, faint deep band B, red euphoria band
   (1.85–2.4 × 200d MA), blue dashed 40w line. Zone prices at the right edge are TODAY'S
   actionable levels and drift with the MAs.
+
+**Removed from the app (July 2026, user decision — history in git):** `composite` and
+`meanrev`. The universe strategy set is now `cycle` / `tsmom` / `donch`.
 
 ## The flagship: `composite` — vol-targeted ensemble (tuned July 2026)
 
