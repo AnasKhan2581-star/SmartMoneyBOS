@@ -322,7 +322,7 @@
     let pos = null, sigRun = 0;
     const close = (i, exit, why) => {
       const risk0 = pos.entry - pos.stop;
-      const rMult = risk0 > 0 ? (exit - pos.entry) / risk0 : 0;
+      const rMult = (isFinite(risk0) && risk0 > 0) ? (exit - pos.entry) / risk0 : (exit / pos.entry - 1);
       trades.push({ dir: 'long', poiIdx: pos.entryIdx, fvgIdx: -1, zoneLow: pos.stop, zoneTop: pos.entry,
         sweepIdx: -1, targetPool: why, entry: pos.entry, stop: pos.stop, target: exit, exitPrice: exit,
         tp: pos.tp || null, entryIdx: pos.entryIdx, exitIdx: i, outcome: rMult >= 0 ? 'win' : 'loss', frac: pos.frac || 1,
@@ -381,7 +381,7 @@
           if (cy.pi(i)) { close(i, px, 'PI-TOP'); cyCool = true; cyMode = null; }
           else if (cyMode === 'ACCUM') {
             if (!pos.t2 && zoneB && (cy.swp[i] || px > closes[i - 1])) {        // tranche 2: deep-zone recovery day
-              fill(0.4, px); pos.t2 = true; pos.stop = 0.65 * cy.ma1400[i];
+              fill(0.4, px); pos.t2 = true; pos.stop = isFinite(cy.ma1400[i]) ? 0.65 * cy.ma1400[i] : px * 0.72;
             }
             if (c[i].low <= pos.stop) { close(i, pos.stop, 'STOP'); cyMode = null; }
             else if (px > cy.ma280[i]) {
@@ -391,7 +391,9 @@
           }
           else if (cyDn >= cyPersist) { close(i, px, 'TREND'); cyMode = null; }
         } else if (cy.zone(i) >= 2 && (cy.swp[i] || px > cy.h20[i])) {
-          pos = { invSum: 0, fracSum: 0, entry: px, stop: 0.65 * cy.ma1400[i], entryIdx: i, tp: 1.85 * maL[i], t2: zoneB };
+          // stop fallback: early in a dataset the 200w MA doesn't exist yet → fixed −28% program stop
+          pos = { invSum: 0, fracSum: 0, entry: px, stop: isFinite(cy.ma1400[i]) ? 0.65 * cy.ma1400[i] : px * 0.72,
+            entryIdx: i, tp: 1.85 * maL[i], t2: zoneB };
           fill(zoneB ? 0.8 : 0.4, px);                                          // straight into the deep zone = A+B at once
           cyMode = 'ACCUM';
         } else if (!cyCool && cyUp >= cyPersist) {
