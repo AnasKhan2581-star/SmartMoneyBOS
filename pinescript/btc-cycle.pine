@@ -1,0 +1,158 @@
+//@version=6
+// BTC Cycle — Halving Playbook (indicator port of ScreenerPro's `cycle` strategy).
+// Use on the BTC **1D** chart. Signals validated to repeat at every cycle turn 2015→2026
+// (2013 documented): bottoms = 200-week MA visit + Mayer<0.8 + weekly RSI<35 + sweep-reclaim;
+// tops = Pi-Cycle cross (2017-12-17 & 2021-04-12 to the day) with a persistent 40-week break
+// as the fallback. Deployment ladder: 40% zone A, 40% zone B, 20% reserve on the 40-week
+// reclaim — unfilled tranches deploy at the reclaim (bullish completion).
+indicator("BTC Cycle — Halving Playbook", "BTC Cycle", overlay = true, max_labels_count = 200)
+
+// ── inputs ──────────────────────────────────────────────────────────────────
+persistN = input.int(5,     "40-week persistence (days)", minval = 1)
+zoneAmul = input.float(1.10, "Zone A top ×200w",   step = 0.01)
+zoneBmul = input.float(0.72, "Zone B floor ×200w", step = 0.01)
+slMul    = input.float(0.65, "SL ×200w",           step = 0.01)
+tpLoMul  = input.float(1.85, "TP zone low ×200d",  step = 0.05)
+tpHiMul  = input.float(2.40, "TP zone high ×200d", step = 0.05)
+
+// ── engine series (1D denominated) ──────────────────────────────────────────
+ma200   = ta.sma(close, 200)          // Mayer denominator
+ma280   = ta.sma(close, 280)          // 40-week line
+ma111   = ta.sma(close, 111)          // Pi-Cycle fast
+ma350x2 = 2.0 * ta.sma(close, 350)    // Pi-Cycle slow ×2
+ma1400  = ta.sma(close, 1400)         // 200-week MA
+wRSI    = request.security(syminfo.tickerid, "W", ta.rsi(close, 14))
+mayer   = close / ma200
+
+zoneScore = (close < zoneAmul * ma1400 ? 1 : 0) + (mayer < 0.8 ? 1 : 0) + (wRSI < 35 ? 1 : 0)
+priorLow  = ta.lowest(low, 110)[10]                       // major prior low (120d window, 10d gap)
+sweepRe   = low < priorLow and close > priorLow           // SMC: sweep + reclaim
+breakout  = close > ta.highest(high, 20)[1]
+piCross   = ta.crossover(ma111, ma350x2)
+zoneB     = close < 0.97 * ma1400
+
+slNow() =>
+    na(ma1400) ? close * 0.72 : slMul * ma1400
+
+f2s(float x) =>
+    na(x) ? "—" : str.tostring(x, x >= 1000 ? "#,###" : "#.##")
+
+// ── state machine: CASH → ACCUM → TREND ─────────────────────────────────────
+var string mode  = "CASH"
+var bool   cool  = false
+var bool   t2    = false
+var float  invS  = 0.0
+var float  fracS = 0.0
+var float  avgPx = na
+var float  stopP = na
+var int    up    = 0
+var int    dn    = 0
+bool sigBuy  = false
+bool sigAdd  = false
+bool sigRes  = false
+bool sigSell = false
+
+up := close > ma280 * 1.02 ? up + 1 : 0
+dn := close < ma280 * 0.97 ? dn + 1 : 0
+if cool and close < ma280
+    cool := false
+
+if mode != "CASH"
+    if piCross
+        sigSell := true
+        mode := "CASH"
+        cool := true
+        invS := 0.0
+        fracS := 0.0
+        avgPx := na
+    else if mode == "ACCUM"
+        if not t2 and zoneB and (sweepRe or close > close[1])
+            invS := invS + 0.4 / close
+            fracS := fracS + 0.4
+            avgPx := fracS / invS
+            t2 := true
+            stopP := slNow()
+            sigAdd := true
+        if low <= stopP
+            sigSell := true
+            mode := "CASH"
+            invS := 0.0
+            fracS := 0.0
+            avgPx := na
+        else if close > ma280
+            if fracS < 1
+                invS := invS + (1 - fracS) / close
+                fracS := 1.0
+                avgPx := fracS / invS
+                sigRes := true                                  // bullish completion
+            mode := "TREND"
+    else if dn >= persistN
+        sigSell := true
+        mode := "CASH"
+        invS := 0.0
+        fracS := 0.0
+        avgPx := na
+else
+    if zoneScore >= 2 and (sweepRe or breakout)
+        w0 = zoneB ? 0.8 : 0.4
+        invS := w0 / close
+        fracS := w0
+        avgPx := close
+        t2 := zoneB
+        stopP := slNow()
+        mode := "ACCUM"
+        sigBuy := true
+    else if not cool and up >= persistN
+        invS := 1.0 / close
+        fracS := 1.0
+        avgPx := close
+        stopP := ma280 * 0.97
+        mode := "TREND"
+        sigBuy := true
+
+// ── zones on the chart ──────────────────────────────────────────────────────
+pA_hi = plot(zoneAmul * ma1400, "Zone A top",   color = color.new(#7ee787, 70))
+pA_lo = plot(ma1400,            "200w MA",      color = color.new(#7ee787, 40), linewidth = 2)
+pB_lo = plot(zoneBmul * ma1400, "Zone B floor", color = color.new(#2ea043, 75))
+fill(pA_hi, pA_lo, color = color.new(#7ee787, 90), title = "Buy zone A")
+fill(pA_lo, pB_lo, color = color.new(#2ea043, 94), title = "Buy zone B (deep)")
+pS_lo = plot(tpLoMul * ma200, "Sell zone low",  color = color.new(#f85149, 75))
+pS_hi = plot(tpHiMul * ma200, "Sell zone high", color = color.new(#f85149, 75))
+fill(pS_lo, pS_hi, color = color.new(#f85149, 92), title = "Euphoria sell zone")
+plot(ma280, "40-week MA", color = color.new(#58a6ff, 30))
+plot(mode != "CASH" ? stopP : na, "SL", color = color.new(#f85149, 20), style = plot.style_linebr)
+
+plotshape(sigBuy,  "BUY",            shape.labelup,   location.belowbar, color = #2ea043, text = "BUY",    textcolor = color.white, size = size.small)
+plotshape(sigAdd,  "ADD (zone B)",   shape.labelup,   location.belowbar, color = #1a7f37, text = "ADD",    textcolor = color.white, size = size.small)
+plotshape(sigRes,  "DEPLOY RESERVE", shape.labelup,   location.belowbar, color = #58a6ff, text = "ALL-IN", textcolor = color.white, size = size.small)
+plotshape(sigSell, "SELL",           shape.labeldown, location.abovebar, color = #f85149, text = "SELL",   textcolor = color.white, size = size.small)
+
+// ── live plan table ─────────────────────────────────────────────────────────
+var table t = table.new(position.top_right, 2, 9, bgcolor = color.new(#161b22, 15), border_width = 1, border_color = color.new(#30363d, 40))
+if barstate.islast
+    stateTxt = mode + (fracS > 0 ? " · " + str.tostring(fracS * 100, "#") + "% @ " + f2s(avgPx) : "")
+    table.cell(t, 0, 0, "BTC CYCLE",   text_color = color.white, text_size = size.small)
+    table.cell(t, 1, 0, stateTxt,      text_color = mode == "CASH" ? #f85149 : #7ee787, text_size = size.small)
+    table.cell(t, 0, 1, "Mayer",       text_color = #8b949e, text_size = size.small)
+    table.cell(t, 1, 1, str.tostring(mayer, "#.##"), text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 2, "Weekly RSI",  text_color = #8b949e, text_size = size.small)
+    table.cell(t, 1, 2, str.tostring(wRSI, "#"), text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 3, "Zone score",  text_color = #8b949e, text_size = size.small)
+    table.cell(t, 1, 3, str.tostring(zoneScore) + "/3", text_color = zoneScore >= 2 ? #7ee787 : color.white, text_size = size.small)
+    table.cell(t, 0, 4, "Buy A 40%",   text_color = #7ee787, text_size = size.small)
+    table.cell(t, 1, 4, f2s(ma1400) + "–" + f2s(zoneAmul * ma1400), text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 5, "Buy B 40%",   text_color = #2ea043, text_size = size.small)
+    table.cell(t, 1, 5, f2s(zoneBmul * ma1400) + "–" + f2s(ma1400), text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 6, "Reserve 20%", text_color = #58a6ff, text_size = size.small)
+    table.cell(t, 1, 6, "40w reclaim ≈ " + f2s(ma280 * 1.02), text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 7, "SL",          text_color = #f85149, text_size = size.small)
+    table.cell(t, 1, 7, f2s(slNow()),  text_color = color.white, text_size = size.small)
+    table.cell(t, 0, 8, "TP zone",     text_color = #3fb950, text_size = size.small)
+    table.cell(t, 1, 8, f2s(tpLoMul * ma200) + "–" + f2s(tpHiMul * ma200), text_color = color.white, text_size = size.small)
+
+// ── alerts ──────────────────────────────────────────────────────────────────
+alertcondition(sigBuy,  "Cycle BUY",            "BTC Cycle: BUY tranche (zone/trend entry)")
+alertcondition(sigAdd,  "Cycle ADD zone B",     "BTC Cycle: ADD 40% — deep zone recovery")
+alertcondition(sigRes,  "Cycle deploy reserve", "BTC Cycle: bullish completion — deploy remaining capital")
+alertcondition(sigSell, "Cycle SELL",           "BTC Cycle: SELL (Pi-Cycle / trend break / stop)")
+alertcondition(piCross, "Pi-Cycle cross",       "BTC Cycle: Pi-Cycle TOP signal fired")
