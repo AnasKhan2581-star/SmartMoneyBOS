@@ -127,7 +127,7 @@
       <span style="color:#7ee787">▲ buy</span>
       <span style="color:#ef5350">▼ sell</span>
     </div>
-    <div id="log"><table><thead><tr><th>Entry</th><th>Days</th><th>Move</th><th>P/L</th><th>Balance</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    <div id="log"><table><thead><tr><th>Entry</th><th>Buy @</th><th>SL</th><th>Exit/TP</th><th>Move</th><th>P/L</th><th>Bal</th></tr></thead><tbody id="logBody"></tbody></table></div>
     <div id="bt">
       <div class="row">
         <label>Capital $<input id="cap" class="num" type="number" value="1000" min="1" step="100" style="width:78px" /></label>
@@ -203,7 +203,9 @@ function ensureChart(){
     grid:{ vertLines:{color:'#161b22'}, horzLines:{color:'#161b22'} },
     rightPriceScale:{ borderColor:'#222a35', mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal },
     timeScale:{ borderColor:'#222a35', timeVisible:true, secondsVisible:false, rightOffset:4, minBarSpacing:0.02 },
-    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+    // no floating price tag on the axis — it reads as a "moving stop" while scrolling;
+    // the only axis labels are the real Entry / SL / TP / last price
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal, horzLine:{ labelVisible:false } },
     // TradingView-style axis interactions: drag the price axis to scale, drag the time axis
     // to zoom, double-click either axis to reset it
     handleScroll:{ mouseWheel:true, pressedMouseMove:true, horzTouchDrag:true, vertTouchDrag:true },
@@ -264,13 +266,15 @@ function backtest(){
   const pm=(x)=>(x>=0?'+':'−')+'$'+Math.abs(Math.round(x)).toLocaleString();
   const sign=(x)=> x>=0?'up':'down';
   // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
+  const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : x>=1? x.toFixed(2) : x.toPrecision(3));
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
     const open=t.outcome==='open';
     const pl = led ? (open?`<span style="color:#58a6ff">${pm(led.pl)} open</span>`:`<span class="${led.pl>=0?'up':'down'}">${pm(led.pl)}</span>`) : '—';
-    return `<tr><td>${fmtTime(c[t.entryIdx].time)}</td><td>${t.exitIdx-t.entryIdx}d</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
+    const exitCell = open ? `<span style="color:#58a6ff">TP ${fp(t.tp)}</span>` : `<span class="${mv>=0?'up':'down'}">${fp(t.exitPrice)}</span>`;
+    return `<tr><td>${fmtTime(c[t.entryIdx].time)}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
   // summary grid
   $('btGrid').innerHTML = `
     <div class="cell"><div class="k">Final capital</div><div class="v ${sign(s.ret)}">${money(s.final)}</div></div>
@@ -308,7 +312,7 @@ function render(result){
   const L=LightweightCharts.LineStyle;
   const pl=(price,color,style,title)=>priceLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));
   const openT = trades.find(t=>t.outcome==='open');
-  if(openT){ pl(openT.entry,'#e2b93d',L.Dashed,'Entry'); pl(openT.stop,'#f85149',L.Dotted,'Stop'); }
+  if(openT){ pl(openT.entry,'#e2b93d',L.Dashed,'Entry'); pl(openT.stop,'#f85149',L.Dotted,'SL'); if(openT.tp) pl(openT.tp,'#3fb950',L.Dotted,'TP'); }
 
   sizeOverlay(); drawOverlay(); backtest(); advisor(result);
   const sm = result.summary;
@@ -389,10 +393,6 @@ function drawOverlay(){
     const pct=(exit/t.entry-1)*100;
     const col= t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
     box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+(t.outcome==='open'?' open':''));
-    ctx.save();
-    ctx.strokeStyle='#e2b93d'; ctx.setLineDash([4,3]); ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(x1,yE); ctx.lineTo(x2,yE); ctx.stroke();     // entry line
-    ctx.restore();
   });
 }
 
@@ -432,13 +432,24 @@ function advisor(result){
     ? `<div style="color:var(--muted)">Liq magnets ${ad.liqUp>=ad.liqDn?'<span style="color:#7ee787">pull UP</span>':'<span style="color:#f85149">pull DOWN</span>'}${ad.nearUp?` · above @ ${fmtP(ad.nearUp)}`:''}${ad.nearDn?` · below @ ${fmtP(ad.nearDn)}`:''}</div>` : '';
   let cyc='';
   if(ad.cycle){
-    const cy=ad.cycle;
+    const cy=ad.cycle, p=cy.plan;
+    const fpp=(x)=> x==null?'—':(x>=1000?Math.round(x).toLocaleString():x>=1?x.toFixed(2):x.toPrecision(3));
     const zoneCol = cy.zone>=2?'#7ee787':'var(--muted)';
+    const filled = p&&p.fracNow>0 ? ` · <b>${Math.round(p.fracNow*100)}% deployed${p.avgNow?` @ avg ${fpp(p.avgNow)}`:''}</b>` : '';
     cyc = `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:4px">`
       + `<div>Mayer <b>${cy.mayer}</b> <span style="color:var(--muted)">(buy&lt;0.8 · euphoria&gt;2.4)</span></div>`
       + `<div>200-week MA <b class="${cy.d200w>=0?'up':'down'}">${cy.d200w>=0?'+':''}${cy.d200w}%</b> away · weekly RSI <b>${cy.wRSI}</b></div>`
       + `<div style="color:${zoneCol}">Buy-zone score <b>${cy.zone}/3</b>${cy.zone>=2?' — IN THE GENERATIONAL BUY ZONE':''}</div>`
-      + `<div style="color:var(--muted)">Pi-Cycle ratio ${cy.piRatio} (top risk at 1.00)${cy.mode?` · holding: ${cy.mode}`:''}</div></div>`;
+      + `<div style="color:var(--muted)">Pi-Cycle ratio ${cy.piRatio} (top risk at 1.00)${cy.mode?` · holding: ${cy.mode}`:''}</div>`
+      + (p?`<div style="margin-top:6px;padding:6px 8px;background:#161b22;border-radius:8px">`
+        + `<div style="font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase">Deployment plan${filled}</div>`
+        + `<div><span style="color:#7ee787">${p.alloc[0]}%</span> Buy A · ${fpp(p.aLo)}–${fpp(p.aHi)}</div>`
+        + `<div><span style="color:#2ea043">${p.alloc[1]}%</span> Buy B (deep) · ${fpp(p.bLo)}–${fpp(p.bHi)}</div>`
+        + `<div><span style="color:#58a6ff">${p.alloc[2]}%</span> reserve → deploys on 40-week reclaim ≈ ${fpp(p.reserveTrig)}</div>`
+        + `<div style="color:var(--muted)">Bullish case: B never fills → B + reserve BOTH deploy at the reclaim</div>`
+        + `<div style="margin-top:2px"><span style="color:#f85149">SL ${fpp(p.sl)}</span> (all tranches) · <span style="color:#3fb950">TP zone ${fpp(p.tpLo)}–${fpp(p.tpHi)}</span> or Pi-Cycle/trend exit</div>`
+        + `</div>`:'')
+      + `</div>`;
   }
   el.innerHTML = `<div style="margin-bottom:4px">${stance}</div>${sig}${vol}${liq}${cyc}`;
 }

@@ -325,7 +325,7 @@
       const rMult = risk0 > 0 ? (exit - pos.entry) / risk0 : 0;
       trades.push({ dir: 'long', poiIdx: pos.entryIdx, fvgIdx: -1, zoneLow: pos.stop, zoneTop: pos.entry,
         sweepIdx: -1, targetPool: why, entry: pos.entry, stop: pos.stop, target: exit, exitPrice: exit,
-        entryIdx: pos.entryIdx, exitIdx: i, outcome: rMult >= 0 ? 'win' : 'loss', frac: pos.frac || 1,
+        tp: pos.tp || null, entryIdx: pos.entryIdx, exitIdx: i, outcome: rMult >= 0 ? 'win' : 'loss', frac: pos.frac || 1,
         rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4) });
       pos = null;
     };
@@ -371,21 +371,31 @@
         // PIERCES the 200w (2020 −30%, 2022 −31%, 2026 −8%), so accumulation is TWO tranches —
         // half in zone A, half on the zone-B recovery, entry = the tranche average (harmonic:
         // equal dollars), stop below zone B at 0.65×200w (under the deepest pierce on record).
+        // DEPLOYMENT PROGRAM (institutional ladder): 40% at zone A, 40% at zone B, 20% reserve
+        // on trend confirmation. BULLISH COMPLETION: if B never fills and price reclaims the
+        // 40-week MA, every unfilled tranche deploys at that confirmation — the program never
+        // gets left behind. Entry = equal-dollar (harmonic) weighted average of fills.
         const zoneB = px < 0.97 * cy.ma1400[i];
+        const fill = (w, price) => { pos.invSum += w / price; pos.fracSum += w; pos.entry = pos.fracSum / pos.invSum; pos.frac = pos.fracSum; };
         if (pos) {
           if (cy.pi(i)) { close(i, px, 'PI-TOP'); cyCool = true; cyMode = null; }
           else if (cyMode === 'ACCUM') {
-            if (pos.frac < 1 && zoneB && (cy.swp[i] || px > closes[i - 1])) {   // tranche 2: average down on a deep-zone recovery day
-              pos.entry = 2 / (1 / pos.entry + 1 / px); pos.frac = 1; pos.stop = 0.65 * cy.ma1400[i];
+            if (!pos.t2 && zoneB && (cy.swp[i] || px > closes[i - 1])) {        // tranche 2: deep-zone recovery day
+              fill(0.4, px); pos.t2 = true; pos.stop = 0.65 * cy.ma1400[i];
             }
             if (c[i].low <= pos.stop) { close(i, pos.stop, 'STOP'); cyMode = null; }
-            else if (px > cy.ma280[i]) cyMode = 'TREND';
+            else if (px > cy.ma280[i]) {
+              if (pos.fracSum < 1) fill(1 - pos.fracSum, px);                   // bullish completion: deploy the rest
+              cyMode = 'TREND';
+            }
           }
           else if (cyDn >= cyPersist) { close(i, px, 'TREND'); cyMode = null; }
         } else if (cy.zone(i) >= 2 && (cy.swp[i] || px > cy.h20[i])) {
-          pos = { entry: px, stop: 0.65 * cy.ma1400[i], entryIdx: i, frac: zoneB ? 1 : 0.5 }; cyMode = 'ACCUM';
+          pos = { invSum: 0, fracSum: 0, entry: px, stop: 0.65 * cy.ma1400[i], entryIdx: i, tp: 1.85 * maL[i], t2: zoneB };
+          fill(zoneB ? 0.8 : 0.4, px);                                          // straight into the deep zone = A+B at once
+          cyMode = 'ACCUM';
         } else if (!cyCool && cyUp >= cyPersist) {
-          pos = { entry: px, stop: cy.ma280[i] * 0.97, entryIdx: i }; cyMode = 'TREND';
+          pos = { entry: px, stop: cy.ma280[i] * 0.97, entryIdx: i, tp: 1.85 * maL[i], frac: 1 }; cyMode = 'TREND';
         }
       } else if (p.strategy === 'tsmom') {
         const on = px > maL[i] && i >= lookLen && px > closes[i - lookLen];
@@ -405,7 +415,7 @@
       const last = closes[n - 1], risk0 = pos.entry - pos.stop;
       trades.push({ dir: 'long', poiIdx: pos.entryIdx, fvgIdx: -1, zoneLow: pos.stop, zoneTop: pos.entry,
         sweepIdx: -1, targetPool: 'OPEN', entry: pos.entry, stop: pos.stop, target: last, exitPrice: last,
-        entryIdx: pos.entryIdx, exitIdx: n - 1, outcome: 'open', frac: pos.frac || 1,
+        tp: pos.tp || null, entryIdx: pos.entryIdx, exitIdx: n - 1, outcome: 'open', frac: pos.frac || 1,
         rr: +(risk0 > 0 ? (last - pos.entry) / risk0 : 0).toFixed(2) });
     }
     // the ADVISOR read: what the context says right now, at the last closed candle
@@ -426,7 +436,12 @@
     if (cy) {
       advice.cycle = { mayer: +(px / maL[i]).toFixed(2), d200w: +((px / cy.ma1400[i] - 1) * 100).toFixed(1),
         wRSI: +(cy.wRSI[i] || 0).toFixed(0), zone: cy.zone(i), piRatio: +(cy.ma111[i] / (2 * cy.ma350[i])).toFixed(2),
-        mode: cyMode, cooldown: cyCool };
+        mode: cyMode, cooldown: cyCool,
+        // the live deployment schedule (institutional ladder), all prices as-of the last close
+        plan: { aLo: cy.ma1400[i], aHi: 1.1 * cy.ma1400[i], bLo: 0.72 * cy.ma1400[i], bHi: cy.ma1400[i],
+          reserveTrig: cy.ma280[i] * 1.02, sl: 0.65 * cy.ma1400[i], tpLo: 1.85 * maL[i], tpHi: 2.4 * maL[i],
+          alloc: [40, 40, 20], fracNow: pos ? (pos.fracSum != null ? pos.fracSum : pos.frac || 1) : 0,
+          avgNow: pos ? pos.entry : null } };
       cycleLines = { zLo: cy.ma1400, trend: cy.ma280, ma200: maL };   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
     }
     return { trades, advice, cycleLines };

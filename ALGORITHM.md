@@ -26,11 +26,15 @@ in-data (2015→2026; 2013 supported by documented history only — no keyless s
   2021-04-12 to the day but did NOT fire at the Oct 2025 top; Mayer > 2.4 and weekly RSI > 84
   fire too early mid-bull. So the sell side is Pi-Cycle when it fires, else a persistent
   (5-day, `cyclePersist`) 40-week MA break.
-- **Two-tranche accumulation (July 2026):** every real bottom PIERCES the 200w MA (2020 −30%,
-  2022 −31%, 2026 −8%), so ACCUM buys **half in zone A** (200w→×1.1) and **half on a zone-B
-  recovery day** (zone B = 0.72–1.0×200w; trigger = close <0.97×200w then sweep-reclaim or an
-  up-close). Entry = harmonic tranche average (equal dollars), **stop 0.65×200w** — under the
-  deepest pierce on record; the 2022 hold survived the $15.5k FTX wick by 3% by design.
+- **Deployment ladder (July 2026):** every real bottom PIERCES the 200w MA (2020 −30%,
+  2022 −31%, 2026 −8%), so accumulation is a staged program: **40% at zone A** (200w→×1.1),
+  **40% on a zone-B recovery day** (zone B = 0.72–1.0×200w), **20% reserve on the 40-week
+  reclaim** — and the **bullish-completion clause**: any unfilled tranche deploys at that
+  reclaim, so the program is never left behind. Entry = equal-dollar (harmonic) weighted
+  average of fills; **SL 0.65×200w** for all tranches — under the deepest pierce on record
+  (the 2022 program survived the $15.5k FTX wick by 3% by design); TP display = the euphoria
+  zone (1.85×200d). The Advisor panel prints the live ladder with exact prices and the
+  deployed fraction; every trade row carries Buy @ / SL / Exit-TP prices.
 - **Machine:** CASH → ACCUM (zone entries, zone-based stop) → TREND (price > 40w MA) → exit
   on Pi or persistent 40w break; post-Pi cooldown until price < 40w MA. Full-run 2015→2026
   all-in with fees: 10 positions, the 2015 $262→Pi-2017 $18,860 and 2022 avg-$22.2k→$92.2k
