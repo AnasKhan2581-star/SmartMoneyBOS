@@ -17,6 +17,9 @@ slMul    = input.float(0.65, "SL ×200w",           step = 0.01)
 tpLoMul  = input.float(1.85, "TP zone low ×200d",  step = 0.05)
 tpHiMul  = input.float(2.40, "TP zone high ×200d", step = 0.05)
 lookback = input.int(365,   "Lookback for return (bars)", minval = 10)
+clockFrom  = input.int(505, "Topping window opens (days after halving)", minval = 300)
+clockTo    = input.int(730, "Topping window closes (days after halving)", minval = 400)
+fastPd     = input.int(3,   "Fast-exit persistence in window (days)", minval = 1)
 
 // ── engine series — DAY-denominated, scaled to the chart timeframe ─────────
 // ("200-day MA" is 200 bars on 1D, ~29 bars on 1W, 1200 bars on 4h — same signal everywhere)
@@ -39,6 +42,25 @@ breakout  = close > ta.highest(high, S(20))[1]
 piCross   = ta.crossover(ma111, ma350x2)
 zoneB     = close < 0.97 * ma1400
 persistB  = math.max(1, S(persistN))                      // persistence in days → bars
+
+// ── HALVING CLOCK: final cycle tops printed 526d (2017), 548d (2021), ~535d (2025) after
+// their halvings — a ±2% cluster. Inside [clockFrom, clockTo] days post-halving the exit
+// tightens from the 40-week break to a 10-WEEK (70d) MA break: sell after `fastPd` days
+// below it while still above the 200d MA. Backtest: 2021 exit $54.7k (vs $41.6k without),
+// 2025 exit ~$112k = 88% of the $127k peak (vs $92.2k). 2017 untouched — Pi-Cycle fires first.
+var HALV = array.from(timestamp(2012, 11, 28), timestamp(2016, 7, 9), timestamp(2020, 5, 11), timestamp(2024, 4, 19), timestamp(2028, 4, 1))
+daysSinceHalving() =>
+    float h = na
+    for x in HALV
+        if x <= time
+            h := x
+    na(h) ? 99999.0 : (time - h) / 86400000.0
+ma70    = ta.sma(close, S(70))                            // the 10-week fast trail
+dsH     = daysSinceHalving()
+clockOn = dsH >= clockFrom and dsH <= clockTo and mayer > 1.0
+var int fastCnt = 0
+fastCnt := clockOn and close < ma70 ? fastCnt + 1 : 0
+fastPB  = math.max(1, math.round(fastPd / daysPerBar))
 
 slNow() =>
     na(ma1400) ? close * 0.72 : slMul * ma1400
@@ -78,6 +100,14 @@ if cool and close < ma280
 
 if mode != "CASH"
     if piCross
+        sigSell := true
+        eq := eq * (1 - 0.002 * fracHeld)
+        mode := "CASH"
+        cool := true
+        invS := 0.0
+        fracS := 0.0
+        avgPx := na
+    else if clockOn and fastCnt >= fastPB                  // topping-window fast exit (10w break)
         sigSell := true
         eq := eq * (1 - 0.002 * fracHeld)
         mode := "CASH"
@@ -143,6 +173,9 @@ pS_hi = plot(tpHiMul * ma200, "Sell zone high", color = color.new(#f85149, 75))
 fill(pS_lo, pS_hi, color = color.new(#f85149, 92), title = "Euphoria sell zone")
 plot(ma280, "40-week MA", color = color.new(#58a6ff, 30))
 plot(mode != "CASH" ? stopP : na, "SL", color = color.new(#f85149, 20), style = plot.style_linebr)
+// the 10-week fast trail lights up orange only inside the topping window
+plot(clockOn ? ma70 : na, "10-week fast trail (topping window)", color = color.new(#f0883e, 15), linewidth = 2, style = plot.style_linebr)
+bgcolor(clockOn ? color.new(#f0883e, 96) : na, title = "Topping window")
 
 plotshape(sigBuy,  "BUY",            shape.labelup,   location.belowbar, color = #2ea043, text = "BUY",    textcolor = color.white, size = size.small)
 plotshape(sigAdd,  "ADD (zone B)",   shape.labelup,   location.belowbar, color = #1a7f37, text = "ADD",    textcolor = color.white, size = size.small)
@@ -150,7 +183,7 @@ plotshape(sigRes,  "DEPLOY RESERVE", shape.labelup,   location.belowbar, color =
 plotshape(sigSell, "SELL",           shape.labeldown, location.abovebar, color = #f85149, text = "SELL",   textcolor = color.white, size = size.small)
 
 // ── live plan table ─────────────────────────────────────────────────────────
-var table t = table.new(position.top_right, 2, 11, bgcolor = color.new(#161b22, 15), border_width = 1, border_color = color.new(#30363d, 40))
+var table t = table.new(position.top_right, 2, 12, bgcolor = color.new(#161b22, 15), border_width = 1, border_color = color.new(#30363d, 40))
 if barstate.islast
     stateTxt = mode + (fracS > 0 ? " · " + str.tostring(fracS * 100, "#") + "% @ " + f2s(avgPx) : "")
     table.cell(t, 0, 0, "BTC CYCLE",   text_color = color.white, text_size = size.small)
@@ -177,6 +210,9 @@ if barstate.islast
     table.cell(t, 1, 9,  p2s(retStrat), text_color = na(retStrat) ? color.white : retStrat >= 0 ? #3fb950 : #f85149, text_size = size.small)
     table.cell(t, 0, 10, "Buy&hold " + str.tostring(lookback) + "b", text_color = #8b949e, text_size = size.small)
     table.cell(t, 1, 10, p2s(retBH), text_color = na(retBH) ? color.white : retBH >= 0 ? #3fb950 : #f85149, text_size = size.small)
+    string clockTxt = dsH > 9000 ? "—" : str.tostring(dsH, "#") + "d post-halving" + (clockOn ? " · FAST EXIT ARMED" : dsH < clockFrom ? " · opens @" + str.tostring(clockFrom) : "")
+    table.cell(t, 0, 11, "Topping clock", text_color = #f0883e, text_size = size.small)
+    table.cell(t, 1, 11, clockTxt, text_color = clockOn ? #f0883e : color.white, text_size = size.small)
 
 // ── alerts ──────────────────────────────────────────────────────────────────
 alertcondition(sigBuy,  "Cycle BUY",            "BTC Cycle: BUY tranche (zone/trend entry)")
@@ -184,3 +220,5 @@ alertcondition(sigAdd,  "Cycle ADD zone B",     "BTC Cycle: ADD 40% — deep zon
 alertcondition(sigRes,  "Cycle deploy reserve", "BTC Cycle: bullish completion — deploy remaining capital")
 alertcondition(sigSell, "Cycle SELL",           "BTC Cycle: SELL (Pi-Cycle / trend break / stop)")
 alertcondition(piCross, "Pi-Cycle cross",       "BTC Cycle: Pi-Cycle TOP signal fired")
+alertcondition(clockOn and not clockOn[1], "Topping window opened", "BTC Cycle: halving clock in the topping window — fast exit armed")
+alertcondition(clockOn and fastCnt >= fastPB, "Clock fast exit", "BTC Cycle: 10-week break inside the topping window — SELL")
