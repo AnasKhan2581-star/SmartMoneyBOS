@@ -1,6 +1,8 @@
 //@version=6
 // BTC Cycle — Halving Playbook (indicator port of ScreenerPro's `cycle` strategy).
-// Use on the BTC **1D** chart. Signals validated to repeat at every cycle turn 2015→2026
+// Works on any timeframe (lookbacks are day-denominated and auto-scale; 1D is the reference,
+// 1W matches the app's weekly mode). Built for BTC — on other coins it is an experiment.
+// Signals validated to repeat at every cycle turn 2015→2026
 // (2013 documented): bottoms = 200-week MA visit + Mayer<0.8 + weekly RSI<35 + sweep-reclaim;
 // tops = Pi-Cycle cross (2017-12-17 & 2021-04-12 to the day) with a persistent 40-week break
 // as the fallback. Deployment ladder: 40% zone A, 40% zone B, 20% reserve on the 40-week
@@ -16,21 +18,27 @@ tpLoMul  = input.float(1.85, "TP zone low ×200d",  step = 0.05)
 tpHiMul  = input.float(2.40, "TP zone high ×200d", step = 0.05)
 lookback = input.int(365,   "Lookback for return (bars)", minval = 10)
 
-// ── engine series (1D denominated) ──────────────────────────────────────────
-ma200   = ta.sma(close, 200)          // Mayer denominator
-ma280   = ta.sma(close, 280)          // 40-week line
-ma111   = ta.sma(close, 111)          // Pi-Cycle fast
-ma350x2 = 2.0 * ta.sma(close, 350)    // Pi-Cycle slow ×2
-ma1400  = ta.sma(close, 1400)         // 200-week MA
+// ── engine series — DAY-denominated, scaled to the chart timeframe ─────────
+// ("200-day MA" is 200 bars on 1D, ~29 bars on 1W, 1200 bars on 4h — same signal everywhere)
+daysPerBar = timeframe.in_seconds() / 86400.0
+S(simple int d) =>
+    int(math.max(2, math.round(d / daysPerBar)))
+
+ma200   = ta.sma(close, S(200))          // 200-DAY MA (Mayer denominator)
+ma280   = ta.sma(close, S(280))          // 40-week line
+ma111   = ta.sma(close, S(111))          // Pi-Cycle fast
+ma350x2 = 2.0 * ta.sma(close, S(350))    // Pi-Cycle slow ×2
+ma1400  = ta.sma(close, S(1400))         // 200-WEEK MA
 wRSI    = request.security(syminfo.tickerid, "W", ta.rsi(close, 14))
 mayer   = close / ma200
 
 zoneScore = (close < zoneAmul * ma1400 ? 1 : 0) + (mayer < 0.8 ? 1 : 0) + (wRSI < 35 ? 1 : 0)
-priorLow  = ta.lowest(low, 110)[10]                       // major prior low (120d window, 10d gap)
+priorLow  = ta.lowest(low, S(110))[S(10)]                 // major prior low (120d window, 10d gap)
 sweepRe   = low < priorLow and close > priorLow           // SMC: sweep + reclaim
-breakout  = close > ta.highest(high, 20)[1]
+breakout  = close > ta.highest(high, S(20))[1]
 piCross   = ta.crossover(ma111, ma350x2)
 zoneB     = close < 0.97 * ma1400
+persistB  = math.max(1, S(persistN))                      // persistence in days → bars
 
 slNow() =>
     na(ma1400) ? close * 0.72 : slMul * ma1400
@@ -60,7 +68,8 @@ bool sigSell = false
 // (marked on closes, 0.1%/side fee charged on exits) → return over any lookback window
 var float eq = 1.0
 float fracHeld = nz(fracS[1], 0.0)
-eq := eq * (1 + fracHeld * (close / close[1] - 1))
+float roc = nz(close / close[1] - 1, 0.0)   // nz: bar 0 has no close[1] — without this eq is na forever
+eq := eq * (1 + fracHeld * roc)
 
 up := close > ma280 * 1.02 ? up + 1 : 0
 dn := close < ma280 * 0.97 ? dn + 1 : 0
@@ -98,7 +107,7 @@ if mode != "CASH"
                 avgPx := fracS / invS
                 sigRes := true                                  // bullish completion
             mode := "TREND"
-    else if dn >= persistN
+    else if dn >= persistB
         sigSell := true
         eq := eq * (1 - 0.002 * fracHeld)
         mode := "CASH"
@@ -115,7 +124,7 @@ else
         stopP := slNow()
         mode := "ACCUM"
         sigBuy := true
-    else if not cool and up >= persistN
+    else if not cool and up >= persistB
         invS := 1.0 / close
         fracS := 1.0
         avgPx := close
