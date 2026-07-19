@@ -14,6 +14,7 @@ zoneBmul = input.float(0.72, "Zone B floor ×200w", step = 0.01)
 slMul    = input.float(0.65, "SL ×200w",           step = 0.01)
 tpLoMul  = input.float(1.85, "TP zone low ×200d",  step = 0.05)
 tpHiMul  = input.float(2.40, "TP zone high ×200d", step = 0.05)
+lookback = input.int(365,   "Lookback for return (bars)", minval = 10)
 
 // ── engine series (1D denominated) ──────────────────────────────────────────
 ma200   = ta.sma(close, 200)          // Mayer denominator
@@ -37,6 +38,9 @@ slNow() =>
 f2s(float x) =>
     na(x) ? "—" : str.tostring(x, x >= 1000 ? "#,###" : "#.##")
 
+p2s(float x) =>
+    na(x) ? "—" : (x >= 0 ? "+" : "") + str.tostring(x * 100, "#.#") + "%"
+
 // ── state machine: CASH → ACCUM → TREND ─────────────────────────────────────
 var string mode  = "CASH"
 var bool   cool  = false
@@ -52,6 +56,12 @@ bool sigAdd  = false
 bool sigRes  = false
 bool sigSell = false
 
+// strategy equity curve: each bar compounds the fraction that was deployed over the bar
+// (marked on closes, 0.1%/side fee charged on exits) → return over any lookback window
+var float eq = 1.0
+float fracHeld = nz(fracS[1], 0.0)
+eq := eq * (1 + fracHeld * (close / close[1] - 1))
+
 up := close > ma280 * 1.02 ? up + 1 : 0
 dn := close < ma280 * 0.97 ? dn + 1 : 0
 if cool and close < ma280
@@ -60,6 +70,7 @@ if cool and close < ma280
 if mode != "CASH"
     if piCross
         sigSell := true
+        eq := eq * (1 - 0.002 * fracHeld)
         mode := "CASH"
         cool := true
         invS := 0.0
@@ -75,6 +86,7 @@ if mode != "CASH"
             sigAdd := true
         if low <= stopP
             sigSell := true
+            eq := eq * (1 - 0.002 * fracHeld)
             mode := "CASH"
             invS := 0.0
             fracS := 0.0
@@ -88,6 +100,7 @@ if mode != "CASH"
             mode := "TREND"
     else if dn >= persistN
         sigSell := true
+        eq := eq * (1 - 0.002 * fracHeld)
         mode := "CASH"
         invS := 0.0
         fracS := 0.0
@@ -128,7 +141,7 @@ plotshape(sigRes,  "DEPLOY RESERVE", shape.labelup,   location.belowbar, color =
 plotshape(sigSell, "SELL",           shape.labeldown, location.abovebar, color = #f85149, text = "SELL",   textcolor = color.white, size = size.small)
 
 // ── live plan table ─────────────────────────────────────────────────────────
-var table t = table.new(position.top_right, 2, 9, bgcolor = color.new(#161b22, 15), border_width = 1, border_color = color.new(#30363d, 40))
+var table t = table.new(position.top_right, 2, 11, bgcolor = color.new(#161b22, 15), border_width = 1, border_color = color.new(#30363d, 40))
 if barstate.islast
     stateTxt = mode + (fracS > 0 ? " · " + str.tostring(fracS * 100, "#") + "% @ " + f2s(avgPx) : "")
     table.cell(t, 0, 0, "BTC CYCLE",   text_color = color.white, text_size = size.small)
@@ -149,6 +162,12 @@ if barstate.islast
     table.cell(t, 1, 7, f2s(slNow()),  text_color = color.white, text_size = size.small)
     table.cell(t, 0, 8, "TP zone",     text_color = #3fb950, text_size = size.small)
     table.cell(t, 1, 8, f2s(tpLoMul * ma200) + "–" + f2s(tpHiMul * ma200), text_color = color.white, text_size = size.small)
+    float retStrat = bar_index >= lookback ? eq / eq[lookback] - 1 : na
+    float retBH    = bar_index >= lookback ? close / close[lookback] - 1 : na
+    table.cell(t, 0, 9,  "Strategy " + str.tostring(lookback) + "b", text_color = #8b949e, text_size = size.small)
+    table.cell(t, 1, 9,  p2s(retStrat), text_color = na(retStrat) ? color.white : retStrat >= 0 ? #3fb950 : #f85149, text_size = size.small)
+    table.cell(t, 0, 10, "Buy&hold " + str.tostring(lookback) + "b", text_color = #8b949e, text_size = size.small)
+    table.cell(t, 1, 10, p2s(retBH), text_color = na(retBH) ? color.white : retBH >= 0 ? #3fb950 : #f85149, text_size = size.small)
 
 // ── alerts ──────────────────────────────────────────────────────────────────
 alertcondition(sigBuy,  "Cycle BUY",            "BTC Cycle: BUY tranche (zone/trend entry)")
