@@ -29,10 +29,11 @@ def strategy(key, label, params, blurb):
 @strategy(
     "liqbrk", "Liquidity Breakout (15m swing)",
     {"lbBreak": 2.0, "lbExit": 1.0, "lbTrend": 5.0, "lbStop": 3.0, "lbRelVol": 1.3,
-     "atrLen": 14},
+     "lbMaBars": 149.0, "atrLen": 14},
     "Buy-side liquidity — short stops and resting breakout orders — piles up above recent "
-    "highs. The FIRST close above the 2-day high, in an uptrend, on above-average volume "
-    "takes that pool and usually continues. Stop 3xATR; trail out below the 1-day low. "
+    "highs. The FIRST close above the 2-day high, in an uptrend, on above-average volume, "
+    "with the entry above the 149-BAR SMA of the traded timeframe, takes that pool and "
+    "usually continues. Stop 3xATR; trail out below the 1-day low. "
     "A SWING system on 15m bars: holds ~30h, ~6 trades/month. Not day trading.")
 def liqbrk(df, p, fill="close"):
     t = df["time"].to_numpy()
@@ -45,7 +46,11 @@ def liqbrk(df, p, fill="close"):
     loE = ind.roll_min(low, eL)
     maT = ind.sma(close, ind.S(p["lbTrend"], bpd))
     rv = ind.rel_volume(vol, vL)
-    warm = max(ind.S(p["lbTrend"], bpd), bL, vL) + 2
+    # lbMaBars is BAR-native, not day-denominated — the one documented exception (ALGORITHM.md):
+    # it is the "149 MA" of the chart being traded, so it is deliberately NOT passed through S().
+    ma_bars = max(0, int(round(p.get("lbMaBars", 0) or 0)))
+    maB = ind.sma(close, ma_bars) if ma_bars >= 2 else None
+    warm = max(ind.S(p["lbTrend"], bpd), bL, vL, ma_bars) + 2
 
     sigs = []
     for i in range(warm, len(df) - 1):
@@ -53,6 +58,8 @@ def liqbrk(df, p, fill="close"):
             continue                                          # FIRST close through the pool
         if not (close[i] > maT[i]):
             continue
+        if maB is not None and not (close[i] > maB[i]):
+            continue                                          # entry above the 149-bar MA
         if rv[i] < p["lbRelVol"]:
             continue
         stop = close[i] - p["lbStop"] * a[i]

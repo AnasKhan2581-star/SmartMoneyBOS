@@ -64,12 +64,29 @@ random entry.** Strength continues; weakness does not revert. A breakout *is* a 
 short stops and resting breakout orders sit above the prior high - so the correct trade is to join
 the raid, not fade it.
 
-**Rules** (all params day-denominated; `S(d)` = d days in bars):
+**Rules** (lookbacks day-denominated unless marked bar-native; `S(d)` = d days in bars):
 1. **Entry** - the FIRST close above the prior `lbBreak` **2-day** high (the BSL pool),
-   **and** close > the `lbTrend` **5-day** SMA, **and** volume >= `lbRelVol` **1.3x** its 1-day average.
+   **and** close > the `lbTrend` **5-day** SMA, **and** close > the `lbMaBars` **149-bar** SMA
+   *of the timeframe being traded* (see below), **and** volume >= `lbRelVol` **1.3x** its 1-day average.
 2. **Stop** - `lbStop` **3 x ATR** of the trading timeframe. Deliberately bar-native, not a fixed %:
    ZEC ran $21->$750 in the sample and a constant-% stop is the documented reason `zecdiv` failed.
-3. **Exit** - trail out on a close below the prior `lbExit` **1-day** low, or the stop.
+3. **Exit** - trail out on a close below the prior `lbExit` **1-day** low, or the stop. The 149 MA
+   gates **entries only** - an open position is never closed because price slips back under it.
+
+**The 149 MA filter is bar-native on purpose, and it is the one exception to the day-denominated
+rule.** Every other lookback here is stated in days and converted with `S(d)` so a strategy means
+the same thing on 15m, 4h and 1d. `lbMaBars` is deliberately *not*: it is 149 bars of whatever
+chart is selected, because that is what the trader reads off the screen. Consequence, and it is a
+real one: the filter is **not the same economic signal across timeframes** - 149 bars is ~37 hours
+on 15m, ~25 days on 4h, ~149 days on 1d. On 15m it is a fast filter that sits *inside* the 5-day
+(480-bar) `lbTrend` SMA and mostly removes entries that break out while short-term price is still
+below its own mean; on 1d it is close to a 200-day-MA regime gate and will cut trade count hard.
+Set `lbMaBars: 0` to switch it off.
+
+**Not yet benchmarked.** Added Sep 2026 at the user's request. Every liqbrk number in this file
+(and the CORRECTION below) was measured **without** this filter; none of them have been re-run with
+it. Before quoting a result for the filtered system, re-run the full-history ZEC 15m benchmark
+(258k bars) per the CORRECTION's process lesson - not the cached 2-year window.
 
 **Benchmark, ZEC 15m, 69,120 bars (2024-08 -> 2026-07), net of 0.1%/side:**
 

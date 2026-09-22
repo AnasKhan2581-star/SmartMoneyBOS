@@ -45,6 +45,11 @@
     lbStop: 3.0,     // initial stop = n × ATR of the TRADING timeframe (bar-native on purpose:
                      // ZEC ran $21→$750, so the stop must breathe with realized volatility)
     lbRelVol: 1.3,   // the breakout must trade ≥ this × its 1-day average volume
+    lbMaBars: 149,   // entry gate: close > SMA(149 BARS of the selected chart TF). 0 = off.
+                     // BAR-NATIVE ON PURPOSE — the one exception to the day-denominated rule,
+                     // because this is the "149 MA" a trader reads off the chart in front of
+                     // them. So it is NOT the same signal across TFs: 149 bars is ~37h on 15m,
+                     // ~25d on 4h, ~149d on 1d. Entries only; never exits a live position.
     longOnly: false, // investment/spot mode: never short (structure is still tracked both ways)
     regimeExit: 'daily', // 'daily' = exit on base-TF CHoCH too (benched: best drawdown control) | 'weekly' = HTF flip only
     momoBosOnly: false, // momentum: true = continuation breaks only, skip CHoCH reversal entries
@@ -276,10 +281,15 @@
     const sf = Math.max(0.8, Math.sqrt(bpd));   // floor: above-daily TFs keep a workable stop distance
     const maLen = S(p.tsmomMa), lookLen = S(p.tsmomLook), inLen = S(p.donchIn), outLen = S(p.donchOut),
       w20 = S(20), volWin = S(30);
+    // liqbrk's 149 MA is counted in BARS of the chart being traded, not days — deliberately not
+    // passed through S(). 0 (or anything < 2) disables the filter. See ALGORITHM.md.
+    const lbMaBars = Math.max(0, Math.round(p.lbMaBars || 0));
     // Warm-up is PER STRATEGY. maLen is the 200-day MA — on 15m that is 19,200 bars, so guarding
     // every strategy with it silently returned zero trades for the intraday systems on any window
     // shorter than 200 days (liqbrk needs 5 days, not 200).
-    const warm = p.strategy === 'liqbrk' ? Math.max(S(p.lbTrend), S(p.lbBreak), S(1)) + 2 : maLen;
+    const warm = p.strategy === 'liqbrk'
+      ? Math.max(S(p.lbTrend), S(p.lbBreak), S(1), lbMaBars) + 2                 // lbMaBars is bar-native: no S()
+      : maLen;
     if (n < warm + 2) return { trades, advice: null };
     const closes = c.map((x) => x.close);
     const sma = (len) => {
@@ -353,7 +363,9 @@
         const avg = vs / Math.min(i + 1, vL);
         rv[i] = avg > 0 ? v / avg : 1;
       }
-      lb = { hiB, loE, rv, maT: sma(S(p.lbTrend)) };
+      lb = { hiB, loE, rv, maT: sma(S(p.lbTrend)),
+             // bar-native 149 MA of THIS chart's timeframe; null when the filter is off
+             maBars: lbMaBars >= 2 ? sma(lbMaBars) : null };
     }
 
     let pos = null, sigRun = 0;
@@ -446,7 +458,9 @@
           if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
           else if (px < lb.loE[i]) close(i, px, 'TRAIL');
         } else if (px > lb.hiB[i] && closes[i - 1] <= lb.hiB[i - 1]   // FIRST close through the pool
-                   && px > lb.maT[i] && lb.rv[i] >= p.lbRelVol && magnetOK(i, px)) {
+                   && px > lb.maT[i] && lb.rv[i] >= p.lbRelVol
+                   && (!lb.maBars || px > lb.maBars[i])            // entry price above the 149-bar MA
+                   && magnetOK(i, px)) {
           pos = { entry: px, stop: px - p.lbStop * a[i], entryIdx: i };
         }
       } else {                                                     // donch
@@ -472,9 +486,12 @@
       px, stance: (trades.length && trades[trades.length - 1].outcome === 'open') ? 'IN' : 'CASH',
       signals: lb ? [
         { name: `Above the ${p.lbTrend}-day trend average`, ok: px > lb.maT[i] },
+      ].concat(lb.maBars ? [
+        { name: `Above the ${lbMaBars} MA of this chart's timeframe`, ok: px > lb.maBars[i] },
+      ] : []).concat([
         { name: `Broke the ${p.lbBreak}-day high (liquidity taken)`, ok: px > lb.hiB[i] },
         { name: `Volume ≥ ${p.lbRelVol}× its daily average`, ok: lb.rv[i] >= p.lbRelVol },
-      ] : [
+      ]) : [
         { name: 'Above 200-day average', ok: px > maL[i] },
         { name: '90-day momentum positive', ok: px > closes[i - lookLen] },
         { name: 'Above 55-day channel mid', ok: px > (hiN[i] + loIn[i]) / 2 },
