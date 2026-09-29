@@ -188,6 +188,93 @@ or a genuinely different, higher-frequency edge is found and PROVEN against a ra
 19,200 bars on 15m. Any intraday strategy therefore returned **zero trades** on windows shorter
 than 200 days, silently. Warm-up is now per strategy.
 
+## Session overlay + `lbBrkExt` + rejected intraday strategies (Sept 2026)
+
+### Session overlay (SHIPPED, visual only)
+`index.html` → `SESSIONS` / `sessionBlocks()` / `drawSessions()`. LuxAlgo-style boxes over
+each contiguous run of bars inside a session, drawn **first** in `drawOverlay` so they sit
+under cycle zones, liq heat and trade zones. Auto-hidden when bar interval ≥ 1d. Toggle:
+`#showSessions`. Trade markers on intraday charts read `buy US 18:30` — session + IST clock.
+
+| Block | UTC | IST | Role |
+|---|---|---|---|
+| Asia | 00–07 | 05:30–12:30 | builds the overnight range |
+| Pre-US | 07–13 | 12:30–18:30 | lowest volume/volatility |
+| US | 13–21 | 18:30–02:30 | expansion window |
+
+Binance spot 1h 2019–2026: US block averages 97bp range/hour vs 78bp pre-US (1.24×); most
+volatile hour is 14:00 UTC / 19:30 IST at 112bp. Note this does **not** contradict the
+"no session edge" finding on ZEC — that measured *directional* edge by hour; this is range.
+
+### `lbBrkExt` — decisive-break gate (SHIPPED, default 0 = OFF)
+New liqbrk param. The close must clear the `lbBreak` high by **≥ n × ATR**, not merely clear
+it. `0` disables it and reproduces previous behaviour exactly (regression-tested: SOL 1h
+41,552 bars, 247 trades, byte-identical trade list before and after the change).
+
+Researched on **Binance spot 1h, 2022-01-01 → 2026-09-28, 10 symbols** (BTC ETH SOL AVAX
+LINK XRP ADA DOT BNB DOGE), 0.1%/side, next-bar-open entry, stop-first on intrabar
+ambiguity. Port validated against this file's 1d cross-market check (BTC 43.4% WR measured
+vs 40% published, SOL 40.4% vs 44%, XRP 28.7% vs 28%).
+
+| | baseline | +brkExt 1.0 | +brkExt +stop 4ATR |
+|---|---|---|---|
+| trades | 2512 | 655 | 1257 |
+| win rate | 30.2% | 33.1% | **35.6%** |
+| expectancy | +0.143R | +0.202R | **+0.250R** |
+| profit factor | 1.10 | 1.14 | **1.33** |
+| max drawdown | −77.8% | — | **−51.8%** |
+| 2022 (bear) | −0.211 | — | −0.074 |
+
+Plateau, not a fitted cell — monotone in WR and expR from 0.0 → 1.0 ATR, and IS/OOS agree
+at the top (1.0 ATR: IS +0.197 / OOS +0.212). Win rate improved on **10/10 symbols**.
+
+### Untested in the app: BTC market veto + concurrency cap
+Two further changes measured but **NOT shipped to `detector.js`**, because the app is
+single-symbol and has no book-level state:
+
+- **Skip the signal when BTC 30-day momentum < −10%** (BTC read at the signal bar close).
+  Pooled: WR 35.6→36.1%, expR +0.250→+0.316, PF 1.33→1.49, and **2022 turns positive
+  (−0.074 → +0.085)**. Plateau: monotone from −30% to −5%.
+- **Cap open positions at 5 across the book.** Max drawdown −51.8% → −39.6%. Monotone:
+  cap3 −33.9%, cap2 −26.1%, cap1 −13.7%.
+
+Together (veto + cap5): n=851, WR 35.8%, expR +0.289, PF 1.50, CAGR +60.6%, maxDD −39.6%,
+Sharpe 1.02, **5/5 positive years**, 2022 **+0.195**. 9/10 symbols clear WR ≥30% with
+positive expectancy.
+
+**Why the BTC veto works where an own-asset trend gate does not.** Gating on the traded
+asset's own rising 50-day MA made 2022 *worse* (−0.211 → −0.479): in a bear, "my MA is
+rising" selects for failed counter-trend rallies. BTC momentum is market beta, and the rule
+is asymmetric — it vetoes the worst regime instead of requiring the best. Requiring BTC
+*strength* (mom ≥ +5%) decays out-of-sample (+0.100); vetoing BTC *weakness* does not.
+
+**Not ZEC-validated.** ZEC is unreachable from the research sandbox (Binance blocked; the
+only public ZEC mirror covers 2019-03→2019-12 only, n=12–31 — directionally consistent,
+far too small to count). Run `python pytester/liqbrk_v2_test.py` on ZEC 15m full history
+(258k bars) before quoting any of these numbers for ZEC, per the CORRECTION's process lesson.
+
+### REJECTED — do not rebuild
+- **Breakeven stops.** BE after +1R: WR **30.2% → 21.3%**, expR +0.143 → +0.019, PF 0.97.
+  +1.5R and +2R also worse. Converts fat-tail winners into scratches — same mechanism as
+  the 12h hold cap.
+- **Chandelier / ATR trailing stop.** 3×ATR from the high: expR **−0.141**, PF 0.68,
+  **0/5 positive years**, mean hold 45h → 15h. 4×ATR: −0.085, 1/5.
+- **Own-asset trend gate** (rising 50d MA, or close > 200d MA). Amplifies the bear loss.
+- **relVol ≥ 3.0.** In-sample +0.226, out-of-sample +0.064. Decays.
+- **Tighter exits generally.** 0.5-day trail raises WR to 32.2% but cuts expR to +0.057.
+- **Compression-fade and sweep-displacement intraday strategies** (S2/S3 in
+  `pytester/session_bt.py`). S3 has a **negative edge before fees** (−0.028R gross). This
+  reproduces the three earlier sweep-fade rejections — that is six now. Do not build a seventh.
+- **Cross-symbol breadth filter** ("trade only when ≥4 of 5 symbols signal the same way").
+  Showed +120% CAGR / Sharpe 2.41. It was **look-ahead** — the daily count included symbols
+  that signalled later. Causally it is −4.0% CAGR / Sharpe −0.26.
+
+### Structural note
+Every filter tested trades win rate against expectancy *except* `lbBrkExt` and the BTC veto.
+`lbBrkExt` works because it removes breakouts that barely cleared the pool — those fail
+often **and** rarely run. The veto works because it removes a regime rather than trimming
+trades. Neither touches the fat tail, which is where the edge lives.
+
 ## `cycle` — the BTC halving playbook (July 2026)
 
 BTC-specific full-cycle machine built from the signals that repeated at every cycle turn

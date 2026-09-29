@@ -46,6 +46,9 @@
                      // ZEC ran $21→$750, so the stop must breathe with realized volatility)
     lbRelVol: 1.3,   // the breakout must trade ≥ this × its 1-day average volume
     lbMaBars: 149,   // entry gate: close > SMA(149 BARS of the selected chart TF). 0 = off.
+    lbBrkExt: 0,     // entry gate: the close must clear the lbBreak high by ≥ n × ATR. 0 = off
+                     // (= current behaviour). Researched Sep 2026 on 10 symbols / 1h: 1.0 lifts
+                     // WR 30.2%→35.6% and PF 1.10→1.33. See ALGORITHM.md. Not yet ZEC-validated.
                      // BAR-NATIVE ON PURPOSE — the one exception to the day-denominated rule,
                      // because this is the "149 MA" a trader reads off the chart in front of
                      // them. So it is NOT the same signal across TFs: 149 bars is ~37h on 15m,
@@ -460,6 +463,7 @@
         } else if (px > lb.hiB[i] && closes[i - 1] <= lb.hiB[i - 1]   // FIRST close through the pool
                    && px > lb.maT[i] && lb.rv[i] >= p.lbRelVol
                    && (!lb.maBars || px > lb.maBars[i])            // entry price above the 149-bar MA
+                   && (!(p.lbBrkExt > 0) || (px - lb.hiB[i]) >= p.lbBrkExt * a[i])  // decisive break
                    && magnetOK(i, px)) {
           pos = { entry: px, stop: px - p.lbStop * a[i], entryIdx: i };
         }
@@ -491,6 +495,8 @@
       ] : []).concat([
         { name: `Broke the ${p.lbBreak}-day high (liquidity taken)`, ok: px > lb.hiB[i] },
         { name: `Volume ≥ ${p.lbRelVol}× its daily average`, ok: lb.rv[i] >= p.lbRelVol },
+        ...(p.lbBrkExt > 0 ? [{ name: `Broke it by ≥ ${p.lbBrkExt}× ATR (decisive)`,
+                                ok: (px - lb.hiB[i]) >= p.lbBrkExt * a[i] }] : []),
       ]) : [
         { name: 'Above 200-day average', ok: px > maL[i] },
         { name: '90-day momentum positive', ok: px > closes[i - lookLen] },

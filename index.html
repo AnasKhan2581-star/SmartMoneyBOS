@@ -117,6 +117,8 @@
   <label class="cc">Liq
     <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
   </label>
+  <label class="cc" style="flex-direction:row;align-items:center;gap:5px"><input id="showSessions" type="checkbox" checked style="margin:0" />Sessions</label>
+  <label class="cc" title="liqbrk only: require the close to clear the 2-day high by this many ATR. 0 = off (current behaviour).">Brk×ATR<input id="lbBrkExt" class="num" type="number" value="0" min="0" max="3" step="0.1" /></label>
   <button id="run" class="cc">Run ▶</button>
   <button id="recalc" class="ghost cc">Recalc</button>
   <button id="scaleMode" class="ghost cc" title="toggle log / linear price scale">Log</button>
@@ -229,6 +231,8 @@ function ensureChart(){
     borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350',
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
+  $('showSessions').addEventListener('change', drawOverlay);
+  $('lbBrkExt').addEventListener('change', ()=>{ if(candles.length) recalc(); });
   new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); }).observe($('chartWrap'));
 }
 
@@ -314,9 +318,18 @@ function render(result){
 
   // TradingView-style position markers: ▲ buy at entry, ▼ sell at exit
   const markers = [];
+  const intraday = c.length>1 && (c[1].time-c[0].time) < 86400;
+  // On intraday charts the marker names the session and the IST clock time, so a
+  // long can be read against the session boxes without opening the trade log.
+  const sessOf = (ts)=>{ const h=new Date(ts*1000).getUTCHours();
+    for(const s of SESSIONS) if(h>=s.h0 && h<s.h1) return s.name; return 'Late'; };
   trades.forEach(t=>{
-    markers.push({ time:c[t.entryIdx].time, position:'belowBar', color:'#7ee787', shape:'arrowUp', text:'buy' });
-    if(t.outcome!=='open') markers.push({ time:c[t.exitIdx].time, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown', text:'sell' });
+    const et=c[t.entryIdx].time;
+    markers.push({ time:et, position:'belowBar', color:'#7ee787', shape:'arrowUp',
+      text: intraday ? `buy ${sessOf(et)} ${istLabel(et)}` : 'buy' });
+    if(t.outcome!=='open'){ const xt=c[t.exitIdx].time;
+      markers.push({ time:xt, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown',
+        text: intraday ? `sell ${istLabel(xt)}` : 'sell' }); }
   });
   markers.sort((a,b)=>a.time-b.time);
   candleSeries.setMarkers(markers);
@@ -344,6 +357,68 @@ function box(ctx,x1,x2,yT,yB,fill,stroke,label){
   if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.strokeRect(x1,yT,x2-x1,yB-yT); }
   if(label){ ctx.fillStyle=stroke||'#fff'; ctx.font='10px system-ui'; ctx.fillText(label,x1+3,yT-3); }
 }
+// ---------------------------------------------------------------------------
+// LuxAlgo-style trading sessions. UTC internally, labelled in IST (UTC+5:30).
+// Only meaningful intraday: hidden on >=1d charts. The US block is drawn
+// brighter because that is the only window with a measured expectancy edge
+// (see ALGORITHM.md -> Session structure).
+// ---------------------------------------------------------------------------
+const SESSIONS = [
+  { key:'asia',   name:'Asia',    ist:'05:30-12:30', h0:0,  h1:7,  fill:'rgba(88,166,255,.05)',  edge:'#58a6ff55' },
+  { key:'preus',  name:'Pre-US',  ist:'12:30-18:30', h0:7,  h1:13, fill:'rgba(139,148,158,.04)', edge:'#8b949e44' },
+  { key:'us',     name:'US',      ist:'18:30-02:30', h0:13, h1:21, fill:'rgba(126,231,135,.07)', edge:'#7ee78766' },
+];
+function istLabel(tsSec){
+  const d = new Date((tsSec + 5.5*3600) * 1000);
+  return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
+}
+// Contiguous runs of bars whose UTC hour falls inside each session, newest-first capped.
+function sessionBlocks(c, maxBlocks){
+  if(c.length < 2) return [];
+  const dt = Math.max(60, c[1].time - c[0].time);
+  if(dt >= 86400) return [];                       // daily+ : sessions are meaningless
+  const out = [];
+  for(const s of SESSIONS){
+    let start = -1;
+    for(let i=0;i<c.length;i++){
+      const h = new Date(c[i].time*1000).getUTCHours();
+      const inS = h >= s.h0 && h < s.h1;
+      if(inS && start < 0) start = i;
+      if((!inS || i === c.length-1) && start >= 0){
+        const end = inS ? i : i-1;
+        if(end > start){
+          let hi=-Infinity, lo=Infinity;
+          for(let k=start;k<=end;k++){ if(c[k].high>hi)hi=c[k].high; if(c[k].low<lo)lo=c[k].low; }
+          out.push({ s, a:start, b:end, hi, lo });
+        }
+        start = -1;
+      }
+    }
+  }
+  out.sort((x,y)=>y.a-x.a);
+  return out.slice(0, maxBlocks||180);
+}
+function drawSessions(ctx, c, X, Y, cv){
+  const blocks = sessionBlocks(c, 180);
+  if(!blocks.length) return;
+  ctx.save();
+  for(const bl of blocks){
+    const x1 = X(bl.a), x2 = X(bl.b), yT = Y(bl.hi), yB = Y(bl.lo);
+    if(x1==null||x2==null||yT==null||yB==null) continue;
+    if(x2 < 0 || x1 > cv.clientWidth) continue;
+    ctx.fillStyle = bl.s.fill;
+    ctx.fillRect(x1, yT, Math.max(1,x2-x1), Math.max(1,yB-yT));
+    ctx.strokeStyle = bl.s.edge; ctx.lineWidth = 1;
+    ctx.strokeRect(x1, yT, Math.max(1,x2-x1), Math.max(1,yB-yT));
+    if(x2-x1 > 46){
+      ctx.fillStyle = bl.s.edge.slice(0,7);
+      ctx.font = '9px system-ui';
+      ctx.fillText(bl.s.name, x1+3, yT-3);
+    }
+  }
+  ctx.restore();
+}
+
 function drawOverlay(){
   if(!chart || !lastResult) return;
   const cv=$('overlay'), ctx=cv.getContext('2d');
@@ -351,6 +426,9 @@ function drawOverlay(){
   const ts=chart.timeScale(), rightX=cv.clientWidth-70, r=lastResult;
   const X=(i)=> (i>=0&&i<candles.length)? ts.timeToCoordinate(candles[i].time) : null;
   const Y=(p)=> candleSeries.priceToCoordinate(p);
+
+  // sessions paint first: background context under zones, liq heat and trades
+  if($('showSessions') && $('showSessions').checked) drawSessions(ctx, candles, X, Y, cv);
 
   // BTC Cycle zones: green = generational buy band (200w MA → ×1.1), red = Mayer euphoria
   // sell band (1.85–2.4 × 200d MA), blue dashed = the 40-week bull/bear line. The right-edge
@@ -421,7 +499,8 @@ function recalc(){
   if(!candles.length) return;
   const liq=$('liq').value;
   const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
-    useLiq:liq!=='off', liqTargets:liq==='trade' };
+    useLiq:liq!=='off', liqTargets:liq==='trade',
+    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0) };
   render(SMC.detectAll(candles, params));
 }
 // what the selected system does, in one breath
