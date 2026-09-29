@@ -42,13 +42,15 @@
     lbBreak: 2,      // entry = close above the prior n-DAY high (the BSL pool being raided)
     lbExit: 1,       // trail exit = close below the prior n-day low
     lbTrend: 5,      // regime gate: only long while close > the n-day SMA
-    lbStop: 3.0,     // initial stop = n × ATR of the TRADING timeframe (bar-native on purpose:
+    lbStop: 4.0,     // initial stop = n × ATR of the TRADING timeframe (bar-native on purpose:
                      // ZEC ran $21→$750, so the stop must breathe with realized volatility)
     lbRelVol: 1.3,   // the breakout must trade ≥ this × its 1-day average volume
     lbMaBars: 149,   // entry gate: close > SMA(149 BARS of the selected chart TF). 0 = off.
-    lbBrkExt: 0,     // entry gate: the close must clear the lbBreak high by ≥ n × ATR. 0 = off
-                     // (= current behaviour). Researched Sep 2026 on 10 symbols / 1h: 1.0 lifts
-                     // WR 30.2%→35.6% and PF 1.10→1.33. See ALGORITHM.md. Not yet ZEC-validated.
+    lbBrkExt: 1.0,   // entry gate: the close must clear the lbBreak high by ≥ n × ATR — a
+                     // DECISIVE break, not a 1-tick one. 0 = off (pre-Sep-2026 behaviour).
+                     // 10 symbols / 1h 2022-26: WR 30.2%→35.6%, PF 1.10→1.33, maxDD −78%→−52%.
+                     // Plateau, monotone 0→1.0, WR up on 10/10 symbols. NOT ZEC-validated —
+                     // see ALGORITHM.md. Revert = set lbBrkExt 0 and lbStop 3.0.
                      // BAR-NATIVE ON PURPOSE — the one exception to the day-denominated rule,
                      // because this is the "149 MA" a trader reads off the chart in front of
                      // them. So it is NOT the same signal across TFs: 149 bars is ~37h on 15m,

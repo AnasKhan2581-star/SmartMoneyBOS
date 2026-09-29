@@ -206,10 +206,12 @@ Binance spot 1h 2019–2026: US block averages 97bp range/hour vs 78bp pre-US (1
 volatile hour is 14:00 UTC / 19:30 IST at 112bp. Note this does **not** contradict the
 "no session edge" finding on ZEC — that measured *directional* edge by hour; this is range.
 
-### `lbBrkExt` — decisive-break gate (SHIPPED, default 0 = OFF)
-New liqbrk param. The close must clear the `lbBreak` high by **≥ n × ATR**, not merely clear
-it. `0` disables it and reproduces previous behaviour exactly (regression-tested: SOL 1h
-41,552 bars, 247 trades, byte-identical trade list before and after the change).
+### `lbBrkExt` — decisive-break gate (SHIPPED, **DEFAULT 1.0 — ON**, with `lbStop` 3→4)
+New liqbrk param. The close must clear the `lbBreak` high by **≥ n × ATR**, not merely clear it.
+**Defaults changed Sep 2026: `lbBrkExt` 0 → 1.0 and `lbStop` 3.0 → 4.0.** Setting `lbBrkExt: 0`
+and `lbStop: 3.0` restores the pre-Sep-2026 system exactly (verified byte-identical on SOL 1h,
+41,552 bars, 247 trades). `detector.js` and `pytester/strategies.py` were changed together and
+cross-checked: identical entry-index lists on SOL 1h (109), BTC 1h (121), LINK 4h (66).
 
 Researched on **Binance spot 1h, 2022-01-01 → 2026-09-28, 10 symbols** (BTC ETH SOL AVAX
 LINK XRP ADA DOT BNB DOGE), 0.1%/side, next-bar-open entry, stop-first on intrabar
@@ -228,7 +230,7 @@ vs 40% published, SOL 40.4% vs 44%, XRP 28.7% vs 28%).
 Plateau, not a fitted cell — monotone in WR and expR from 0.0 → 1.0 ATR, and IS/OOS agree
 at the top (1.0 ATR: IS +0.197 / OOS +0.212). Win rate improved on **10/10 symbols**.
 
-### Untested in the app: BTC market veto + concurrency cap
+### Still NOT shipped: BTC market veto + concurrency cap
 Two further changes measured but **NOT shipped to `detector.js`**, because the app is
 single-symbol and has no book-level state:
 
