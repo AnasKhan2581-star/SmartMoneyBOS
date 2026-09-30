@@ -408,6 +408,48 @@ Counter-example the ✓ correctly rejects: BNB Trend Follow on 1d shows 93% wind
 and +44.3% CAGR, but −84% drawdown and a +5009% top-end window — one enormous trade carrying
 a skewed distribution. Stability alone is not a pass.
 
+### Oct 2026 — Compare columns rebuilt around "is this worth my money"
+Dropped **CAGR, 6M, 1Y, Sharpe**. CAGR annualises a return whose window length varies per
+symbol (SOL/DOT/AVAX reach ~6y where BTC/ETH reach 9.1y), so it silently compared different
+periods; the two trailing windows just restated it over arbitrary cuts. Added **Net P/L**,
+**vs B&H**, **PF** and **In mkt** (share of bars with capital deployed). Twelve columns, same
+width. ✓ is now an investment test: `net>0 AND edge>0 AND PF≥1.3 AND WR≥30% AND DD≤60% AND
+n≥30 AND ≥70% of windows profitable` — 5 of 40 rows pass on 4h.
+
+`vs B&H` = `(1+net)/(1+bh) − 1`, i.e. how much richer you ended than holding the same coin over
+the same window. Adding it produced the most decision-relevant result in this whole study and
+**it contradicts the earlier "trade BTC" conclusion**:
+
+| symbol | trades | Net P/L | **vs B&H** | PF | maxDD | In mkt | stable | yrs |
+|---|---|---|---|---|---|---|---|---|
+| XRP | 73 | +2,186% | **+1,323%** | 3.14 | −36% | 9% | 100% | 8.4 |
+| AVAX | 44 | +1,368% | **+595%** | 5.10 | −35% | 7% | 93% | 6.0 |
+| DOT | 45 | +129% | **+491%** | 1.95 | −30% | 7% | 80% | 6.1 |
+| ETH | 92 | +2,979% | **+259%** | 3.92 | −25% | 13% | 100% | 9.1 |
+| ADA | 70 | +108% | **+120%** | 1.71 | −44% | 7% | 80% | 8.4 |
+| DOGE | 60 | +4,930% | +103% | 4.13 | −74% | 8% | 87% | 7.2 |
+| **BTC** | 89 | +837% | **−51%** | 2.72 | −39% | 13% | 100% | 9.1 |
+| LINK | 66 | +732% | **−70%** | 2.86 | −34% | 9% | 7.7 | 7.7 |
+| BNB | 83 | +540% | **−99%** | 2.70 | −38% | 10% | 100% | 8.9 |
+| SOL | 58 | +187% | **−93%** | 1.95 | −39% | 9% | 93% | 6.1 |
+
+**On BTC, `liqbrk` made +837% over 9.1 years while simply holding BTC made ~+1,800%.** Trading
+it halved the outcome. Same on LINK, BNB and SOL. The Sep 2026 conclusion ("BTC is the symbol
+that survives every robustness test") was measuring the wrong thing — robustness of the *edge*,
+never whether the edge beat the asset. Both are needed; `vs B&H` supplies the missing half.
+
+**But `vs B&H` is not the whole answer either, which is why `In mkt` shipped alongside it.**
+`liqbrk` holds capital for only **7–13% of all bars** and draws down −25% to −44% where BTC
+buy & hold drew ~−77%. So the BTC row is "half the money for roughly one-eighth the exposure
+and half the drawdown" — a worse *return*, a better *return per unit of risk taken*. Which
+matters depends entirely on whether the idle 87% of capital has somewhere else to be. Where
+`liqbrk` genuinely wins outright is assets that chopped or round-tripped (XRP, ADA, DOT):
+sidestepping their drawdowns beats riding them.
+
+18 of 40 rows beat buy & hold. Sharpe was cut rather than kept because PF (trade quality) and
+maxDD (path risk) together cover the same ground more legibly for a trade-based system; the
+`vol` pill still reports annualised equity volatility if a quick risk read is wanted.
+
 ### REJECTED — do not rebuild
 - **Breakeven stops.** BE after +1R: WR **30.2% → 21.3%**, expR +0.143 → +0.019, PF 0.97.
   +1.5R and +2R also worse. Converts fat-tail winners into scratches — same mechanism as
