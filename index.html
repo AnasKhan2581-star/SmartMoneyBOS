@@ -48,6 +48,44 @@
   .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
   .spanhint{color:var(--muted);font-size:11px;white-space:nowrap}
   .spanhint.thin{color:#f85149}
+  /* go-to combo panel: a hero figure + KPI rows, not a chart — the data is a handful of
+     headline numbers for ONE pick, which a chart would only dilute */
+  #cmpPick{margin-bottom:14px}
+  .pick{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .pick.none{border-style:dashed}
+  .pickhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+            padding:12px 16px;border-bottom:1px solid var(--line);background:#0d1117}
+  .pickbadge{font-size:10px;font-weight:700;letter-spacing:.9px;padding:3px 9px;border-radius:9px;
+             background:#132d1c;color:#3fb950;border:1px solid #1d4a2c;white-space:nowrap}
+  .pick.none .pickbadge{background:#2d2413;color:#e3c34c;border-color:#4a3d1d}
+  .picktitle{font-size:19px;font-weight:700;margin:0;letter-spacing:-.2px}
+  .picktitle .sep{color:var(--muted);font-weight:400;margin:0 6px}
+  .picktf{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;
+          background:#16243b;color:#58a6ff;border:1px solid #1f3a5f;letter-spacing:.4px}
+  .pickbody{padding:14px 16px}
+  .pickhero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .heronum{font-size:48px;line-height:1;font-weight:800;letter-spacing:-1.5px;
+           font-variant-numeric:tabular-nums}
+  .herolbl{color:var(--muted);font-size:12px;max-width:340px;line-height:1.45}
+  .pickcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pickwin{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#0d1117}
+  .pickwin h4{margin:0 0 2px;font-size:12px;font-weight:700}
+  .pickwin .winspan{color:var(--muted);font-size:10.5px;margin-bottom:9px}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+  .kpi .k{color:var(--muted);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase}
+  .kpi .v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px}
+  .pickwhy{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+  .pickwhy li{font-size:12.5px;line-height:1.5;padding-left:20px;position:relative;color:var(--txt)}
+  .pickwhy li::before{content:'';position:absolute;left:6px;top:7px;width:5px;height:5px;
+                      border-radius:50%;background:#3fb950}
+  .pickwhy li.warn::before{background:#e3c34c}
+  .pickcaveat{margin-top:12px;padding:9px 11px;border-radius:7px;background:#2d2413;
+              border:1px solid #4a3d1d;color:#e3c34c;font-size:11.5px;line-height:1.5}
+  .pickcaveat b{color:#f0d68a}
+  .pickrunners{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);
+               color:var(--muted);font-size:11.5px;line-height:1.7}
+  .pickrunners .r{color:var(--txt);font-weight:600}
+  @media(max-width:700px){ .pickcols{grid-template-columns:1fr} .heronum{font-size:38px} }
   body.cmp .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
@@ -185,6 +223,7 @@
     </label>
     <button id="cmpGo" class="ghost">↻ Refresh data</button>
   </div>
+  <div id="cmpPick"></div>
   <div id="cmpWrap"><table id="cmpTable">
     <thead><tr>
       <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
@@ -634,6 +673,9 @@ const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
 // box slices the tail off what we already hold instead of refetching, and a symbol whose
 // history is genuinely shorter than `asked` is not refetched forever.
 // cmpRowsTf is keyed tf|bars — a different bar count is a different measurement.
+// Every run also measures a FIXED 10,000-bar reference window alongside whatever the user set,
+// so a combo can be required to work both recently and over the long haul before it is suggested.
+const CMP_REF_BARS=10000;
 const cmpCache={}, cmpRowsTf={};
 let cmpSort={k:'net',d:-1}, cmpBusy=false;
 
@@ -739,8 +781,17 @@ function pathStats(trades,c){
     expo: c.length ? inBars/c.length : 0,
     sweep, pos: sweep?sweep.pos:0 };
 }
+// The ✓ test, shared by the table and the go-to picker so the two can never disagree.
+// An INVESTMENT test, not a backtest-looks-nice test: the decisive term is edge>0, because a
+// strategy that does not beat simply holding the coin is not worth trading it.
+function okRow(e, requireStable){
+  if(!e) return false;
+  return e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=30
+      && (!requireStable || (e.sweep && e.sweep.pos>=0.70));
+}
 async function runCompare(force){
   const tf=$('cmpTf').value, bars=cmpBars(), rk=tf+'|'+bars;
+  const need=Math.max(bars, CMP_REF_BARS);
   if(cmpBusy) return;
   if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   cmpBusy=true;
@@ -750,19 +801,30 @@ async function runCompare(force){
     $('cmpStatus').textContent='fetching '+sym+' '+tf+' × '+bars+'…';
     try{
       const key=sym+'|'+tf;
+      // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
+      // One fetch serves both windows — the reference costs no extra requests.
       let ent=cmpCache[key];
-      if(force || !ent || ent.asked<bars){
-        const rows=await fetchKlines(sym,tf,bars,(got,want)=>{
+      if(force || !ent || ent.asked<need){
+        const rows=await fetchKlines(sym,tf,need,(got,want)=>{
           if(want>1000) $('cmpStatus').textContent=`fetching ${sym} ${tf} — ${got}/${want} bars…`;
         });
-        ent=cmpCache[key]={rows, asked:bars};
+        ent=cmpCache[key]={rows, asked:need};
       }
       const full=ent.rows||[];
       const c = full.length>bars ? full.slice(-bars) : full;      // already hold more: just trim
       if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
+      const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
+      const sameWin = bars===CMP_REF_BARS || (c.length===ref.length);
       for(const [st,label] of CMP_STRATS){
         const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
-        rows.push({sym,st,label,e:pathStats(res.trades,c)});
+        const e=pathStats(res.trades,c);
+        // the 10k reference run — skipped only when it would be the identical window
+        let d=e;
+        if(!sameWin && ref.length>=250){
+          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false});
+          d=pathStats(rr.trades,ref);
+        }
+        rows.push({sym,st,label,e,d,sameWin});
       }
     }catch(e){ bad.push(sym+' (no data)'); }
   }
@@ -808,17 +870,130 @@ function renderCmp(){
     return `<span style="color:${col};font-weight:700">${x.toFixed(2)}</span>`; };
   $('cmpBody').innerHTML=view.map(r=>{
     const e=r.e;
-    // ✓ is now an INVESTMENT test, not a backtest-looks-nice test. The decisive addition is
-    // edge>0: a strategy that does not beat simply holding the coin is not worth trading it.
-    const ok = e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=30
-            && (!sweepOn || (e.sweep && e.sweep.pos>=0.70));
+    const ok = okRow(e, sweepOn);
     return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(e.vol)}</td><td>${nc(e)}</td><td><b>${pcb(e.net)}</b></td><td>${pcb(e.edge)}</td><td>${pfc(e.pf)}</td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td style="color:#8b949e">${(e.expo*100).toFixed(0)}%</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
   }).join('') || '<tr><td colspan="12" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+  renderPick(all, tf);
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     $('bars').value=cmpBars();          // open the chart on the same window the row was graded on
     stratInfo(); showView('chart'); run();
   }));
+}
+// ---- go-to combo -----------------------------------------------------------------------
+// A combo must clear the full investment test in BOTH windows — the user's and the fixed 10k
+// reference. Ranked by the WEAKEST of its two edges over buy & hold, so the winner is the one
+// whose worst showing is best, never the one with a single spectacular window.
+function renderPick(rows, tf){
+  const el=$('cmpPick');
+  if(!rows || !rows.length){ el.innerHTML=''; return; }
+  const span=(e)=>{ const d=e.yrs*365;
+    return d>=730? `${e.yrs.toFixed(1)} yrs` : d>=60? `${Math.round(d/30.44)} mo` : `${Math.round(d)} d`; };
+  const sg=(x)=>(x>=0?'+':'−')+(Math.abs(x*100)>=1000? Math.round(Math.abs(x*100)).toLocaleString() : Math.abs(x*100).toFixed(1))+'%';
+  const cls=(x)=>x>=0?'up':'down';
+  const sameWin = rows[0] && rows[0].sameWin;
+
+  // The two windows carry DIFFERENT burdens, because a short recent window cannot carry the
+  // same one. liqbrk takes ~7 trades a year on 4h, so 7 months holds ~4 — demanding 30 trades
+  // and 70% stability there would make every short window fail on arithmetic, not on merit.
+  //   reference (10k bars) -> establishes the edge: the full investment test
+  //   recent (user window) -> a FORM CHECK only: still making money, still beating the coin
+  // Ranked by the REFERENCE edge, the statistically meaningful one; a noisy 4-trade window
+  // gates the pick but never decides its order.
+  const okRecent=(e)=> !!e && e.n>=3 && e.net>0 && e.edge>0;
+  const scored = rows
+    .filter(r=>okRow(r.d,true) && (r.sameWin || okRecent(r.e)))
+    .map(r=>({...r, score:r.d.edge}))
+    .sort((a,b)=>b.score-a.score);
+
+  if(!scored.length){
+    // Never invent a recommendation. Show the nearest miss and name what it failed.
+    const near = rows.map(r=>{
+      const fails=[];
+      const d=r.d;
+      if(d.n<30) fails.push(`reference: only ${d.n} trades`);
+      else if(d.edge<=0) fails.push(`reference: lost to buy &amp; hold by ${sg(d.edge).replace('−','')}`);
+      else if(d.pf<1.3) fails.push(`reference: PF ${d.pf.toFixed(2)}`);
+      else if(d.wr<0.30) fails.push(`reference: win rate ${(d.wr*100).toFixed(0)}%`);
+      else if(d.dd>0.60) fails.push(`reference: drawdown ${(d.dd*100).toFixed(0)}%`);
+      else if(!d.sweep || d.sweep.pos<0.70) fails.push(`reference: profitable in only ${d.sweep?Math.round(d.sweep.pos*100):0}% of windows`);
+      if(!r.sameWin && !okRecent(r.e)){
+        fails.push(r.e.n<3 ? `recent form: only ${r.e.n} trades in your window`
+                 : r.e.net<=0 ? `recent form: losing ${sg(r.e.net)}`
+                 : `recent form: holding beat it by ${sg(r.e.edge).replace('−','')}`);
+      }
+      return {r, fails, near:r.d.edge};
+    }).filter(x=>x.fails.length).sort((a,b)=>b.near-a.near)[0];
+    el.innerHTML=`<div class="pick none"><div class="pickhead">
+        <span class="pickbadge">NO GO-TO COMBO</span>
+        <h3 class="picktitle">Nothing cleared both windows on <span class="picktf">${tf}</span></h3>
+      </div><div class="pickbody">
+        <div style="font-size:12.5px;line-height:1.6;color:var(--muted)">
+          A combo is only suggested when it clears the full test on the <b style="color:var(--txt)">10,000-bar reference</b>
+          — beats buy &amp; hold, PF 1.3, 30+ trades, 30%+ win rate, 60% max drawdown, 70% window stability —
+          <b style="color:var(--txt)">and</b> is still making money and still beating the coin in your window.
+          None here did, which is itself the finding rather than a bug.
+          ${near?`<div style="margin-top:9px;color:var(--txt)">Closest was <b>${near.r.sym.replace('USDT','')} · ${near.r.label}</b> — failed on ${near.fails.slice(0,2).join('; ')}.</div>`:''}
+        </div></div></div>`;
+    return;
+  }
+
+  const p=scored[0], e=p.e, d=p.d;
+  const kpi=(k,v,c,dim,tip)=>`<div class="kpi"><div class="k">${k}</div>`
+    + `<div class="v ${dim?'':(c||'')}"${dim?' style="color:#6e7681;font-weight:600"':''}`
+    + `${tip?` title="${tip}"`:''}>${v}${dim?' *':''}</div></div>`;
+  // Below the 30-trade floor, win rate and stability are arithmetic noise — shown, but muted,
+  // so a 3-trade "33% stable" cannot be mistaken for a verdict sitting next to a 100% one.
+  const winBlock=(w,title,st)=>{ const thin=w.n<30;
+    const tip=thin?`only ${w.n} closed trades here — not enough for this to mean anything`:'';
+    return `<div class="pickwin"><h4>${title}</h4>
+      <div class="winspan">${st}${thin?` · <span style="color:#6e7681">* too few trades to read</span>`:''}</div>
+      <div class="kpis">
+        ${kpi('Net P/L', sg(w.net), cls(w.net))}
+        ${kpi('vs B&amp;H', sg(w.edge), cls(w.edge))}
+        ${kpi('Trades', w.n, '', thin, tip)}
+        ${kpi('Max DD', '−'+(w.dd*100).toFixed(0)+'%','down')}
+        ${kpi('Win rate', (w.wr*100).toFixed(0)+'%','',thin,tip)}
+        ${kpi('Stable', w.sweep?Math.round(w.sweep.pos*100)+'%':'—','',thin,tip)}
+      </div></div>`; };
+
+  const coin=p.sym.replace('USDT','');
+  const why=[];
+  why.push(`Over the reference it beat simply holding ${coin} by <b>${sg(d.edge)}</b> across ${d.n} closed trades. Most rows fail exactly here — trading the coin loses to owning it.`);
+  if(d.sweep) why.push(`Profitable in <b>${Math.round(d.sweep.pos*100)}%</b> of ${d.sweep.nw} sliding windows across the reference, so it works wherever you start rather than from one lucky date.`);
+  why.push(`PF ${isFinite(d.pf)?d.pf.toFixed(2):'∞'} and a ${(d.wr*100).toFixed(0)}% win rate, with capital deployed only <b>${(d.expo*100).toFixed(0)}%</b> of the time at a ${(d.dd*100).toFixed(0)}% worst drawdown — the return came with the market risk switched off most of the time.`);
+  if(!sameWin){
+    why.push(`Still working lately: <b>${sg(e.net)}</b> over your ${span(e)} window (${sg(e.edge)} vs holding) on ${e.n} trade${e.n===1?'':'s'}. ${e.n<30?`<b>${e.n} trades proves nothing on its own</b> — this is a form check that it has not broken down, not a second confirmation of the edge.`:'That window is long enough to carry weight of its own.'}`);
+  }
+  if(d.yrs < 8) why.push({w:1,t:`Reference covers ${d.yrs.toFixed(1)} years — less than two full BTC cycles, so it has not met every regime this asset can produce.`});
+
+  const runners=scored.slice(1,3).map(r=>
+    `<span class="r">${r.sym.replace('USDT','')} · ${r.label}</span> (${sg(r.score)} vs holding)`).join(' · ');
+
+  el.innerHTML=`<div class="pick"><div class="pickhead">
+      <span class="pickbadge">✓ GO-TO COMBO</span>
+      <h3 class="picktitle">${p.sym.replace('USDT','')}<span class="sep">·</span>${p.label}<span class="sep">·</span><span class="picktf">${tf}</span></h3>
+    </div><div class="pickbody">
+      <div class="pickhero">
+        <div class="heronum ${cls(p.score)}">${sg(p.score)}</div>
+        <div class="herolbl">versus buy &amp; hold over the <b>10,000-bar reference</b>. Picks are ranked on this window because it is the one with enough trades to mean anything; recent form only gates the list.</div>
+      </div>
+      <div class="pickcols">
+        ${winBlock(e, 'Your window — recent form', `${cmpBars().toLocaleString()} × ${tf} · ${span(e)}`)}
+        ${sameWin
+          ? `<div class="pickwin"><h4>10,000-bar reference — the edge</h4><div class="winspan">identical to your window</div>
+             <div style="color:var(--muted);font-size:11.5px;line-height:1.5;padding-top:4px">
+             Your Bars setting is already 10,000, so there is only one window here. Set a shorter one to test
+             recent form against the long reference separately.</div></div>`
+          : winBlock(d, '10,000-bar reference — the edge', `10,000 × ${tf} · ${span(d)}`)}
+      </div>
+      <ul class="pickwhy">${why.map(x=>typeof x==='string'?`<li>${x}</li>`:`<li class="warn">${x.t}</li>`).join('')}</ul>
+      <div class="pickcaveat"><b>⚠ Read this before acting on it.</b> ${sameWin
+        ? 'Both panels show the same window, so this is a single measurement, not a confirmation.'
+        : 'Your window sits <b>inside</b> the reference window — they overlap, so this is not two independent tests. It shows recent form has not broken down, not that the edge was confirmed twice.'}
+        Every number is a backtest on past prices with 0.1% fees per side and no slippage or funding; live results will be worse.</div>
+      ${runners?`<div class="pickrunners">Also cleared both windows: ${runners}</div>`:''}
+    </div></div>`;
 }
 document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
   cmpSort = cmpSort.k===th.dataset.k ? {k:cmpSort.k,d:-cmpSort.d} : {k:th.dataset.k,d:-1};

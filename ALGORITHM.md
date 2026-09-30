@@ -450,6 +450,41 @@ sidestepping their drawdowns beats riding them.
 maxDD (path risk) together cover the same ground more legibly for a trade-based system; the
 `vol` pill still reports annualised equity volatility if a quick risk read is wanted.
 
+### Oct 2026 — the go-to combo panel, and why its two windows are not symmetric
+Compare now measures every row twice: the user's bar count and a fixed **10,000-bar reference**,
+both sliced from a single fetch. A panel above the table names one coin+strategy+timeframe as the
+go-to, with the reasoning spelled out.
+
+The first attempt applied the same investment test to both windows and **found nothing on 4h at
+1,350 bars**. The cause was arithmetic, not merit: 1,350 × 4h is 7 months, `liqbrk` takes ~7 trades
+a year on 4h, so the recent window held **3 trades** against a 30-trade floor. Any short window
+fails that test by construction, which makes it a broken test rather than a strict one.
+
+The windows therefore carry different burdens, and this is the design point worth keeping:
+
+| window | burden | why |
+|---|---|---|
+| 10,000-bar reference | **full** test — beats B&H, PF ≥1.3, ≥30 trades, WR ≥30%, DD ≤60%, ≥70% stability | only window with enough trades to establish anything |
+| user's window | **form check** — ≥3 trades, net >0, still beating the coin | confirms it has not broken down; cannot prove an edge |
+
+Ranking is by the **reference** edge over buy & hold. Ranking by the weaker of the two (the first
+design) let a 3-trade window decide the order, which is exactly backwards.
+
+Two honesty constraints are built into the panel and must survive any redesign:
+- **The windows overlap.** The recent window sits *inside* the reference, so this is not two
+  independent confirmations. The panel says so in its caveat box.
+- **Sub-30-trade stats are muted with a `*`.** Without this a 3-trade "33% stable" renders beside
+  the reference's "100%" and reads as a failure rather than as noise.
+
+When nothing qualifies the panel says so and names the closest miss with the test it failed —
+it never manufactures a recommendation. On 1w nothing qualifies (0–2 trades per symbol), which is
+the correct answer there.
+
+Sample output, 4h / 1,350 bars: **DOGE · Liq Breakout · 4h**, +429.4% vs buy & hold over the
+reference across 34 trades, 100% of 15 sliding windows profitable, 8% time in market, −39% max
+drawdown; recent form +16.3% (+41.7% vs holding) on 3 trades, flagged as unreadable. Runners-up
+XRP and ETH. At 10,000 bars (identical windows) the pick is AVAX at +1,067%.
+
 ### REJECTED — do not rebuild
 - **Breakeven stops.** BE after +1R: WR **30.2% → 21.3%**, expR +0.143 → +0.019, PF 0.97.
   +1.5R and +2R also worse. Converts fat-tail winners into scratches — same mechanism as
