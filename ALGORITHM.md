@@ -363,12 +363,46 @@ on every axis at once** — most trades, best stability, shallowest drawdowns. T
 | LINK | +15.2% | −26% | 61% | **100%** (+9% … +42%) |
 | BNB | +13.2% | −19% | 57% | **100%** (+6% … +33%) |
 
-**Caveat, and it is not small:** 4h caps at 10k bars ≈ 4.6 years, which starts in 2022 and is
-mostly bull. The sweep's 15 windows are ~583 days each and overlap heavily *within* that one
-regime, so "100% of windows profitable" means "profitable wherever you start inside a mostly
-bull 4.6 years" — it is not evidence the system survives a bear. The regime split above still
-governs. What 4h does establish over 1h/2h is a usable **sample size** (31–45 trades vs 17–30)
-and much shallower drawdowns (−14% to −39% vs −23% to −40% on a third of the trades).
+### Oct 2026 — CORRECTION: 4h was never capped at 4.6 years, and the shallow drawdowns were fake
+The 10,000-bar ceiling was a self-imposed `max=` on the Bars input, **not a Binance limit**.
+`fetchKlines` pages backwards through `endTime`, so depth is bounded only by the pair's listing
+date: **BTCUSDT 4h reaches 2017-08-17 — 19,959 bars, 9.1 years, two halving cycles.** The old
+code comment ("4h maxed: ~4.6y is all Binance serves") was wrong and the Sep 2026 note above
+repeated it. The cap is now 60,000 and the 4h/2h defaults are 20,000.
+
+Re-running 4h over 9.1 years instead of 4.6 splits the earlier caveat cleanly in two — one half
+was right, the other was not:
+
+| symbol | yrs | trades 4.6y→9.1y | stability 4.6y→9.1y | **maxDD 4.6y→9.1y** |
+|---|---|---|---|---|
+| ETH | 9.1 | 45 → **92** | 100% → **100%** | −24% → −25% |
+| BTC | 9.1 | 42 → **89** | 100% → **100%** | **−14% → −39%** |
+| BNB | 8.9 | 37 → **83** | 100% → **100%** | **−19% → −38%** |
+| XRP | 8.4 | 42 → 73 | 87% → **100%** | −36% → −36% |
+| ADA | 8.4 | 31 → 70 | 53% → **80%** | −44% → −44% |
+| LINK | 7.7 | 33 → 66 | 100% → 93% | −26% → −34% |
+| DOGE | 7.2 | 34 → 60 | 100% → 87% | **−39% → −74%** |
+| SOL | 6.1 | 44 → 58 | 100% → 93% | −32% → −39% |
+| DOT | 6.1 | 33 → 45 | 60% → **80%** | −30% → −30% |
+| AVAX | 6.0 | 31 → 44 | 87% → 93% | −35% → −35% |
+
+**Wrong half of the caveat:** the bull-only window did *not* overstate consistency. Across two
+cycles — including the 2018 and 2022 bears — window stability **held or improved on 7 of 10
+symbols**, and ETH/BTC/BNB stayed at 100% over 9.1 years and 83–92 trades. That is far stronger
+evidence for the mechanism than the 4.6-year run provided, not weaker.
+
+**Right half, and it matters more:** the short window understated **drawdown** badly. BTC's real
+4h drawdown is **−39%, not −14%**; BNB −38% not −19%; DOGE −74% not −39%. Any position sizing
+derived from the 4.6-year figures was roughly 2–3× too aggressive on those three. Quote the
+9.1-year drawdown.
+
+✓ count went 7/40 → 8/40 and its composition changed: ADA and DOGE dropped out (drawdown), DOT
+and AVAX came in (stability). **Note the Yrs column before comparing two rows** — only BTC/ETH
+reach 9.1y; SOL, DOT and AVAX only reach ~6y, so they cover one cycle plus change, not two.
+Cost: ~208 requests for 10 symbols at 20,000 bars, roughly 20 per symbol.
+
+What 4h still establishes over 1h/2h is sample size — 44–92 trades vs 17–30 — and it remains
+the peak of the timeframe ranking.
 
 Counter-example the ✓ correctly rejects: BNB Trend Follow on 1d shows 93% window stability
 and +44.3% CAGR, but −84% drawdown and a +5009% top-end window — one enormous trade carrying

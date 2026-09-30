@@ -120,7 +120,7 @@
   <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
   </label>
-  <label class="cc">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="10000" step="500" /></label>
+  <label class="cc">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="60000" step="500" /></label>
   <label class="cc">ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
   <label class="cc">Liq
     <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
@@ -174,9 +174,9 @@
     <label>Timeframe
       <select id="cmpTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
     </label>
-    <label title="How many of the most recent bars to fetch per symbol. Binance serves at most 10,000. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
+    <label title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
       <span style="display:inline-flex;align-items:baseline;gap:6px">
-        <input id="cmpBars" class="num" type="number" value="4500" min="300" max="10000" step="250" style="width:74px" />
+        <input id="cmpBars" class="num" type="number" value="4500" min="300" max="60000" step="500" style="width:74px" />
         <span id="cmpSpan" class="spanhint"></span>
       </span>
     </label>
@@ -193,7 +193,7 @@
       <th data-k="cagr" data-label="CAGR">CAGR</th><th data-k="dd" data-label="Max DD">Max DD</th>
       <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th>
       <th data-k="pos" data-label="Stable" title="share of sliding windows that were profitable, and the return range across them. 100% = profitable wherever you start; ~50% = the result depends entirely on your window.">Stable</th>
-      <th data-k="yrs" data-label="Yrs" title="history covered — Binance caps both at 10k bars, so 1h reaches back only ~1.1y (making the 1Y column nearly the whole history) and 4h ~4.6y. Cross-TF numbers grade different periods.">Yrs</th><th>✓</th>
+      <th data-k="yrs" data-label="Yrs" title="history actually covered, which depends on the Bars setting AND on when the pair listed. 4h/2h reach Binance's 2017 start (~9.1y) for BTC and ETH but only 2020 for SOL and 2019 for LINK, and most 1h history begins 2022. Cross-TF and cross-symbol numbers therefore grade different periods — check this column before comparing two rows.">Yrs</th><th>✓</th>
     </tr></thead>
     <tbody id="cmpBody"><tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
@@ -206,23 +206,45 @@ let chart, candleSeries, candles = [], lastResult = null, logScale = true;
 const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
 const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 
-async function fetchKlines(symbol, interval, total){
+// Pages backwards 1000 bars at a time via endTime, so depth is limited only by how far the
+// pair's history goes — NOT by any API ceiling. BTCUSDT 4h reaches 2017-08-17 (~19,960 bars,
+// 9.1 years, two halving cycles). An earlier comment here claimed 4h "maxed at ~4.6y"; that was
+// the old 10,000-bar input cap being mistaken for a Binance limit. Don't reintroduce it.
+// `onPage` reports progress because a deep fetch is 20+ sequential requests per symbol.
+async function fetchKlines(symbol, interval, total, onPage){
   let collected = [], endTime;
   while (collected.length < total){
     const limit = Math.min(1000, total - collected.length);
     const qs = `symbol=${symbol}&interval=${interval}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : '');
     let rows = null, lastErr = null;
-    for (const base of ENDPOINTS){
-      try{ const r = await fetch(`${base}/api/v3/klines?${qs}`); if(!r.ok){ lastErr=`${base} HTTP ${r.status}`; continue; } rows = await r.json(); break; }
-      catch(e){ lastErr = `${base}: ${e.message}`; }
+    // Deep fetches make many more requests, so a single 429/5xx must not kill the run.
+    // Retry across both endpoints with backoff; only give up after all attempts fail.
+    for (let attempt = 0; attempt < 4 && !rows; attempt++){
+      if (attempt) await new Promise(r => setTimeout(r, 400 * Math.pow(2, attempt - 1)));
+      for (const base of ENDPOINTS){
+        try{
+          const r = await fetch(`${base}/api/v3/klines?${qs}`);
+          if(!r.ok){
+            lastErr = `${base} HTTP ${r.status}`;
+            if(r.status === 400 || r.status === 404) return collected.length ? finishKlines(collected) : [];
+            continue;                                     // 429 / 418 / 5xx -> retry with backoff
+          }
+          rows = await r.json(); break;
+        }
+        catch(e){ lastErr = `${base}: ${e.message}`; }
+      }
     }
     if(!rows) throw new Error(lastErr || 'fetch failed');
     if(!rows.length) break;
+    if(onPage) onPage(collected.length + rows.length, total);
     const mapped = rows.map(k => ({ time: Math.floor(k[0]/1000), open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5] }));
     collected = mapped.concat(collected);
     endTime = rows[0][0] - 1;
     if(rows.length < limit) break;
   }
+  return finishKlines(collected);
+}
+function finishKlines(collected){
   const seen = new Set();
   return collected.filter(c => !seen.has(c.time) && seen.add(c.time)).sort((a,b)=>a.time-b.time);
 }
@@ -599,9 +621,12 @@ let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut wh
 const CMP_DEFAULT=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
 // 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
-// per-TF starting point for the Bars box; 1h/2h/4h sit at the 10k Binance cap
-// (~14mo / ~2.3y / ~4.6y). Overridden the moment the user types their own number.
-const CMP_BARS={ '1h':10000, '2h':10000, '4h':10000, '1d':4500, '1w':600 };
+// Per-TF starting point for the Bars box, overridden the moment the user types a number.
+// Sized to the FULL history each TF can reach, not to a request cap — 4h at 20000 covers
+// 2017-08-17 to now (~9.1 years = two BTC halving cycles), which is the point: a 4.6-year
+// 4h window is bull-only and flatters every trend system in it.
+// 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
+const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
 // cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
 // box slices the tail off what we already hold instead of refetching, and a symbol whose
 // history is genuinely shorter than `asked` is not refetched forever.
@@ -633,8 +658,8 @@ if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
 // Tracks the per-TF default until the user types a number, then holds whatever they set.
 let cmpBarsTouched=false;
 try{ if(localStorage.getItem('smb.cmpBars')) cmpBarsTouched=true; }catch(e){}
-const cmpBars=()=>Math.max(300, Math.min(10000, Math.round(+$('cmpBars').value||CMP_BARS[$('cmpTf').value]||4500)));
-function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(10000,Math.round(n))); cmpSpan(); }
+const cmpBars=()=>Math.max(300, Math.min(60000, Math.round(+$('cmpBars').value||CMP_BARS[$('cmpTf').value]||4500)));
+function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(60000,Math.round(n))); cmpSpan(); }
 // Spell out what the bar count buys in real time — the whole point of the Sep 2026 finding is
 // that people read "650 bars" without noticing it is 27 days.
 function cmpSpan(){
@@ -708,7 +733,12 @@ async function runCompare(force){
     try{
       const key=sym+'|'+tf;
       let ent=cmpCache[key];
-      if(force || !ent || ent.asked<bars){ ent=cmpCache[key]={rows:await fetchKlines(sym,tf,bars), asked:bars}; }
+      if(force || !ent || ent.asked<bars){
+        const rows=await fetchKlines(sym,tf,bars,(got,want)=>{
+          if(want>1000) $('cmpStatus').textContent=`fetching ${sym} ${tf} — ${got}/${want} bars…`;
+        });
+        ent=cmpCache[key]={rows, asked:bars};
+      }
       const full=ent.rows||[];
       const c = full.length>bars ? full.slice(-bars) : full;      // already hold more: just trim
       if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
