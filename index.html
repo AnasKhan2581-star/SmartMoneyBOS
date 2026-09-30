@@ -39,7 +39,13 @@
   #cmpTable th{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);text-align:right;padding:10px 12px;background:var(--panel);position:sticky;top:0}
   #cmpTable th[data-k]{cursor:pointer;user-select:none}
   #cmpTable th[data-k]:hover{color:var(--txt)}
-  #cmpCtl{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  #cmpCtl{display:flex;gap:8px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap}
+  #cmpSyms{width:100%;background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+           padding:5px 8px;font:inherit;font-size:13px}
+  #cmpSyms:focus{outline:none;border-color:#1f6feb}
+  #cmpCtl .cmpsw{flex-direction:row;align-items:center;gap:5px;white-space:nowrap}
+  .stab{font-variant-numeric:tabular-nums}
+  .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
   body.cmp .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
@@ -152,31 +158,36 @@
 </main>
 <section id="compareView">
   <h2>Compare All Strategies</h2>
-  <div class="sub">The 7-coin universe · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart. <span id="cmpStatus"></span></div>
+  <div class="sub">Your symbol list · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart.<br>
+    Read <b>Trades</b> and <b>Stable</b> before anything else: a row with &lt;30 trades or a low stable-% is one lucky window, not an edge. <span id="cmpStatus"></span></div>
   <div id="cmpCtl">
+    <label style="flex:1 1 320px;min-width:240px">Symbols
+      <input id="cmpSyms" type="text" spellcheck="false"
+             title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
+    </label>
+    <button id="cmpSymsReset" class="ghost" title="restore the 7-coin universe">Reset list</button>
     <label>Strategy
-      <select id="cmpStrat">
-        <option value="all" selected>All strategies</option>
-        <option value="composite">Composite</option>
-        <option value="tsmom">Trend Follow</option>
-        <option value="meanrev">Dip Buyer</option>
-        <option value="donch">Turtle</option>
-        <option value="liqbrk">Liq Breakout</option>
-      </select>
+      <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
     <label>Timeframe
-      <select id="cmpTf"><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+      <select id="cmpTf"><option value="1h">1h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+    </label>
+    <label class="cmpsw" title="Instead of grading each row on one window, slide a window across its whole history and report how often it was profitable. A row that only works in one window is a coin flip, not an edge.">
+      <input id="cmpSweep" type="checkbox" checked style="margin:0" /> Window sweep
     </label>
     <button id="cmpGo" class="ghost">↻ Refresh data</button>
   </div>
   <div id="cmpWrap"><table id="cmpTable">
     <thead><tr>
       <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
+      <th data-k="n" data-label="Trades" title="CLOSED trades over the whole history — under 30 and none of the other columns mean anything. On 1h only the intraday systems get a real sample: Cycle needs a 200-week MA and Trend/Turtle need months per trade, so they show 0–2 here.">Trades</th>
       <th data-k="m6" data-label="6M">6M</th><th data-k="y1" data-label="1Y">1Y</th>
       <th data-k="cagr" data-label="CAGR">CAGR</th><th data-k="dd" data-label="Max DD">Max DD</th>
-      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th><th data-k="yrs" data-label="Yrs" title="history covered — 4h reaches back ~4.6y max, so cross-TF numbers grade different periods">Yrs</th><th>✓</th>
+      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th>
+      <th data-k="pos" data-label="Stable" title="share of sliding windows that were profitable, and the return range across them. 100% = profitable wherever you start; ~50% = the result depends entirely on your window.">Stable</th>
+      <th data-k="yrs" data-label="Yrs" title="history covered — Binance caps both at 10k bars, so 1h reaches back only ~1.1y (making the 1Y column nearly the whole history) and 4h ~4.6y. Cross-TF numbers grade different periods.">Yrs</th><th>✓</th>
     </tr></thead>
-    <tbody id="cmpBody"><tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
+    <tbody id="cmpBody"><tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
 </section>
 
@@ -577,11 +588,37 @@ function advisor(result){
 }
 let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut while you read it
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
-const CMP_SYMS=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
+const CMP_DEFAULT=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
-const CMP_BARS={ '4h':10000, '1d':4500, '1w':600 };   // 4h maxed: ~4.6y is all Binance serves
+// 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
+const CMP_BARS={ '1h':10000, '4h':10000, '1d':4500, '1w':600 };
 const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
 let cmpSort={k:'cagr',d:-1}, cmpBusy=false;
+
+// ---- editable symbol list -------------------------------------------------
+// Accepts bare tickers or full pairs, in any case: "inj, arb, HBARUSDT" is valid.
+const QUOTES=['USDT','FDUSD','USDC','BUSD','BTC','ETH','BNB'];
+function normSym(s){
+  s=String(s).trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!s) return null;
+  return QUOTES.some(q=>s.length>q.length && s.endsWith(q)) ? s : s+'USDT';
+}
+function parseSyms(raw){
+  const out=[], seen=new Set();
+  for(const part of String(raw).split(/[,\s;]+/)){
+    const s=normSym(part);
+    if(s && !seen.has(s)){ seen.add(s); out.push(s); }
+  }
+  return out;
+}
+let CMP_SYMS=CMP_DEFAULT.slice();
+try{ const saved=localStorage.getItem('smb.cmpSyms'); if(saved) CMP_SYMS=parseSyms(saved); }catch(e){}
+if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
+const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
+$('cmpSyms').value=cmpSymsText(CMP_SYMS);
+// strategy filter is generated, so removing a strategy can never leave a dead option behind
+$('cmpStrat').innerHTML='<option value="all" selected>All strategies</option>'
+  + CMP_STRATS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
 // per-bar strategy return path → 6M/1Y windows (day-aware per TF), CAGR, DD, Sharpe
 function pathStats(trades,c){
   const dt=c.length>1?Math.max(60,c[1].time-c[0].time):86400, bpd=86400/dt, ann=Math.sqrt(365*bpd);
@@ -598,31 +635,52 @@ function pathStats(trades,c){
   const last=eq[eq.length-1];
   const win=(days)=>{ const k=Math.max(0,eq.length-1-Math.round(days*bpd)); return last/eq[k]-1; };
   const yrs=(c[c.length-1].time-c[0].time)/31557600;
+  // ---- window sweep ----
+  // One window is one draw. Slide it across the whole equity path and report how often the
+  // system was profitable and how wide the spread is. Measured Sep 2026: on 1h, ~half of all
+  // window placements disagree with the other half on whether a symbol even makes money, so
+  // a single window cannot rank anything (see ALGORITHM.md). Reads the equity path that is
+  // already built above, so it costs nothing extra — no re-running the engine per window.
+  const wBars=Math.max(120, Math.floor((eq.length-1)*0.35));
+  const step=Math.max(1, Math.floor(wBars/8));
+  const wr_=[];
+  for(let end=eq.length-1; end-wBars>=0; end-=step){
+    const a=eq[end-wBars]; if(a>0) wr_.push(eq[end]/a-1);
+  }
+  const srt=wr_.slice().sort((a,b)=>a-b);
+  const sweep = srt.length>=3 ? {
+    nw:srt.length,
+    pos:wr_.filter(x=>x>0).length/wr_.length,
+    med:srt[Math.floor(srt.length/2)], lo:srt[0], hi:srt[srt.length-1],
+    days:Math.round(wBars/bpd),
+  } : null;
   return { m6:win(183), y1:win(365), cagr:Math.pow(Math.max(last,0.01),1/Math.max(yrs,0.2))-1,
-    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann, yrs };
+    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann, yrs, n:w+l,
+    sweep, pos: sweep?sweep.pos:0 };
 }
 async function runCompare(force){
   const tf=$('cmpTf').value;
   if(cmpBusy) return;
   if(!force && cmpRowsTf[tf]){ renderCmp(); return; }
   cmpBusy=true;
-  $('cmpBody').innerHTML='<tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr>';
-  const rows=[];
+  $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
+  const rows=[], bad=[];
   for(const sym of CMP_SYMS){
     $('cmpStatus').textContent='fetching '+sym+' '+tf+'…';
     try{
       const key=sym+'|'+tf;
       if(!cmpCache[key]||force) cmpCache[key]=await fetchKlines(sym,tf,CMP_BARS[tf]||4500);
       const c=cmpCache[key];
-      if(!c||c.length<250) continue;
+      if(!c||c.length<250){ bad.push(sym+' (only '+((c&&c.length)||0)+' bars)'); continue; }
       for(const [st,label] of CMP_STRATS){
         const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
         rows.push({sym,st,label,e:pathStats(res.trades,c)});
       }
-    }catch(e){}
+    }catch(e){ bad.push(sym+' (no data)'); }
   }
   cmpRowsTf[tf]=rows; cmpBusy=false;
-  $('cmpStatus').textContent='';
+  // a typo'd or delisted symbol should say so, not vanish silently
+  $('cmpStatus').textContent = bad.length ? 'skipped: '+bad.join(', ') : '';
   renderCmp();
 }
 function renderCmp(){
@@ -636,10 +694,30 @@ function renderCmp(){
   });
   const pc=(x)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</span>`;
   const vp=(v)=> v<0.45?'<span class="volpill" style="background:#1d3b2a;color:#7ee787">LOW VOL</span>':v<0.8?'<span class="volpill" style="background:#3b331d;color:#e3c34c">MED VOL</span>':'<span class="volpill" style="background:#3b1d1d;color:#f85149">HIGH VOL</span>';
+  const sweepOn=$('cmpSweep').checked;
+  // stability cell: share of windows profitable, with the spread underneath
+  const sg=(x)=>(x>=0?'+':'−')+Math.abs(x*100).toFixed(0)+'%';   // explicit sign: "−15%", never "-0"
+  const sc=(e)=>{
+    if(!sweepOn) return '<span style="color:#8b949e">off</span>';
+    const s=e.sweep;
+    if(!s) return '<span style="color:#8b949e" title="not enough history to slide a window">—</span>';
+    const col = s.pos>=0.8?'#3fb950' : s.pos>=0.6?'#e3c34c' : '#f85149';
+    return `<span class="stab" title="${s.nw} sliding windows of ~${s.days} days each · worst ${sg(s.lo)} · median ${sg(s.med)} · best ${sg(s.hi)}">`
+      + `<span style="color:${col};font-weight:700">${(s.pos*100).toFixed(0)}%</span>`
+      + `<small>${sg(s.lo)} to ${sg(s.hi)}</small></span>`;
+  };
+  // trade count is the first thing that invalidates a row: under 30 closed trades nothing else counts
+  const nc=(e)=>{
+    const thin=e.n<30;
+    return `<span style="color:${thin?'#f85149':'#8b949e'}"${thin?' title="too few trades to read the other columns"':''}>${e.n}${thin?' ⚠':''}</span>`;
+  };
   $('cmpBody').innerHTML=view.map(r=>{
-    const ok=r.e.cagr>=0.12&&r.e.wr>=0.30&&r.e.dd<=0.60;
-    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(r.e.vol)}</td><td>${pc(r.e.m6)}</td><td>${pc(r.e.y1)}</td><td><b>${pc(r.e.cagr)}</b></td><td><span class="down">-${(r.e.dd*100).toFixed(0)}%</span></td><td>${(r.e.wr*100).toFixed(0)}%</td><td>${r.e.sharpe.toFixed(2)}</td><td style="color:#8b949e">${r.e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
-  }).join('') || '<tr><td colspan="10" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+    const e=r.e;
+    // ✓ now also demands enough trades and, with the sweep on, profit in most window placements
+    const ok = e.cagr>=0.12 && e.wr>=0.30 && e.dd<=0.60 && e.n>=30
+            && (!sweepOn || (e.sweep && e.sweep.pos>=0.70));
+    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(e.vol)}</td><td>${nc(e)}</td><td>${pc(e.m6)}</td><td>${pc(e.y1)}</td><td><b>${pc(e.cagr)}</b></td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td>${e.sharpe.toFixed(2)}</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
+  }).join('') || '<tr><td colspan="12" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     stratInfo(); showView('chart'); run();
@@ -652,6 +730,24 @@ document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListene
 $('cmpStrat').addEventListener('change',renderCmp);
 $('cmpTf').addEventListener('change',()=>runCompare(false));
 $('cmpGo').addEventListener('click',()=>runCompare(true));
+$('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
+// editing the symbol list drops the computed rows but KEEPS the klines cache, so re-running
+// only fetches the symbols that are actually new
+function applyCmpSyms(){
+  const next=parseSyms($('cmpSyms').value);
+  if(!next.length){ $('cmpStatus').textContent='no valid symbols — list unchanged'; return; }
+  if(next.join()===CMP_SYMS.join()) return;
+  CMP_SYMS=next;
+  $('cmpSyms').value=cmpSymsText(CMP_SYMS);
+  try{ localStorage.setItem('smb.cmpSyms', CMP_SYMS.join(',')); }catch(e){}
+  for(const k of Object.keys(cmpRowsTf)) delete cmpRowsTf[k];
+  runCompare(false);
+}
+$('cmpSyms').addEventListener('change',applyCmpSyms);
+$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyCmpSyms(); } });
+$('cmpSymsReset').addEventListener('click',()=>{
+  $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
+});
 function showView(v){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   document.body.classList.toggle('cmp', v==='compare');

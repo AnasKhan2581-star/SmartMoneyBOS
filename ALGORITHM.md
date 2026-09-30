@@ -326,6 +326,46 @@ were requested but are **not in the research cache and untestable from the sandb
 they are exactly the high-beta short-history profile where the AVAX/XRP fat-tail illusion
 shows up, so do not assume they work.
 
+### Sep 2026 — the Compare tab now sweeps windows, and 4h is where `liqbrk` lives
+Compare gained a **Window sweep** column, a **Trades** column, a **1h** timeframe and an
+**editable symbol list** (persisted to `localStorage`). The sweep slides a window of 35% of
+the loaded history, stepped by an eighth of itself, across the equity path `pathStats`
+already builds — so it costs no extra engine runs and no extra fetches — and reports the
+share of window placements that were profitable plus the spread. The ✓ verdict now also
+requires ≥30 closed trades and ≥70% of windows profitable.
+
+Running it across 10 symbols exposed a timeframe ranking that the 1h/2h study above missed:
+
+| TF | rows passing ✓ | note |
+|---|---|---|
+| 1h | 0 / 40 | ~1.1y of history at the 10k-bar cap; 20–47% window stability |
+| 1d | 0 / 40 | drawdowns −78% to −87% |
+| 1w | 0 / 40 | 16–23 trades — below the sample floor |
+| **4h** | **7 / 40** | all seven are `liqbrk` |
+
+`liqbrk` on 4h, 31–45 trades per symbol, sweep stability in brackets:
+
+| symbol | CAGR | maxDD | WR | windows profitable |
+|---|---|---|---|---|
+| DOGE | +35.9% | −39% | 32% | **100%** (+17% … +147%) |
+| ETH | +33.7% | −24% | 47% | **100%** (+10% … +157%) |
+| BTC | +31.3% | **−14%** | 52% | **100%** (+19% … +145%) |
+| XRP | +27.5% | −36% | 31% | 87% (−4% … +218%) |
+| SOL | +24.7% | −32% | 52% | **100%** (+35% … +118%) |
+| LINK | +15.2% | −26% | 61% | **100%** (+9% … +42%) |
+| BNB | +13.2% | −19% | 57% | **100%** (+6% … +33%) |
+
+**Caveat, and it is not small:** 4h caps at 10k bars ≈ 4.6 years, which starts in 2022 and is
+mostly bull. The sweep's 15 windows are ~583 days each and overlap heavily *within* that one
+regime, so "100% of windows profitable" means "profitable wherever you start inside a mostly
+bull 4.6 years" — it is not evidence the system survives a bear. The regime split above still
+governs. What 4h does establish over 1h/2h is a usable **sample size** (31–45 trades vs 17–30)
+and much shallower drawdowns (−14% to −39% vs −23% to −40% on a third of the trades).
+
+Counter-example the ✓ correctly rejects: BNB Trend Follow on 1d shows 93% window stability
+and +44.3% CAGR, but −84% drawdown and a +5009% top-end window — one enormous trade carrying
+a skewed distribution. Stability alone is not a pass.
+
 ### REJECTED — do not rebuild
 - **Breakeven stops.** BE after +1R: WR **30.2% → 21.3%**, expR +0.143 → +0.019, PF 0.97.
   +1.5R and +2R also worse. Converts fat-tail winners into scratches — same mechanism as
