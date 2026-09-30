@@ -255,6 +255,77 @@ only public ZEC mirror covers 2019-03→2019-12 only, n=12–31 — directionall
 far too small to count). Run `python pytester/liqbrk_v2_test.py` on ZEC 15m full history
 (258k bars) before quoting any of these numbers for ZEC, per the CORRECTION's process lesson.
 
+### Sep 2026 — symbol selection: the app's bar-count window cannot pick one
+Asked "which symbol does `liqbrk` work on, tested at 650 / 1350 / 4350 bars on 1h and 2h."
+Run through `detector.js` itself with the app's own params (`liq=show`, atrLen 14,
+lbBrkExt 1.0, exposure equity, 0.1%/side) so the numbers are the app's numbers — pipeline
+verified against this file's recorded cross-check: **SOL 1h 109 and BTC 1h 121 entries,
+exact match**; pooled 10-symbol 1h WR 36.5% / PF 1.37 vs the research harness's 35.6% / 1.33
+(gap = same-bar-close vs next-bar-open entry).
+
+**A single bar-count cell carries almost no information.** Sliding the *same* window back
+through history in 1-month steps, per symbol on 1h:
+
+| bars | avg trades/window | WR range across windows | windows disagreeing on sign |
+|---|---|---|---|
+| 650 | **0.9 – 1.5** | 0% – 100% | 12–26 of 57 |
+| 1350 | 2.2 – 3.5 | 0% – 100% | 17–28 of 56 |
+| 4350 | 7.7 – 12.4 | 8% – 83% | 13–25 of 51 |
+
+650 bars on 1h is ~27 days; at ~1 trade it is a coin flip, and DOGE 1h/650 returns **zero
+trades**. Even at 4350 bars roughly half the windows disagree with the other half on whether
+a symbol is profitable (ETH 1h/4350 spans −33.7% to +58.3% on window placement alone). This
+is the same window-size trap as the CORRECTION above. **Do not select a symbol, or judge the
+strategy, from one bar-count cell.**
+
+**The 2h "edge" was an era, not a timeframe.** Against a matched random-entry control (same
+trade count, same hold-length distribution, 3000 draws), full history: 1h beat the control on
+2/10 symbols, 2h on **8/10**. But the 2h cache starts 2017–2020 while 1h starts 2022.
+Restricting 2h to 2022+ — the identical span — collapses it to **1/10** (BTC, p=0.003).
+There is no 2h edge; there was a 2017–2021 bull market.
+
+**Regime is the variable that matters, and it holds out of sample.** Labelling each entry by
+whether BTC closed above its own 200-day MA on the prior daily close, pooled over 10 symbols:
+
+| | 1h bull | 1h bear | 2h bull | 2h bear |
+|---|---|---|---|---|
+| n | 539 | 475 | 687 | 475 |
+| win rate | 40.1% | 32.4% | 42.8% | 40.0% |
+| profit factor | **1.71** | **1.00** | **2.15** | **1.44** |
+| avg net / trade | +1.4% | −0.0% | +2.9% | +1.0% |
+
+Split at 2024-07-01, nothing fitted to either half: 1h bull PF 1.16 (IS) → **2.49** (OS);
+1h bear 0.94 → 1.08. 2h bull 2.18 → 2.05; 2h bear 1.56 → 1.13. Bull beats bear in **4/4**
+half-by-timeframe cells and the bull edge does not decay. In bear regime on 1h the system is
+exactly breakeven (PF 1.00) — consistent with the 2.5-year ZEC bear bleed.
+
+**Most symbols' headline PF is two or three trades.** Bull-regime PF with the best 1 and
+best 3 trades removed:
+
+| symbol | 1h PF → drop best 3 | 2h PF → drop best 3 | biggest trade |
+|---|---|---|---|
+| **BTC** | 2.44 → **1.50** | 2.41 → **1.73** | +30% |
+| ETH | 1.69 → 0.97 | 2.64 → **1.62** | +58% |
+| LINK | 1.54 → 0.85 | 1.91 → 1.27 | +48% |
+| DOGE | 1.56 → 0.81 | 2.61 → 1.17 | +156% |
+| AVAX | 2.02 → 1.03 | 4.50 → 1.32 | +200% |
+| XRP | 2.97 → 0.89 | 1.59 → 0.60 | +161% |
+| SOL | 1.29 → 0.81 | 1.48 → 0.92 | +54% |
+
+AVAX's 4.50 and XRP's 2.97 are single lottery tickets, not systems. **BTC is the only symbol
+that stays above 1.0 on both timeframes after dropping its three best trades, and the only
+one to beat the random-entry control on same-span (2022+) data.** It also carries the lowest
+full-history drawdown (1h −23.2%, vs ETH −39.8%, SOL −41.9%, XRP −58.8%). BTC 1h full
+history is the best cell in the whole grid: 121 trades, WR 38.0%, PF 1.68, **+183.6% vs
+buy & hold +77.8%, maxDD −23.2%**, 18.8% time in market.
+
+Practical read: **run it on BTC (2h preferred, 1h acceptable), only while BTC is above its
+200-day MA, and treat symbol choice as far less important than the regime gate.** ETH on 2h
+is a defensible second. SOL does not clear the bar on either timeframe. INJ / ARB / HBAR
+were requested but are **not in the research cache and untestable from the sandbox** — and
+they are exactly the high-beta short-history profile where the AVAX/XRP fat-tail illusion
+shows up, so do not assume they work.
+
 ### REJECTED — do not rebuild
 - **Breakeven stops.** BE after +1R: WR **30.2% → 21.3%**, expR +0.143 → +0.019, PF 0.97.
   +1.5R and +2R also worse. Converts fat-tail winners into scratches — same mechanism as
