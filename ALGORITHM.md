@@ -327,23 +327,31 @@ they are exactly the high-beta short-history profile where the AVAX/XRP fat-tail
 shows up, so do not assume they work.
 
 ### Sep 2026 — the Compare tab now sweeps windows, and 4h is where `liqbrk` lives
-Compare gained a **Window sweep** column, a **Trades** column, a **1h** timeframe and an
-**editable symbol list** (persisted to `localStorage`). The sweep slides a window of 35% of
-the loaded history, stepped by an eighth of itself, across the equity path `pathStats`
-already builds — so it costs no extra engine runs and no extra fetches — and reports the
-share of window placements that were profitable plus the spread. The ✓ verdict now also
-requires ≥30 closed trades and ≥70% of windows profitable.
+Compare gained a **Window sweep** column, a **Trades** column, **1h and 2h** timeframes, a
+**user-set bar count** (`#cmpBars`, with a live span readout) and an **editable symbol list**
+(both persisted to `localStorage`). The sweep slides a window of 35% of the loaded history,
+stepped by an eighth of itself, across the equity path `pathStats` already builds — so it
+costs no extra engine runs and no extra fetches — and reports the share of window placements
+that were profitable plus the spread. The ✓ verdict now also requires ≥30 closed trades and
+≥70% of windows profitable.
 
-Running it across 10 symbols exposed a timeframe ranking that the 1h/2h study above missed:
+Running it across the symbol list exposed a monotone timeframe ranking, `liqbrk` at each TF's
+default bar count (4 symbols BTC/ETH/SOL/LINK, trade counts and window-stability per symbol):
 
-| TF | rows passing ✓ | note |
-|---|---|---|
-| 1h | 0 / 40 | ~1.1y of history at the 10k-bar cap; 20–47% window stability |
-| 1d | 0 / 40 | drawdowns −78% to −87% |
-| 1w | 0 / 40 | 16–23 trades — below the sample floor |
-| **4h** | **7 / 40** | all seven are `liqbrk` |
+| TF | span | trades | window stability | ✓ rows |
+|---|---|---|---|---|
+| 1h | ~14 mo | 22–30 | 20–33% | 0 |
+| **2h** | ~2.3 y | 27–47 | 33–87% | 1 |
+| **4h** | ~4.6 y | 33–45 | **100% on all four** | **4** |
+| 1d | ~12.3 y | 9–19 | 13–81% | 0 |
+| 1w | ~11.5 y | 0–2 | 0–6% | 0 |
 
-`liqbrk` on 4h, 31–45 trades per symbol, sweep stability in brackets:
+Quality climbs 1h → 2h → 4h and then falls off a cliff at 1d/1w, where the strategy simply
+does not fire often enough to measure (1w: 0–2 trades across four symbols). **4h is the peak
+on every axis at once** — most trades, best stability, shallowest drawdowns. The full 10-symbol
+4h detail:
+
+`liqbrk` on 4h across 10 symbols, 31–45 trades each, sweep stability in brackets:
 
 | symbol | CAGR | maxDD | WR | windows profitable |
 |---|---|---|---|---|

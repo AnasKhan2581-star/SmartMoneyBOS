@@ -46,6 +46,8 @@
   #cmpCtl .cmpsw{flex-direction:row;align-items:center;gap:5px;white-space:nowrap}
   .stab{font-variant-numeric:tabular-nums}
   .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
+  .spanhint{color:var(--muted);font-size:11px;white-space:nowrap}
+  .spanhint.thin{color:#f85149}
   body.cmp .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
@@ -170,7 +172,13 @@
       <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
     <label>Timeframe
-      <select id="cmpTf"><option value="1h">1h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+      <select id="cmpTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+    </label>
+    <label title="How many of the most recent bars to fetch per symbol. Binance serves at most 10,000. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
+      <span style="display:inline-flex;align-items:baseline;gap:6px">
+        <input id="cmpBars" class="num" type="number" value="4500" min="300" max="10000" step="250" style="width:74px" />
+        <span id="cmpSpan" class="spanhint"></span>
+      </span>
     </label>
     <label class="cmpsw" title="Instead of grading each row on one window, slide a window across its whole history and report how often it was profitable. A row that only works in one window is a coin flip, not an edge.">
       <input id="cmpSweep" type="checkbox" checked style="margin:0" /> Window sweep
@@ -591,8 +599,14 @@ let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut wh
 const CMP_DEFAULT=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
 // 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
-const CMP_BARS={ '1h':10000, '4h':10000, '1d':4500, '1w':600 };
-const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
+// per-TF starting point for the Bars box; 1h/2h/4h sit at the 10k Binance cap
+// (~14mo / ~2.3y / ~4.6y). Overridden the moment the user types their own number.
+const CMP_BARS={ '1h':10000, '2h':10000, '4h':10000, '1d':4500, '1w':600 };
+// cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
+// box slices the tail off what we already hold instead of refetching, and a symbol whose
+// history is genuinely shorter than `asked` is not refetched forever.
+// cmpRowsTf is keyed tf|bars — a different bar count is a different measurement.
+const cmpCache={}, cmpRowsTf={};
 let cmpSort={k:'cagr',d:-1}, cmpBusy=false;
 
 // ---- editable symbol list -------------------------------------------------
@@ -614,6 +628,30 @@ function parseSyms(raw){
 let CMP_SYMS=CMP_DEFAULT.slice();
 try{ const saved=localStorage.getItem('smb.cmpSyms'); if(saved) CMP_SYMS=parseSyms(saved); }catch(e){}
 if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
+
+// ---- bar count ------------------------------------------------------------
+// Tracks the per-TF default until the user types a number, then holds whatever they set.
+let cmpBarsTouched=false;
+try{ if(localStorage.getItem('smb.cmpBars')) cmpBarsTouched=true; }catch(e){}
+const cmpBars=()=>Math.max(300, Math.min(10000, Math.round(+$('cmpBars').value||CMP_BARS[$('cmpTf').value]||4500)));
+function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(10000,Math.round(n))); cmpSpan(); }
+// Spell out what the bar count buys in real time — the whole point of the Sep 2026 finding is
+// that people read "650 bars" without noticing it is 27 days.
+function cmpSpan(){
+  const tf=$('cmpTf').value, n=cmpBars();
+  const hrs={'1h':1,'2h':2,'4h':4,'1d':24,'1w':168}[tf]||24;
+  const d=n*hrs/24;
+  const txt = d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
+  const el=$('cmpSpan');
+  el.textContent = txt + (tf==='1w'||tf==='1d' ? '' : '');
+  // a swing system holding ~1-2 days needs months, not weeks, before any column means anything
+  el.classList.toggle('thin', d < 200);
+  el.title = d < 200
+    ? `${n} × ${tf} is only ${Math.round(d)} days — too short for a swing system to produce a readable sample. Expect single-digit trade counts.`
+    : `${n} × ${tf} ≈ ${Math.round(d)} days of history per symbol`;
+}
+try{ const b=localStorage.getItem('smb.cmpBars'); if(b) $('cmpBars').value=b; }catch(e){}
+cmpSpan();
 const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
 $('cmpSyms').value=cmpSymsText(CMP_SYMS);
 // strategy filter is generated, so removing a strategy can never leave a dead option behind
@@ -659,32 +697,34 @@ function pathStats(trades,c){
     sweep, pos: sweep?sweep.pos:0 };
 }
 async function runCompare(force){
-  const tf=$('cmpTf').value;
+  const tf=$('cmpTf').value, bars=cmpBars(), rk=tf+'|'+bars;
   if(cmpBusy) return;
-  if(!force && cmpRowsTf[tf]){ renderCmp(); return; }
+  if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   cmpBusy=true;
   $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
   const rows=[], bad=[];
   for(const sym of CMP_SYMS){
-    $('cmpStatus').textContent='fetching '+sym+' '+tf+'…';
+    $('cmpStatus').textContent='fetching '+sym+' '+tf+' × '+bars+'…';
     try{
       const key=sym+'|'+tf;
-      if(!cmpCache[key]||force) cmpCache[key]=await fetchKlines(sym,tf,CMP_BARS[tf]||4500);
-      const c=cmpCache[key];
-      if(!c||c.length<250){ bad.push(sym+' (only '+((c&&c.length)||0)+' bars)'); continue; }
+      let ent=cmpCache[key];
+      if(force || !ent || ent.asked<bars){ ent=cmpCache[key]={rows:await fetchKlines(sym,tf,bars), asked:bars}; }
+      const full=ent.rows||[];
+      const c = full.length>bars ? full.slice(-bars) : full;      // already hold more: just trim
+      if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
       for(const [st,label] of CMP_STRATS){
         const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
         rows.push({sym,st,label,e:pathStats(res.trades,c)});
       }
     }catch(e){ bad.push(sym+' (no data)'); }
   }
-  cmpRowsTf[tf]=rows; cmpBusy=false;
+  cmpRowsTf[rk]=rows; cmpBusy=false;
   // a typo'd or delisted symbol should say so, not vanish silently
   $('cmpStatus').textContent = bad.length ? 'skipped: '+bad.join(', ') : '';
   renderCmp();
 }
 function renderCmp(){
-  const tf=$('cmpTf').value, all=cmpRowsTf[tf]||[];
+  const tf=$('cmpTf').value, all=cmpRowsTf[tf+'|'+cmpBars()]||[];
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
   const {k,d}=cmpSort;
@@ -720,6 +760,7 @@ function renderCmp(){
   }).join('') || '<tr><td colspan="12" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
+    $('bars').value=cmpBars();          // open the chart on the same window the row was graded on
     stratInfo(); showView('chart'); run();
   }));
 }
@@ -728,7 +769,18 @@ document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListene
   renderCmp();
 }));
 $('cmpStrat').addEventListener('change',renderCmp);
-$('cmpTf').addEventListener('change',()=>runCompare(false));
+$('cmpTf').addEventListener('change',()=>{
+  // an untouched Bars box tracks the per-TF default, so switching TF keeps grading a sane span
+  if(!cmpBarsTouched) setCmpBars(CMP_BARS[$('cmpTf').value]||4500);
+  cmpSpan(); runCompare(false);
+});
+$('cmpBars').addEventListener('change',()=>{
+  cmpBarsTouched=true;
+  setCmpBars(cmpBars());                                  // clamp what they typed, then persist
+  try{ localStorage.setItem('smb.cmpBars', String(cmpBars())); }catch(e){}
+  runCompare(false);
+});
+$('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
 $('cmpGo').addEventListener('click',()=>runCompare(true));
 $('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
 // editing the symbol list drops the computed rows but KEEPS the klines cache, so re-running
