@@ -158,7 +158,11 @@
   <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
   </label>
-  <label class="cc">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="60000" step="500" /></label>
+  <label class="cc" title="Fetch the most recent N bars, or everything between two dates.">Fetch
+    <select id="rangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select></label>
+  <label class="cc" id="barsWrap">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="60000" step="500" /></label>
+  <label class="cc rng" id="fromWrap" title="Start date. If the pair listed later than this, you get its earliest bars instead — no error.">From<input id="fromDate" type="date" class="num" style="width:132px" /></label>
+  <label class="cc rng" id="toWrap" title="End date, inclusive. Leave at today for an up-to-date window.">To<input id="toDate" type="date" class="num" style="width:132px" /></label>
   <label class="cc">ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
   <label class="cc">Liq
     <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
@@ -212,12 +216,22 @@
     <label>Timeframe
       <select id="cmpTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
     </label>
-    <label title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
+    <label title="Fetch the most recent N bars per symbol, or everything between two dates.">Fetch
+      <select id="cmpRangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select>
+    </label>
+    <label id="cmpBarsWrap" title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
       <span style="display:inline-flex;align-items:baseline;gap:6px">
         <input id="cmpBars" class="num" type="number" value="4500" min="300" max="60000" step="500" style="width:74px" />
         <span id="cmpSpan" class="spanhint"></span>
       </span>
     </label>
+    <label id="cmpFromWrap" title="Start date. Symbols that listed later are clamped to their own earliest bar and named in the status line — they are still compared, just over less history, so check the Yrs column before reading two rows against each other.">From
+      <input id="cmpFrom" type="date" class="num" style="width:132px" /></label>
+    <label id="cmpToWrap" title="End date, inclusive.">To
+      <span style="display:inline-flex;align-items:baseline;gap:6px">
+        <input id="cmpTo" type="date" class="num" style="width:132px" />
+        <span id="cmpSpan2" class="spanhint"></span>
+      </span></label>
     <label class="cmpsw" title="Instead of grading each row on one window, slide a window across its whole history and report how often it was profitable. A row that only works in one window is a coin flip, not an edge.">
       <input id="cmpSweep" type="checkbox" checked style="margin:0" /> Window sweep
     </label>
@@ -253,10 +267,19 @@ const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 // 9.1 years, two halving cycles). An earlier comment here claimed 4h "maxed at ~4.6y"; that was
 // the old 10,000-bar input cap being mistaken for a Binance limit. Don't reintroduce it.
 // `onPage` reports progress because a deep fetch is 20+ sequential requests per symbol.
-async function fetchKlines(symbol, interval, total, onPage){
-  let collected = [], endTime;
+// Bar duration in ms — lets a date range be sized, and the reference window be expressed
+// as a span when the user is fetching by date rather than by count.
+const TF_MS = {'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,
+               '12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
+// `spec` is either a bar COUNT (number) or a DATE RANGE ({from, to} in ms).
+// In range mode it pages back until it passes `from` OR the pair's history runs out — so a
+// start date older than the listing simply yields the earliest bars that exist, no error.
+async function fetchKlines(symbol, interval, spec, onPage){
+  const range = (spec && typeof spec === 'object') ? spec : null;
+  const total = range ? Infinity : spec;
+  let collected = [], endTime = range && range.to ? range.to : undefined;
   while (collected.length < total){
-    const limit = Math.min(1000, total - collected.length);
+    const limit = range ? 1000 : Math.min(1000, total - collected.length);
     const qs = `symbol=${symbol}&interval=${interval}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : '');
     let rows = null, lastErr = null;
     // Deep fetches make many more requests, so a single 429/5xx must not kill the run.
@@ -278,12 +301,15 @@ async function fetchKlines(symbol, interval, total, onPage){
     }
     if(!rows) throw new Error(lastErr || 'fetch failed');
     if(!rows.length) break;
-    if(onPage) onPage(collected.length + rows.length, total);
+    if(onPage) onPage(collected.length + rows.length, range ? null : total);
     const mapped = rows.map(k => ({ time: Math.floor(k[0]/1000), open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5] }));
     collected = mapped.concat(collected);
     endTime = rows[0][0] - 1;
-    if(rows.length < limit) break;
+    if(rows.length < limit) break;                        // history exhausted
+    if(range && rows[0][0] <= range.from) break;          // reached the requested start
   }
+  if(range) collected = collected.filter(c => c.time*1000 >= range.from
+                                           && (!range.to || c.time*1000 <= range.to));
   return finishKlines(collected);
 }
 function finishKlines(collected){
@@ -570,13 +596,60 @@ function drawOverlay(){
   });
 }
 
+// Shared by both tabs: turn the date inputs into a {from,to} ms range.
+// `to` is pushed to the END of its day so the chosen day is included.
+const dayStart=(s)=>{ const d=Date.parse(s+'T00:00:00Z'); return isFinite(d)?d:null; };
+const dayEnd  =(s)=>{ const d=Date.parse(s+'T00:00:00Z'); return isFinite(d)?d+86399999:null; };
+function dateSpec(fromId,toId){
+  const f=dayStart($(fromId).value), t=dayEnd($(toId).value);
+  if(f==null) return null;
+  const to=(t==null||t>Date.now())?Date.now():t;
+  if(f>=to) return null;
+  return {from:f, to};
+}
+const fmtDay=(sec)=>new Date(sec*1000).toISOString().slice(0,10);
+
 async function run(){
   ensureChart();
   const sym=$('sym').value.trim().toUpperCase(), tf=$('tf').value;
-  const bars=Math.max(200, Math.min(10000, +$('bars').value||3000));
-  $('status').textContent = `fetching ${sym} ${tf}…`;
-  try{ candles = await fetchKlines(sym, tf, bars); if(!candles.length){ $('status').textContent='no data'; return; } recalc(); }
+  const byDate = $('rangeMode').value==='dates';
+  let spec, label;
+  if(byDate){
+    spec = dateSpec('fromDate','toDate');
+    if(!spec){ $('status').textContent='pick a start date earlier than the end date'; return; }
+    label = `${$('fromDate').value} → ${$('toDate').value||'today'}`;
+  } else {
+    spec = Math.max(200, Math.min(60000, +$('bars').value||3000));
+    label = `${spec} bars`;
+  }
+  $('status').textContent = `fetching ${sym} ${tf} · ${label}…`;
+  try{
+    candles = await fetchKlines(sym, tf, spec, (got)=>{
+      $('status').textContent = `fetching ${sym} ${tf} · ${got} bars…`;
+    });
+    if(!candles.length){ $('status').textContent = byDate ? 'no bars in that date range' : 'no data'; return; }
+    recalc();
+    // Say what was actually fetched — a requested start before the pair listed is clamped
+    // silently by the API, and the user should see that rather than assume full coverage.
+    if(byDate){
+      const got0=fmtDay(candles[0].time), want0=$('fromDate').value;
+      $('status').textContent = `${candles.length} bars · ${got0} → ${fmtDay(candles[candles.length-1].time)}`
+        + (got0>want0 ? ` · ${sym} only lists from ${got0}` : '');
+    }
+  }
   catch(e){ $('status').textContent='error: '+e.message; }
+}
+function syncRangeMode(){
+  const byDate=$('rangeMode').value==='dates';
+  $('barsWrap').style.display = byDate?'none':'';
+  document.querySelectorAll('#toolbar .rng, .rng').forEach(el=>{
+    if(el.id==='fromWrap'||el.id==='toWrap') el.style.display = byDate?'':'none';
+  });
+  if(byDate && !$('toDate').value) $('toDate').value = new Date().toISOString().slice(0,10);
+  if(byDate && !$('fromDate').value){
+    const d=new Date(); d.setUTCFullYear(d.getUTCFullYear()-2);
+    $('fromDate').value = d.toISOString().slice(0,10);
+  }
 }
 function recalc(){
   if(!candles.length) return;
@@ -677,7 +750,7 @@ const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
 // so a combo can be required to work both recently and over the long haul before it is suggested.
 const CMP_REF_BARS=10000;
 const cmpCache={}, cmpRowsTf={};
-let cmpSort={k:'net',d:-1}, cmpBusy=false;
+let cmpSort={k:'net',d:-1}, cmpBusy=false, cmpPending=false;
 
 // ---- editable symbol list -------------------------------------------------
 // Accepts bare tickers or full pairs, in any case: "inj, arb, HBARUSDT" is valid.
@@ -781,6 +854,24 @@ function pathStats(trades,c){
     expo: c.length ? inBars/c.length : 0,
     sweep, pos: sweep?sweep.pos:0 };
 }
+// One key for the computed rows, so runCompare and renderCmp can never look in different places.
+// A different bar count or a different date range is a different measurement.
+function cmpRowKey(){
+  const tf=$('cmpTf').value;
+  if($('cmpRangeMode').value==='dates'){
+    const s=dateSpec('cmpFrom','cmpTo');
+    return s ? `${tf}|d${s.from}-${s.to}` : `${tf}|dinvalid`;
+  }
+  return `${tf}|${cmpBars()}`;
+}
+// how the user's window should be described in the pick panel
+function cmpWindowLabel(){
+  if($('cmpRangeMode').value==='dates'){
+    const f=$('cmpFrom').value, t=$('cmpTo').value;
+    return `${f} → ${t||'today'}`;
+  }
+  return `${cmpBars().toLocaleString()} bars`;
+}
 // The ✓ test, shared by the table and the go-to picker so the two can never disagree.
 // An INVESTMENT test, not a backtest-looks-nice test: the decisive term is edge>0, because a
 // strategy that does not beat simply holding the coin is not worth trading it.
@@ -790,31 +881,55 @@ function okRow(e, requireStable){
       && (!requireStable || (e.sweep && e.sweep.pos>=0.70));
 }
 async function runCompare(force){
-  const tf=$('cmpTf').value, bars=cmpBars(), rk=tf+'|'+bars;
+  const tf=$('cmpTf').value, byDate=$('cmpRangeMode').value==='dates';
+  const bars=cmpBars();
+  // In date mode the user's window is the range, but the 10k reference still has to fit, so we
+  // fetch back to whichever is earlier and slice both out of the one result.
+  let dspec=null, refFrom=null;
+  if(byDate){
+    dspec=dateSpec('cmpFrom','cmpTo');
+    if(!dspec){ $('cmpStatus').textContent='pick a start date earlier than the end date'; return; }
+    refFrom=Math.min(dspec.from, dspec.to - CMP_REF_BARS*(TF_MS[tf]||864e5));
+  }
+  const rk = cmpRowKey();
   const need=Math.max(bars, CMP_REF_BARS);
-  if(cmpBusy) return;
+  // Dropping a request while one is in flight leaves the table rendering a key nobody computed —
+  // which is exactly what happens when you switch to date mode (that fires a fetch) and then pick
+  // your dates a moment later. Queue it instead of discarding it.
+  if(cmpBusy){ cmpPending=true; return; }
   if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   cmpBusy=true;
   $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
-  const rows=[], bad=[];
+  const rows=[], bad=[], short=[];
   for(const sym of CMP_SYMS){
     $('cmpStatus').textContent='fetching '+sym+' '+tf+' × '+bars+'…';
     try{
       const key=sym+'|'+tf;
       // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
       // One fetch serves both windows — the reference costs no extra requests.
-      let ent=cmpCache[key];
-      if(force || !ent || ent.asked<need){
-        const rows=await fetchKlines(sym,tf,need,(got,want)=>{
-          if(want>1000) $('cmpStatus').textContent=`fetching ${sym} ${tf} — ${got}/${want} bars…`;
+      const ckey = byDate ? `${key}|d${refFrom}-${dspec.to}` : key;
+      let ent=cmpCache[ckey];
+      if(force || !ent || (!byDate && ent.asked<need)){
+        const spec = byDate ? {from:refFrom, to:dspec.to} : need;
+        const rows=await fetchKlines(sym,tf,spec,(got,want)=>{
+          $('cmpStatus').textContent = want
+            ? `fetching ${sym} ${tf} — ${got}/${want} bars…`
+            : `fetching ${sym} ${tf} — ${got} bars…`;
         });
-        ent=cmpCache[key]={rows, asked:need};
+        ent=cmpCache[ckey]={rows, asked:byDate?Infinity:need};
       }
       const full=ent.rows||[];
-      const c = full.length>bars ? full.slice(-bars) : full;      // already hold more: just trim
+      // user's window: the date range, or the last N bars
+      const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
+                       : (full.length>bars ? full.slice(-bars) : full);
       if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
       const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
-      const sameWin = bars===CMP_REF_BARS || (c.length===ref.length);
+      const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
+      // a start date earlier than the listing is clamped by the API — say so rather than
+      // letting a short row look like a like-for-like comparison
+      if(byDate && c.length && c[0].time*1000 > dspec.from + (TF_MS[tf]||864e5)*2){
+        short.push(`${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`);
+      }
       for(const [st,label] of CMP_STRATS){
         const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
         const e=pathStats(res.trades,c);
@@ -829,12 +944,17 @@ async function runCompare(force){
     }catch(e){ bad.push(sym+' (no data)'); }
   }
   cmpRowsTf[rk]=rows; cmpBusy=false;
-  // a typo'd or delisted symbol should say so, not vanish silently
-  $('cmpStatus').textContent = bad.length ? 'skipped: '+bad.join(', ') : '';
+  if(cmpPending){ cmpPending=false; return runCompare(false); }   // settings moved while we fetched
+  // a typo'd or delisted symbol should say so, not vanish silently; and a symbol clamped to a
+  // later start than you asked for is being graded on less history than its neighbours
+  $('cmpStatus').textContent = [
+    bad.length ? 'skipped: '+bad.join(', ') : '',
+    short.length ? 'listed later, clamped to earliest: '+short.join(', ') : '',
+  ].filter(Boolean).join(' · ');
   renderCmp();
 }
 function renderCmp(){
-  const tf=$('cmpTf').value, all=cmpRowsTf[tf+'|'+cmpBars()]||[];
+  const tf=$('cmpTf').value, all=cmpRowsTf[cmpRowKey()]||[];
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
   const {k,d}=cmpSort;
@@ -876,7 +996,11 @@ function renderCmp(){
   renderPick(all, tf);
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
-    $('bars').value=cmpBars();          // open the chart on the same window the row was graded on
+    // open the chart on the same window the row was graded on, in whichever mode is active
+    $('rangeMode').value=$('cmpRangeMode').value;
+    if($('cmpRangeMode').value==='dates'){ $('fromDate').value=$('cmpFrom').value; $('toDate').value=$('cmpTo').value; }
+    else $('bars').value=cmpBars();
+    syncRangeMode();
     stratInfo(); showView('chart'); run();
   }));
 }
@@ -979,7 +1103,7 @@ function renderPick(rows, tf){
         <div class="herolbl">versus buy &amp; hold over the <b>10,000-bar reference</b>. Picks are ranked on this window because it is the one with enough trades to mean anything; recent form only gates the list.</div>
       </div>
       <div class="pickcols">
-        ${winBlock(e, 'Your window — recent form', `${cmpBars().toLocaleString()} × ${tf} · ${span(e)}`)}
+        ${winBlock(e, 'Your window — recent form', `${cmpWindowLabel()} × ${tf} · ${span(e)}`)}
         ${sameWin
           ? `<div class="pickwin"><h4>10,000-bar reference — the edge</h4><div class="winspan">identical to your window</div>
              <div style="color:var(--muted);font-size:11.5px;line-height:1.5;padding-top:4px">
@@ -1014,6 +1138,34 @@ $('cmpBars').addEventListener('change',()=>{
 $('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
 $('cmpGo').addEventListener('click',()=>runCompare(true));
 $('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
+function syncCmpMode(){
+  const byDate=$('cmpRangeMode').value==='dates';
+  $('cmpBarsWrap').style.display = byDate?'none':'';
+  $('cmpFromWrap').style.display = byDate?'':'none';
+  $('cmpToWrap').style.display   = byDate?'':'none';
+  if(byDate && !$('cmpTo').value) $('cmpTo').value = new Date().toISOString().slice(0,10);
+  if(byDate && !$('cmpFrom').value){
+    const d=new Date(); d.setUTCFullYear(d.getUTCFullYear()-2);
+    $('cmpFrom').value = d.toISOString().slice(0,10);
+  }
+  cmpSpan2();
+}
+// span readout for date mode, same job as #cmpSpan does for the bar count
+function cmpSpan2(){
+  const el=$('cmpSpan2'); if(!el) return;
+  const s=dateSpec('cmpFrom','cmpTo');
+  if(!s){ el.textContent=''; el.classList.remove('thin'); return; }
+  const d=(s.to-s.from)/864e5;
+  el.textContent = d>=730? `≈ ${(d/365).toFixed(1)} yrs` : d>=60? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
+  el.classList.toggle('thin', d<200);
+  el.title = d<200 ? `${Math.round(d)} days is too short for a swing system to produce a readable sample`
+                   : `${Math.round(d)} days per symbol, where its history reaches that far back`;
+}
+$('cmpRangeMode').addEventListener('change',()=>{ syncCmpMode(); runCompare(false); });
+for(const id of ['cmpFrom','cmpTo']){
+  $(id).addEventListener('change',()=>{ cmpSpan2(); if($('cmpRangeMode').value==='dates') runCompare(false); });
+}
+syncCmpMode();
 // editing the symbol list drops the computed rows but KEEPS the klines cache, so re-running
 // only fetches the symbols that are actually new
 function applyCmpSyms(){
@@ -1049,6 +1201,10 @@ $('liq').addEventListener('change', recalc);
 $('sym').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
 $('tf').addEventListener('change', run);
 $('bars').addEventListener('change', run);
+$('rangeMode').addEventListener('change', ()=>{ syncRangeMode(); run(); });
+$('fromDate').addEventListener('change', ()=>{ if($('rangeMode').value==='dates') run(); });
+$('toDate').addEventListener('change', ()=>{ if($('rangeMode').value==='dates') run(); });
+syncRangeMode();
 $('scaleMode').addEventListener('click', ()=>{
   logScale=!logScale; $('scaleMode').textContent=logScale?'Log':'Lin';
   if(chart) chart.priceScale('right').applyOptions({ mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal, autoScale:true });
