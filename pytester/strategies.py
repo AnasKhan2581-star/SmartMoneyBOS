@@ -28,12 +28,13 @@ def strategy(key, label, params, blurb):
 # --------------------------------------------------------------------------- liqbrk
 @strategy(
     "liqbrk", "Liquidity Breakout (15m swing)",
-    {"lbBreak": 2.0, "lbExit": 1.0, "lbTrend": 5.0, "lbStop": 3.0, "lbRelVol": 1.3,
-     "lbMaBars": 149.0, "atrLen": 14},
+    {"lbBreak": 2.0, "lbExit": 1.0, "lbTrend": 5.0, "lbStop": 4.0, "lbRelVol": 1.3,
+     "lbMaBars": 149.0, "lbBrkExt": 1.0, "atrLen": 14},
     "Buy-side liquidity — short stops and resting breakout orders — piles up above recent "
     "highs. The FIRST close above the 2-day high, in an uptrend, on above-average volume, "
     "with the entry above the 149-BAR SMA of the traded timeframe, takes that pool and "
-    "usually continues. Stop 3xATR; trail out below the 1-day low. "
+    "usually continues — but only when the close clears that high by >=lbBrkExt x ATR, "
+    "a decisive break rather than a one-tick one. Stop 4xATR; trail out below the 1-day low. "
     "A SWING system on 15m bars: holds ~30h, ~6 trades/month. Not day trading.")
 def liqbrk(df, p, fill="close"):
     t = df["time"].to_numpy()
@@ -61,6 +62,9 @@ def liqbrk(df, p, fill="close"):
         if maB is not None and not (close[i] > maB[i]):
             continue                                          # entry above the 149-bar MA
         if rv[i] < p["lbRelVol"]:
+            continue
+        brk_ext = float(p.get("lbBrkExt", 0) or 0)            # decisive-break gate; 0 = off
+        if brk_ext > 0 and (close[i] - hiB[i]) < brk_ext * a[i]:
             continue
         stop = close[i] - p["lbStop"] * a[i]
         if stop < close[i]:

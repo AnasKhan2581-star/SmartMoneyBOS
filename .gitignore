@@ -3,3 +3,6 @@
 pytester/cache/
 __pycache__/
 *.pyc
+
+pytester/session_bt_results.csv
+pytester/liqbrk_v2_results.csv

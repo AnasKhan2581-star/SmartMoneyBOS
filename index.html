@@ -39,8 +39,54 @@
   #cmpTable th{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);text-align:right;padding:10px 12px;background:var(--panel);position:sticky;top:0}
   #cmpTable th[data-k]{cursor:pointer;user-select:none}
   #cmpTable th[data-k]:hover{color:var(--txt)}
-  #cmpCtl{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-  body.noctl .cc{display:none}
+  #cmpCtl{display:flex;gap:8px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap}
+  #cmpSyms{width:100%;background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+           padding:5px 8px;font:inherit;font-size:13px}
+  #cmpSyms:focus{outline:none;border-color:#1f6feb}
+  #cmpCtl .cmpsw{flex-direction:row;align-items:center;gap:5px;white-space:nowrap}
+  .stab{font-variant-numeric:tabular-nums}
+  .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
+  .spanhint{color:var(--muted);font-size:11px;white-space:nowrap}
+  .spanhint.thin{color:#f85149}
+  /* go-to combo panel: a hero figure + KPI rows, not a chart — the data is a handful of
+     headline numbers for ONE pick, which a chart would only dilute */
+  #cmpPick{margin-bottom:14px}
+  .pick{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .pick.none{border-style:dashed}
+  .pickhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+            padding:12px 16px;border-bottom:1px solid var(--line);background:#0d1117}
+  .pickbadge{font-size:10px;font-weight:700;letter-spacing:.9px;padding:3px 9px;border-radius:9px;
+             background:#132d1c;color:#3fb950;border:1px solid #1d4a2c;white-space:nowrap}
+  .pick.none .pickbadge{background:#2d2413;color:#e3c34c;border-color:#4a3d1d}
+  .picktitle{font-size:19px;font-weight:700;margin:0;letter-spacing:-.2px}
+  .picktitle .sep{color:var(--muted);font-weight:400;margin:0 6px}
+  .picktf{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;
+          background:#16243b;color:#58a6ff;border:1px solid #1f3a5f;letter-spacing:.4px}
+  .pickbody{padding:14px 16px}
+  .pickhero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .heronum{font-size:48px;line-height:1;font-weight:800;letter-spacing:-1.5px;
+           font-variant-numeric:tabular-nums}
+  .herolbl{color:var(--muted);font-size:12px;max-width:340px;line-height:1.45}
+  .pickcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pickwin{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#0d1117}
+  .pickwin h4{margin:0 0 2px;font-size:12px;font-weight:700}
+  .pickwin .winspan{color:var(--muted);font-size:10.5px;margin-bottom:9px}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+  .kpi .k{color:var(--muted);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase}
+  .kpi .v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px}
+  .pickwhy{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+  .pickwhy li{font-size:12.5px;line-height:1.5;padding-left:20px;position:relative;color:var(--txt)}
+  .pickwhy li::before{content:'';position:absolute;left:6px;top:7px;width:5px;height:5px;
+                      border-radius:50%;background:#3fb950}
+  .pickwhy li.warn::before{background:#e3c34c}
+  .pickcaveat{margin-top:12px;padding:9px 11px;border-radius:7px;background:#2d2413;
+              border:1px solid #4a3d1d;color:#e3c34c;font-size:11.5px;line-height:1.5}
+  .pickcaveat b{color:#f0d68a}
+  .pickrunners{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);
+               color:var(--muted);font-size:11.5px;line-height:1.7}
+  .pickrunners .r{color:var(--txt);font-weight:600}
+  @media(max-width:700px){ .pickcols{grid-template-columns:1fr} .heronum{font-size:38px} }
+  body.cmp .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
   #cmpTable tbody tr{cursor:pointer}
@@ -184,11 +230,17 @@
   <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
   </label>
-  <label class="cc">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="10000" step="500" /></label>
+  <label class="cc" title="Fetch the most recent N bars, or everything between two dates.">Fetch
+    <select id="rangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select></label>
+  <label class="cc" id="barsWrap">Bars<input id="bars" class="num" type="number" value="4500" min="200" max="60000" step="500" /></label>
+  <label class="cc rng" id="fromWrap" title="Start date. If the pair listed later than this, you get its earliest bars instead — no error.">From<input id="fromDate" type="date" class="num" style="width:132px" /></label>
+  <label class="cc rng" id="toWrap" title="End date, inclusive. Leave at today for an up-to-date window.">To<input id="toDate" type="date" class="num" style="width:132px" /></label>
   <label class="cc">ATR<input id="atrLen" class="num" type="number" value="14" min="2" max="100" /></label>
   <label class="cc">Liq
     <select id="liq"><option value="show" selected>Context</option><option value="trade">Trade on it</option><option value="off">Off</option></select>
   </label>
+  <label class="cc" style="flex-direction:row;align-items:center;gap:5px"><input id="showSessions" type="checkbox" checked style="margin:0" />Sessions</label>
+  <label class="cc" title="liqbrk only: the close must clear the 2-day high by this many ATR — a decisive break. Default 1.0. Set 0 for the pre-Sep-2026 behaviour.">Brk×ATR<input id="lbBrkExt" class="num" type="number" value="1.0" min="0" max="3" step="0.1" /></label>
   <button id="run" class="cc">Run ▶</button>
   <button id="recalc" class="ghost cc">Recalc</button>
   <button id="scaleMode" class="ghost cc" title="toggle log / linear price scale">Log</button>
@@ -211,7 +263,7 @@
     <div class="tile"><div class="k">Open profit</div><div class="v" id="kOpen">—</div><div class="s" id="kOpenS">on live positions</div></div>
     <div class="tile"><div class="k">Deployed</div><div class="v" id="kDep">—</div><div class="s" id="kDepS">of capital at work</div></div>
     <div class="tile"><div class="k">In cash</div><div class="v" id="kCash">—</div><div class="s">waiting for a signal</div></div>
-    <div class="tile"><div class="k">Market regime</div><div class="v" id="kReg">—</div><div class="s" id="kRegS">200-day trend</div></div>
+    <div class="tile"><div class="k">Market regime (BTC)</div><div class="v" id="kReg">—</div><div class="s" id="kRegS">BTC 200-day trend</div></div>
   </div>
 
   <div class="meter">
@@ -261,30 +313,56 @@
 </main>
 <section id="compareView">
   <h2>Compare All Strategies</h2>
-  <div class="sub">The watchlist universe · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart. <span id="cmpStatus"></span></div>
+  <div class="sub">Your symbol list · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart.<br>
+    Read in this order: <b>Trades</b> (under 30 and nothing else counts) → <b>Stable</b> (low % = one lucky window) → <b>vs B&amp;H</b> (negative = holding the coin beat trading it) → <b>Net P/L</b>. <span id="cmpStatus"></span></div>
   <div id="cmpCtl">
+    <label style="flex:1 1 320px;min-width:240px">Symbols
+      <input id="cmpSyms" type="text" spellcheck="false"
+             title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
+    </label>
+    <button id="cmpSymsReset" class="ghost" title="restore the default watchlist">Reset list</button>
     <label>Strategy
-      <select id="cmpStrat">
-        <option value="all" selected>All strategies</option>
-        <option value="liqbrk">Liq Breakout</option>
-        <option value="tsmom">Trend Follow</option>
-        <option value="donch">Turtle</option>
-        <option value="cycle">BTC Cycle</option>
-      </select>
+      <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
     <label>Timeframe
-      <select id="cmpTf"><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+      <select id="cmpTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+    </label>
+    <label title="Fetch the most recent N bars per symbol, or everything between two dates.">Fetch
+      <select id="cmpRangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select>
+    </label>
+    <label id="cmpBarsWrap" title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
+      <span style="display:inline-flex;align-items:baseline;gap:6px">
+        <input id="cmpBars" class="num" type="number" value="4500" min="300" max="60000" step="500" style="width:74px" />
+        <span id="cmpSpan" class="spanhint"></span>
+      </span>
+    </label>
+    <label id="cmpFromWrap" title="Start date. Symbols that listed later are clamped to their own earliest bar and named in the status line — they are still compared, just over less history, so check the Yrs column before reading two rows against each other.">From
+      <input id="cmpFrom" type="date" class="num" style="width:132px" /></label>
+    <label id="cmpToWrap" title="End date, inclusive.">To
+      <span style="display:inline-flex;align-items:baseline;gap:6px">
+        <input id="cmpTo" type="date" class="num" style="width:132px" />
+        <span id="cmpSpan2" class="spanhint"></span>
+      </span></label>
+    <label class="cmpsw" title="Instead of grading each row on one window, slide a window across its whole history and report how often it was profitable. A row that only works in one window is a coin flip, not an edge.">
+      <input id="cmpSweep" type="checkbox" checked style="margin:0" /> Window sweep
     </label>
     <button id="cmpGo" class="ghost">↻ Refresh data</button>
   </div>
+  <div id="cmpPick"></div>
   <div id="cmpWrap"><table id="cmpTable">
     <thead><tr>
       <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
-      <th data-k="m6" data-label="6M">6M</th><th data-k="y1" data-label="1Y">1Y</th>
-      <th data-k="cagr" data-label="CAGR">CAGR</th><th data-k="dd" data-label="Max DD">Max DD</th>
-      <th data-k="wr" data-label="Win rate">Win rate</th><th data-k="sharpe" data-label="Sharpe">Sharpe</th><th data-k="yrs" data-label="Yrs" title="history covered — 4h reaches back ~4.6y max, so cross-TF numbers grade different periods">Yrs</th><th>✓</th>
+      <th data-k="n" data-label="Trades" title="CLOSED trades over the whole history — under 30 and none of the other columns mean anything. On 1h only the intraday systems get a real sample: Cycle needs a 200-week MA and Trend/Turtle need months per trade, so they show 0–2 here.">Trades</th>
+      <th data-k="net" data-label="Net P/L" title="total return over the whole window shown in Yrs, all-in, 0.1% fees per side. Rows with different Yrs are NOT directly comparable — check that column.">Net P/L</th>
+      <th data-k="edge" data-label="vs B&amp;H" title="how much richer you ended than simply buying and holding the same coin over the same window. +25% means the strategy finished 25% ahead of holding; negative means holding beat it and trading cost you money.">vs B&amp;H</th>
+      <th data-k="pf" data-label="PF" title="profit factor — gross profit divided by gross loss across closed trades. Below 1.0 the system loses money. Above ~1.3 is where an edge starts being worth the effort.">PF</th>
+      <th data-k="dd" data-label="Max DD">Max DD</th>
+      <th data-k="wr" data-label="Win rate">Win rate</th>
+      <th data-k="expo" data-label="In mkt" title="share of all bars with capital actually deployed. Low exposure with positive Net P/L means the money was idle and safe most of the time — the same return for far less market risk than buy & hold.">In mkt</th>
+      <th data-k="pos" data-label="Stable" title="share of sliding windows that were profitable, and the return range across them. 100% = profitable wherever you start; ~50% = the result depends entirely on your window.">Stable</th>
+      <th data-k="yrs" data-label="Yrs" title="history actually covered, which depends on the Bars setting AND on when the pair listed. 4h/2h reach Binance's 2017 start (~9.1y) for BTC and ETH but only 2020 for SOL and 2019 for LINK, and most 1h history begins 2022. Cross-TF and cross-symbol numbers therefore grade different periods — check this column before comparing two rows.">Yrs</th><th>✓</th>
     </tr></thead>
-    <tbody id="cmpBody"><tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
+    <tbody id="cmpBody"><tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
 </section>
 
@@ -300,23 +378,57 @@ let chart, candleSeries, candles = [], lastResult = null, logScale = true;
 const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
 const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 
-async function fetchKlines(symbol, interval, total){
-  let collected = [], endTime;
+// Pages backwards 1000 bars at a time via endTime, so depth is limited only by how far the
+// pair's history goes — NOT by any API ceiling. BTCUSDT 4h reaches 2017-08-17 (~19,960 bars,
+// 9.1 years, two halving cycles). An earlier comment here claimed 4h "maxed at ~4.6y"; that was
+// the old 10,000-bar input cap being mistaken for a Binance limit. Don't reintroduce it.
+// `onPage` reports progress because a deep fetch is 20+ sequential requests per symbol.
+// Bar duration in ms — lets a date range be sized, and the reference window be expressed
+// as a span when the user is fetching by date rather than by count.
+const TF_MS = {'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,
+               '12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
+// `spec` is either a bar COUNT (number) or a DATE RANGE ({from, to} in ms).
+// In range mode it pages back until it passes `from` OR the pair's history runs out — so a
+// start date older than the listing simply yields the earliest bars that exist, no error.
+async function fetchKlines(symbol, interval, spec, onPage){
+  const range = (spec && typeof spec === 'object') ? spec : null;
+  const total = range ? Infinity : spec;
+  let collected = [], endTime = range && range.to ? range.to : undefined;
   while (collected.length < total){
-    const limit = Math.min(1000, total - collected.length);
+    const limit = range ? 1000 : Math.min(1000, total - collected.length);
     const qs = `symbol=${symbol}&interval=${interval}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : '');
     let rows = null, lastErr = null;
-    for (const base of ENDPOINTS){
-      try{ const r = await fetch(`${base}/api/v3/klines?${qs}`); if(!r.ok){ lastErr=`${base} HTTP ${r.status}`; continue; } rows = await r.json(); break; }
-      catch(e){ lastErr = `${base}: ${e.message}`; }
+    // Deep fetches make many more requests, so a single 429/5xx must not kill the run.
+    // Retry across both endpoints with backoff; only give up after all attempts fail.
+    for (let attempt = 0; attempt < 4 && !rows; attempt++){
+      if (attempt) await new Promise(r => setTimeout(r, 400 * Math.pow(2, attempt - 1)));
+      for (const base of ENDPOINTS){
+        try{
+          const r = await fetch(`${base}/api/v3/klines?${qs}`);
+          if(!r.ok){
+            lastErr = `${base} HTTP ${r.status}`;
+            if(r.status === 400 || r.status === 404) return collected.length ? finishKlines(collected) : [];
+            continue;                                     // 429 / 418 / 5xx -> retry with backoff
+          }
+          rows = await r.json(); break;
+        }
+        catch(e){ lastErr = `${base}: ${e.message}`; }
+      }
     }
     if(!rows) throw new Error(lastErr || 'fetch failed');
     if(!rows.length) break;
+    if(onPage) onPage(collected.length + rows.length, range ? null : total);
     const mapped = rows.map(k => ({ time: Math.floor(k[0]/1000), open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5] }));
     collected = mapped.concat(collected);
     endTime = rows[0][0] - 1;
-    if(rows.length < limit) break;
+    if(rows.length < limit) break;                        // history exhausted
+    if(range && rows[0][0] <= range.from) break;          // reached the requested start
   }
+  if(range) collected = collected.filter(c => c.time*1000 >= range.from
+                                           && (!range.to || c.time*1000 <= range.to));
+  return finishKlines(collected);
+}
+function finishKlines(collected){
   const seen = new Set();
   return collected.filter(c => !seen.has(c.time) && seen.add(c.time)).sort((a,b)=>a.time-b.time);
 }
@@ -351,6 +463,8 @@ function ensureChart(){
     borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350',
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
+  $('showSessions').addEventListener('change', drawOverlay);
+  $('lbBrkExt').addEventListener('change', ()=>{ if(candles.length) recalc(); });
   new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); }).observe($('chartWrap'));
 }
 
@@ -436,9 +550,18 @@ function render(result){
 
   // TradingView-style position markers: ▲ buy at entry, ▼ sell at exit
   const markers = [];
+  const intraday = c.length>1 && (c[1].time-c[0].time) < 86400;
+  // On intraday charts the marker names the session and the IST clock time, so a
+  // long can be read against the session boxes without opening the trade log.
+  const sessOf = (ts)=>{ const h=new Date(ts*1000).getUTCHours();
+    for(const s of SESSIONS) if(h>=s.h0 && h<s.h1) return s.name; return 'Late'; };
   trades.forEach(t=>{
-    markers.push({ time:c[t.entryIdx].time, position:'belowBar', color:'#7ee787', shape:'arrowUp', text:'buy' });
-    if(t.outcome!=='open') markers.push({ time:c[t.exitIdx].time, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown', text:'sell' });
+    const et=c[t.entryIdx].time;
+    markers.push({ time:et, position:'belowBar', color:'#7ee787', shape:'arrowUp',
+      text: intraday ? `buy ${sessOf(et)} ${istLabel(et)}` : 'buy' });
+    if(t.outcome!=='open'){ const xt=c[t.exitIdx].time;
+      markers.push({ time:xt, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown',
+        text: intraday ? `sell ${istLabel(xt)}` : 'sell' }); }
   });
   markers.sort((a,b)=>a.time-b.time);
   candleSeries.setMarkers(markers);
@@ -466,6 +589,68 @@ function box(ctx,x1,x2,yT,yB,fill,stroke,label){
   if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.strokeRect(x1,yT,x2-x1,yB-yT); }
   if(label){ ctx.fillStyle=stroke||'#fff'; ctx.font='10px system-ui'; ctx.fillText(label,x1+3,yT-3); }
 }
+// ---------------------------------------------------------------------------
+// LuxAlgo-style trading sessions. UTC internally, labelled in IST (UTC+5:30).
+// Only meaningful intraday: hidden on >=1d charts. The US block is drawn
+// brighter because that is the only window with a measured expectancy edge
+// (see ALGORITHM.md -> Session structure).
+// ---------------------------------------------------------------------------
+const SESSIONS = [
+  { key:'asia',   name:'Asia',    ist:'05:30-12:30', h0:0,  h1:7,  fill:'rgba(88,166,255,.05)',  edge:'#58a6ff55' },
+  { key:'preus',  name:'Pre-US',  ist:'12:30-18:30', h0:7,  h1:13, fill:'rgba(139,148,158,.04)', edge:'#8b949e44' },
+  { key:'us',     name:'US',      ist:'18:30-02:30', h0:13, h1:21, fill:'rgba(126,231,135,.07)', edge:'#7ee78766' },
+];
+function istLabel(tsSec){
+  const d = new Date((tsSec + 5.5*3600) * 1000);
+  return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
+}
+// Contiguous runs of bars whose UTC hour falls inside each session, newest-first capped.
+function sessionBlocks(c, maxBlocks){
+  if(c.length < 2) return [];
+  const dt = Math.max(60, c[1].time - c[0].time);
+  if(dt >= 86400) return [];                       // daily+ : sessions are meaningless
+  const out = [];
+  for(const s of SESSIONS){
+    let start = -1;
+    for(let i=0;i<c.length;i++){
+      const h = new Date(c[i].time*1000).getUTCHours();
+      const inS = h >= s.h0 && h < s.h1;
+      if(inS && start < 0) start = i;
+      if((!inS || i === c.length-1) && start >= 0){
+        const end = inS ? i : i-1;
+        if(end > start){
+          let hi=-Infinity, lo=Infinity;
+          for(let k=start;k<=end;k++){ if(c[k].high>hi)hi=c[k].high; if(c[k].low<lo)lo=c[k].low; }
+          out.push({ s, a:start, b:end, hi, lo });
+        }
+        start = -1;
+      }
+    }
+  }
+  out.sort((x,y)=>y.a-x.a);
+  return out.slice(0, maxBlocks||180);
+}
+function drawSessions(ctx, c, X, Y, cv){
+  const blocks = sessionBlocks(c, 180);
+  if(!blocks.length) return;
+  ctx.save();
+  for(const bl of blocks){
+    const x1 = X(bl.a), x2 = X(bl.b), yT = Y(bl.hi), yB = Y(bl.lo);
+    if(x1==null||x2==null||yT==null||yB==null) continue;
+    if(x2 < 0 || x1 > cv.clientWidth) continue;
+    ctx.fillStyle = bl.s.fill;
+    ctx.fillRect(x1, yT, Math.max(1,x2-x1), Math.max(1,yB-yT));
+    ctx.strokeStyle = bl.s.edge; ctx.lineWidth = 1;
+    ctx.strokeRect(x1, yT, Math.max(1,x2-x1), Math.max(1,yB-yT));
+    if(x2-x1 > 46){
+      ctx.fillStyle = bl.s.edge.slice(0,7);
+      ctx.font = '9px system-ui';
+      ctx.fillText(bl.s.name, x1+3, yT-3);
+    }
+  }
+  ctx.restore();
+}
+
 function drawOverlay(){
   if(!chart || !lastResult) return;
   const cv=$('overlay'), ctx=cv.getContext('2d');
@@ -473,6 +658,9 @@ function drawOverlay(){
   const ts=chart.timeScale(), rightX=cv.clientWidth-70, r=lastResult;
   const X=(i)=> (i>=0&&i<candles.length)? ts.timeToCoordinate(candles[i].time) : null;
   const Y=(p)=> candleSeries.priceToCoordinate(p);
+
+  // sessions paint first: background context under zones, liq heat and trades
+  if($('showSessions') && $('showSessions').checked) drawSessions(ctx, candles, X, Y, cv);
 
   // BTC Cycle zones: green = generational buy band (200w MA → ×1.1), red = Mayer euphoria
   // sell band (1.85–2.4 × 200d MA), blue dashed = the 40-week bull/bear line. The right-edge
@@ -531,27 +719,75 @@ function drawOverlay(){
   });
 }
 
+// Shared by both tabs: turn the date inputs into a {from,to} ms range.
+// `to` is pushed to the END of its day so the chosen day is included.
+const dayStart=(s)=>{ const d=Date.parse(s+'T00:00:00Z'); return isFinite(d)?d:null; };
+const dayEnd  =(s)=>{ const d=Date.parse(s+'T00:00:00Z'); return isFinite(d)?d+86399999:null; };
+function dateSpec(fromId,toId){
+  const f=dayStart($(fromId).value), t=dayEnd($(toId).value);
+  if(f==null) return null;
+  const to=(t==null||t>Date.now())?Date.now():t;
+  if(f>=to) return null;
+  return {from:f, to};
+}
+const fmtDay=(sec)=>new Date(sec*1000).toISOString().slice(0,10);
+
 async function run(){
   ensureChart();
   if(!chart) return;
   const sym=$('sym').value.trim().toUpperCase(), tf=$('tf').value;
-  const bars=Math.max(200, Math.min(10000, +$('bars').value||3000));
-  $('status').textContent = `fetching ${sym} ${tf}…`;
-  try{ candles = await fetchKlines(sym, tf, bars); if(!candles.length){ $('status').textContent='no data'; return; } recalc(); }
+  const byDate = $('rangeMode').value==='dates';
+  let spec, label;
+  if(byDate){
+    spec = dateSpec('fromDate','toDate');
+    if(!spec){ $('status').textContent='pick a start date earlier than the end date'; return; }
+    label = `${$('fromDate').value} → ${$('toDate').value||'today'}`;
+  } else {
+    spec = Math.max(200, Math.min(60000, +$('bars').value||3000));
+    label = `${spec} bars`;
+  }
+  $('status').textContent = `fetching ${sym} ${tf} · ${label}…`;
+  try{
+    candles = await fetchKlines(sym, tf, spec, (got)=>{
+      $('status').textContent = `fetching ${sym} ${tf} · ${got} bars…`;
+    });
+    if(!candles.length){ $('status').textContent = byDate ? 'no bars in that date range' : 'no data'; return; }
+    recalc();
+    // Say what was actually fetched — a requested start before the pair listed is clamped
+    // silently by the API, and the user should see that rather than assume full coverage.
+    if(byDate){
+      const got0=fmtDay(candles[0].time), want0=$('fromDate').value;
+      $('status').textContent = `${candles.length} bars · ${got0} → ${fmtDay(candles[candles.length-1].time)}`
+        + (got0>want0 ? ` · ${sym} only lists from ${got0}` : '');
+    }
+  }
   catch(e){ $('status').textContent='error: '+e.message; }
+}
+function syncRangeMode(){
+  const byDate=$('rangeMode').value==='dates';
+  $('barsWrap').style.display = byDate?'none':'';
+  document.querySelectorAll('#toolbar .rng, .rng').forEach(el=>{
+    if(el.id==='fromWrap'||el.id==='toWrap') el.style.display = byDate?'':'none';
+  });
+  if(byDate && !$('toDate').value) $('toDate').value = new Date().toISOString().slice(0,10);
+  if(byDate && !$('fromDate').value){
+    const d=new Date(); d.setUTCFullYear(d.getUTCFullYear()-2);
+    $('fromDate').value = d.toISOString().slice(0,10);
+  }
 }
 function recalc(){
   if(!candles.length) return;
   const liq=$('liq').value;
   const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
-    useLiq:liq!=='off', liqTargets:liq==='trade' };
+    useLiq:liq!=='off', liqTargets:liq==='trade',
+    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0) };
   render(SMC.detectAll(candles, params));
 }
 // what the selected system does, in one breath
 const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — signals that repeated at every cycle turn since 2015 (2013 documented): BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout. Accumulation is TWO tranches: half in zone A (200w→×1.1), half on the deep-zone recovery (0.72–1.0×200w — every real bottom pierces the 200w), entry = tranche average, stop 0.65×200w (under the deepest pierce on record). SELL on the Pi-Cycle cross (2017 & Apr-2021 tops to the day) or a persistent 40-week break. BTC-specific.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
-  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. Stop 3×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
+  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
 const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
@@ -621,56 +857,228 @@ function advisor(result){
 }
 let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut while you read it
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
-const CMP_SYMS=['SOLUSDT','ETHUSDT','SUIUSDT','BTCUSDT','BNBUSDT','LINKUSDT','INJUSDT','HBARUSDT','XRPUSDT','ARBUSDT','ZECUSDT'];
+const CMP_DEFAULT=['ETHUSDT','SOLUSDT','LINKUSDT','BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
-const CMP_BARS={ '4h':10000, '1d':4500, '1w':600 };   // 4h maxed: ~4.6y is all Binance serves
-const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
-let cmpSort={k:'cagr',d:-1}, cmpBusy=false;
-// per-bar strategy return path → 6M/1Y windows (day-aware per TF), CAGR, DD, Sharpe
+// 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
+// Per-TF starting point for the Bars box, overridden the moment the user types a number.
+// Sized to the FULL history each TF can reach, not to a request cap — 4h at 20000 covers
+// 2017-08-17 to now (~9.1 years = two BTC halving cycles), which is the point: a 4.6-year
+// 4h window is bull-only and flatters every trend system in it.
+// 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
+const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
+// cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
+// box slices the tail off what we already hold instead of refetching, and a symbol whose
+// history is genuinely shorter than `asked` is not refetched forever.
+// cmpRowsTf is keyed tf|bars — a different bar count is a different measurement.
+// Every run also measures a FIXED 10,000-bar reference window alongside whatever the user set,
+// so a combo can be required to work both recently and over the long haul before it is suggested.
+const CMP_REF_BARS=10000;
+const cmpCache={}, cmpRowsTf={};
+let cmpSort={k:'net',d:-1}, cmpBusy=false, cmpPending=false;
+
+// ---- editable symbol list -------------------------------------------------
+// Accepts bare tickers or full pairs, in any case: "inj, arb, HBARUSDT" is valid.
+const QUOTES=['USDT','FDUSD','USDC','BUSD','BTC','ETH','BNB'];
+function normSym(s){
+  s=String(s).trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!s) return null;
+  return QUOTES.some(q=>s.length>q.length && s.endsWith(q)) ? s : s+'USDT';
+}
+function parseSyms(raw){
+  const out=[], seen=new Set();
+  for(const part of String(raw).split(/[,\s;]+/)){
+    const s=normSym(part);
+    if(s && !seen.has(s)){ seen.add(s); out.push(s); }
+  }
+  return out;
+}
+let CMP_SYMS=CMP_DEFAULT.slice();
+try{ const saved=localStorage.getItem('smb.cmpSyms'); if(saved) CMP_SYMS=parseSyms(saved); }catch(e){}
+if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
+
+// ---- bar count ------------------------------------------------------------
+// Tracks the per-TF default until the user types a number, then holds whatever they set.
+let cmpBarsTouched=false;
+try{ if(localStorage.getItem('smb.cmpBars')) cmpBarsTouched=true; }catch(e){}
+const cmpBars=()=>Math.max(300, Math.min(60000, Math.round(+$('cmpBars').value||CMP_BARS[$('cmpTf').value]||4500)));
+function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(60000,Math.round(n))); cmpSpan(); }
+// Spell out what the bar count buys in real time — the whole point of the Sep 2026 finding is
+// that people read "650 bars" without noticing it is 27 days.
+function cmpSpan(){
+  const tf=$('cmpTf').value, n=cmpBars();
+  const hrs={'1h':1,'2h':2,'4h':4,'1d':24,'1w':168}[tf]||24;
+  const d=n*hrs/24;
+  const txt = d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
+  const el=$('cmpSpan');
+  el.textContent = txt + (tf==='1w'||tf==='1d' ? '' : '');
+  // a swing system holding ~1-2 days needs months, not weeks, before any column means anything
+  el.classList.toggle('thin', d < 200);
+  el.title = d < 200
+    ? `${n} × ${tf} is only ${Math.round(d)} days — too short for a swing system to produce a readable sample. Expect single-digit trade counts.`
+    : `${n} × ${tf} ≈ ${Math.round(d)} days of history per symbol`;
+}
+try{ const b=localStorage.getItem('smb.cmpBars'); if(b) $('cmpBars').value=b; }catch(e){}
+cmpSpan();
+const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
+$('cmpSyms').value=cmpSymsText(CMP_SYMS);
+// strategy filter is generated, so removing a strategy can never leave a dead option behind
+$('cmpStrat').innerHTML='<option value="all" selected>All strategies</option>'
+  + CMP_STRATS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+// Per-bar strategy return path -> net profit, edge over buy & hold, PF, exposure, DD, sweep.
+// Columns are chosen for "is this worth my money", not "which backtest looks prettiest":
+// CAGR/6M/1Y were dropped Oct 2026 — CAGR annualises a number whose window length varies by
+// symbol (see the Yrs column), and the two trailing windows just restated it over arbitrary cuts.
 function pathStats(trades,c){
-  const dt=c.length>1?Math.max(60,c[1].time-c[0].time):86400, bpd=86400/dt, ann=Math.sqrt(365*bpd);
+  const dt=c.length>1?Math.max(60,c[1].time-c[0].time):86400, bpd=86400/dt;
   const r=new Array(c.length).fill(0);
-  let w=0,l=0;
+  let w=0,l=0,gp=0,gl=0,inBars=0;
   for(const t of trades){ if(t.exitPrice==null) continue;
     const f=t.frac||1;
     for(let j=t.entryIdx+1;j<=t.exitIdx;j++) r[j]=f*(c[j].close/c[j-1].close-1);
     r[t.exitIdx]-=f*0.002;                                     // 0.1% fee each side
-    if(t.outcome!=='open'){ if(t.exitPrice/t.entry>1.002) w++; else l++; } }
+    inBars+=Math.max(0,t.exitIdx-t.entryIdx);                  // capital actually at risk
+    if(t.outcome!=='open'){
+      // per-trade net move, fees both sides — same convention as the Chart tab's equityStats
+      const net=(t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1;
+      if(net>0){ gp+=net; w++; } else { gl+=-net; l++; }
+    } }
   const eq=[1]; let pk=1,dd=0,m=0,s2=0,nn=0;
-  for(let j=1;j<c.length;j++){ eq[j]=eq[j-1]*(1+r[j]); if(eq[j]>pk)pk=eq[j]; const x=(pk-eq[j])/pk; if(x>dd)dd=x; m+=r[j]; s2+=r[j]*r[j]; nn++; }
-  m/=nn; const sd=Math.sqrt(Math.max(s2/nn-m*m,1e-12));
+  for(let j=1;j<c.length;j++){ eq[j]=eq[j-1]*(1+r[j]); if(eq[j]>pk)pk=eq[j]; const x=(pk-eq[j])/pk; if(x>dd)dd=x;
+    m+=r[j]; s2+=r[j]*r[j]; nn++; }
+  m/=nn; const vol=Math.sqrt(Math.max(s2/nn-m*m,1e-12))*Math.sqrt(365*bpd);   // feeds the VOL pill
   const last=eq[eq.length-1];
-  const win=(days)=>{ const k=Math.max(0,eq.length-1-Math.round(days*bpd)); return last/eq[k]-1; };
   const yrs=(c[c.length-1].time-c[0].time)/31557600;
-  return { m6:win(183), y1:win(365), cagr:Math.pow(Math.max(last,0.01),1/Math.max(yrs,0.2))-1,
-    dd, wr:(w+l)?w/(w+l):0, sharpe:sd>0?m/sd*ann:0, vol:sd*ann, yrs };
+  // The comparison that decides whether trading was worth it at all: buy & hold over the SAME
+  // window. `edge` is how much richer you ended than simply holding — +0.25 = 25% more money.
+  const bh = c.length>1 ? c[c.length-1].close/c[0].close-1 : 0;
+  const net = last-1;
+  const edge = (1+bh)>0 ? (1+net)/(1+bh)-1 : 0;
+  // ---- window sweep ----
+  // One window is one draw. Slide it across the whole equity path and report how often the
+  // system was profitable and how wide the spread is. Measured Sep 2026: on 1h, ~half of all
+  // window placements disagree with the other half on whether a symbol even makes money, so
+  // a single window cannot rank anything (see ALGORITHM.md). Reads the equity path that is
+  // already built above, so it costs nothing extra — no re-running the engine per window.
+  const wBars=Math.max(120, Math.floor((eq.length-1)*0.35));
+  const step=Math.max(1, Math.floor(wBars/8));
+  const wr_=[];
+  for(let end=eq.length-1; end-wBars>=0; end-=step){
+    const a=eq[end-wBars]; if(a>0) wr_.push(eq[end]/a-1);
+  }
+  const srt=wr_.slice().sort((a,b)=>a-b);
+  const sweep = srt.length>=3 ? {
+    nw:srt.length,
+    pos:wr_.filter(x=>x>0).length/wr_.length,
+    med:srt[Math.floor(srt.length/2)], lo:srt[0], hi:srt[srt.length-1],
+    days:Math.round(wBars/bpd),
+  } : null;
+  return { net, bh, edge, dd, vol, yrs, n:w+l,
+    wr:(w+l)?w/(w+l):0,
+    pf: gl>0 ? gp/gl : (gp>0?Infinity:0),
+    expo: c.length ? inBars/c.length : 0,
+    sweep, pos: sweep?sweep.pos:0 };
+}
+// One key for the computed rows, so runCompare and renderCmp can never look in different places.
+// A different bar count or a different date range is a different measurement.
+function cmpRowKey(){
+  const tf=$('cmpTf').value;
+  if($('cmpRangeMode').value==='dates'){
+    const s=dateSpec('cmpFrom','cmpTo');
+    return s ? `${tf}|d${s.from}-${s.to}` : `${tf}|dinvalid`;
+  }
+  return `${tf}|${cmpBars()}`;
+}
+// how the user's window should be described in the pick panel
+function cmpWindowLabel(){
+  if($('cmpRangeMode').value==='dates'){
+    const f=$('cmpFrom').value, t=$('cmpTo').value;
+    return `${f} → ${t||'today'}`;
+  }
+  return `${cmpBars().toLocaleString()} bars`;
+}
+// The ✓ test, shared by the table and the go-to picker so the two can never disagree.
+// An INVESTMENT test, not a backtest-looks-nice test: the decisive term is edge>0, because a
+// strategy that does not beat simply holding the coin is not worth trading it.
+function okRow(e, requireStable){
+  if(!e) return false;
+  return e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=30
+      && (!requireStable || (e.sweep && e.sweep.pos>=0.70));
 }
 async function runCompare(force){
-  const tf=$('cmpTf').value;
-  if(cmpBusy) return;
-  if(!force && cmpRowsTf[tf]){ renderCmp(); return; }
+  const tf=$('cmpTf').value, byDate=$('cmpRangeMode').value==='dates';
+  const bars=cmpBars();
+  // In date mode the user's window is the range, but the 10k reference still has to fit, so we
+  // fetch back to whichever is earlier and slice both out of the one result.
+  let dspec=null, refFrom=null;
+  if(byDate){
+    dspec=dateSpec('cmpFrom','cmpTo');
+    if(!dspec){ $('cmpStatus').textContent='pick a start date earlier than the end date'; return; }
+    refFrom=Math.min(dspec.from, dspec.to - CMP_REF_BARS*(TF_MS[tf]||864e5));
+  }
+  const rk = cmpRowKey();
+  const need=Math.max(bars, CMP_REF_BARS);
+  // Dropping a request while one is in flight leaves the table rendering a key nobody computed —
+  // which is exactly what happens when you switch to date mode (that fires a fetch) and then pick
+  // your dates a moment later. Queue it instead of discarding it.
+  if(cmpBusy){ cmpPending=true; return; }
+  if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   cmpBusy=true;
-  $('cmpBody').innerHTML='<tr><td colspan="10" style="color:#8b949e;padding:14px">Loading…</td></tr>';
-  const rows=[];
+  $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
+  const rows=[], bad=[], short=[];
   for(const sym of CMP_SYMS){
-    $('cmpStatus').textContent='fetching '+sym+' '+tf+'…';
+    $('cmpStatus').textContent='fetching '+sym+' '+tf+' × '+bars+'…';
     try{
       const key=sym+'|'+tf;
-      if(!cmpCache[key]||force) cmpCache[key]=await fetchKlines(sym,tf,CMP_BARS[tf]||4500);
-      const c=cmpCache[key];
-      if(!c||c.length<250) continue;
+      // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
+      // One fetch serves both windows — the reference costs no extra requests.
+      const ckey = byDate ? `${key}|d${refFrom}-${dspec.to}` : key;
+      let ent=cmpCache[ckey];
+      if(force || !ent || (!byDate && ent.asked<need)){
+        const spec = byDate ? {from:refFrom, to:dspec.to} : need;
+        const rows=await fetchKlines(sym,tf,spec,(got,want)=>{
+          $('cmpStatus').textContent = want
+            ? `fetching ${sym} ${tf} — ${got}/${want} bars…`
+            : `fetching ${sym} ${tf} — ${got} bars…`;
+        });
+        ent=cmpCache[ckey]={rows, asked:byDate?Infinity:need};
+      }
+      const full=ent.rows||[];
+      // user's window: the date range, or the last N bars
+      const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
+                       : (full.length>bars ? full.slice(-bars) : full);
+      if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
+      const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
+      const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
+      // a start date earlier than the listing is clamped by the API — say so rather than
+      // letting a short row look like a like-for-like comparison
+      if(byDate && c.length && c[0].time*1000 > dspec.from + (TF_MS[tf]||864e5)*2){
+        short.push(`${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`);
+      }
       for(const [st,label] of CMP_STRATS){
         const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
-        rows.push({sym,st,label,e:pathStats(res.trades,c)});
+        const e=pathStats(res.trades,c);
+        // the 10k reference run — skipped only when it would be the identical window
+        let d=e;
+        if(!sameWin && ref.length>=250){
+          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false});
+          d=pathStats(rr.trades,ref);
+        }
+        rows.push({sym,st,label,e,d,sameWin});
       }
-    }catch(e){}
+    }catch(e){ bad.push(sym+' (no data)'); }
   }
-  cmpRowsTf[tf]=rows; cmpBusy=false;
-  $('cmpStatus').textContent='';
+  cmpRowsTf[rk]=rows; cmpBusy=false;
+  if(cmpPending){ cmpPending=false; return runCompare(false); }   // settings moved while we fetched
+  // a typo'd or delisted symbol should say so, not vanish silently; and a symbol clamped to a
+  // later start than you asked for is being graded on less history than its neighbours
+  $('cmpStatus').textContent = [
+    bad.length ? 'skipped: '+bad.join(', ') : '',
+    short.length ? 'listed later, clamped to earliest: '+short.join(', ') : '',
+  ].filter(Boolean).join(' · ');
   renderCmp();
 }
 function renderCmp(){
-  const tf=$('cmpTf').value, all=cmpRowsTf[tf]||[];
+  const tf=$('cmpTf').value, all=cmpRowsTf[cmpRowKey()]||[];
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
   const {k,d}=cmpSort;
@@ -680,33 +1088,196 @@ function renderCmp(){
   });
   const pc=(x)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</span>`;
   const vp=(v)=> v<0.45?'<span class="volpill" style="background:#1d3b2a;color:#7ee787">LOW VOL</span>':v<0.8?'<span class="volpill" style="background:#3b331d;color:#e3c34c">MED VOL</span>':'<span class="volpill" style="background:#3b1d1d;color:#f85149">HIGH VOL</span>';
+  const sweepOn=$('cmpSweep').checked;
+  // stability cell: share of windows profitable, with the spread underneath
+  const sg=(x)=>(x>=0?'+':'−')+Math.abs(x*100).toFixed(0)+'%';   // explicit sign: "−15%", never "-0"
+  const sc=(e)=>{
+    if(!sweepOn) return '<span style="color:#8b949e">off</span>';
+    const s=e.sweep;
+    if(!s) return '<span style="color:#8b949e" title="not enough history to slide a window">—</span>';
+    const col = s.pos>=0.8?'#3fb950' : s.pos>=0.6?'#e3c34c' : '#f85149';
+    return `<span class="stab" title="${s.nw} sliding windows of ~${s.days} days each · worst ${sg(s.lo)} · median ${sg(s.med)} · best ${sg(s.hi)}">`
+      + `<span style="color:${col};font-weight:700">${(s.pos*100).toFixed(0)}%</span>`
+      + `<small>${sg(s.lo)} to ${sg(s.hi)}</small></span>`;
+  };
+  // trade count is the first thing that invalidates a row: under 30 closed trades nothing else counts
+  const nc=(e)=>{
+    const thin=e.n<30;
+    return `<span style="color:${thin?'#f85149':'#8b949e'}"${thin?' title="too few trades to read the other columns"':''}>${e.n}${thin?' ⚠':''}</span>`;
+  };
+  // big returns need compact rendering: +1,240% not +1240.0%
+  const bignum=(x)=>{ const v=x*100;
+    return (Math.abs(v)>=1000? Math.round(v).toLocaleString() : v.toFixed(1)); };
+  const pcb=(x)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${bignum(x)}%</span>`;
+  const pfc=(x)=>{ if(!isFinite(x)) return '<span class="up">∞</span>';
+    const col = x>=1.3?'#3fb950' : x>=1.0?'#e3c34c' : '#f85149';
+    return `<span style="color:${col};font-weight:700">${x.toFixed(2)}</span>`; };
   $('cmpBody').innerHTML=view.map(r=>{
-    const ok=r.e.cagr>=0.12&&r.e.wr>=0.30&&r.e.dd<=0.60;
-    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(r.e.vol)}</td><td>${pc(r.e.m6)}</td><td>${pc(r.e.y1)}</td><td><b>${pc(r.e.cagr)}</b></td><td><span class="down">-${(r.e.dd*100).toFixed(0)}%</span></td><td>${(r.e.wr*100).toFixed(0)}%</td><td>${r.e.sharpe.toFixed(2)}</td><td style="color:#8b949e">${r.e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
-  }).join('') || '<tr><td colspan="10" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+    const e=r.e;
+    const ok = okRow(e, sweepOn);
+    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(e.vol)}</td><td>${nc(e)}</td><td><b>${pcb(e.net)}</b></td><td>${pcb(e.edge)}</td><td>${pfc(e.pf)}</td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td style="color:#8b949e">${(e.expo*100).toFixed(0)}%</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
+  }).join('') || '<tr><td colspan="12" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
+  renderPick(all, tf);
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
+    // open the chart on the same window the row was graded on, in whichever mode is active
+    $('rangeMode').value=$('cmpRangeMode').value;
+    if($('cmpRangeMode').value==='dates'){ $('fromDate').value=$('cmpFrom').value; $('toDate').value=$('cmpTo').value; }
+    else $('bars').value=cmpBars();
+    syncRangeMode();
     stratInfo(); showView('chart'); run();
   }));
+}
+// ---- go-to combo -----------------------------------------------------------------------
+// A combo must clear the full investment test in BOTH windows — the user's and the fixed 10k
+// reference. Ranked by the WEAKEST of its two edges over buy & hold, so the winner is the one
+// whose worst showing is best, never the one with a single spectacular window.
+function renderPick(rows, tf){
+  const el=$('cmpPick');
+  if(!rows || !rows.length){ el.innerHTML=''; return; }
+  const span=(e)=>{ const d=e.yrs*365;
+    return d>=730? `${e.yrs.toFixed(1)} yrs` : d>=60? `${Math.round(d/30.44)} mo` : `${Math.round(d)} d`; };
+  const sg=(x)=>(x>=0?'+':'−')+(Math.abs(x*100)>=1000? Math.round(Math.abs(x*100)).toLocaleString() : Math.abs(x*100).toFixed(1))+'%';
+  const cls=(x)=>x>=0?'up':'down';
+  const sameWin = rows[0] && rows[0].sameWin;
+
+  // The two windows carry DIFFERENT burdens, because a short recent window cannot carry the
+  // same one. liqbrk takes ~7 trades a year on 4h, so 7 months holds ~4 — demanding 30 trades
+  // and 70% stability there would make every short window fail on arithmetic, not on merit.
+  //   reference (10k bars) -> establishes the edge: the full investment test
+  //   recent (user window) -> a FORM CHECK only: still making money, still beating the coin
+  // Ranked by the REFERENCE edge, the statistically meaningful one; a noisy 4-trade window
+  // gates the pick but never decides its order.
+  const okRecent=(e)=> !!e && e.n>=3 && e.net>0 && e.edge>0;
+  const scored = rows
+    .filter(r=>okRow(r.d,true) && (r.sameWin || okRecent(r.e)))
+    .map(r=>({...r, score:r.d.edge}))
+    .sort((a,b)=>b.score-a.score);
+
+  if(!scored.length){
+    // Never invent a recommendation. Show the nearest miss and name what it failed.
+    const near = rows.map(r=>{
+      const fails=[];
+      const d=r.d;
+      if(d.n<30) fails.push(`reference: only ${d.n} trades`);
+      else if(d.edge<=0) fails.push(`reference: lost to buy &amp; hold by ${sg(d.edge).replace('−','')}`);
+      else if(d.pf<1.3) fails.push(`reference: PF ${d.pf.toFixed(2)}`);
+      else if(d.wr<0.30) fails.push(`reference: win rate ${(d.wr*100).toFixed(0)}%`);
+      else if(d.dd>0.60) fails.push(`reference: drawdown ${(d.dd*100).toFixed(0)}%`);
+      else if(!d.sweep || d.sweep.pos<0.70) fails.push(`reference: profitable in only ${d.sweep?Math.round(d.sweep.pos*100):0}% of windows`);
+      if(!r.sameWin && !okRecent(r.e)){
+        fails.push(r.e.n<3 ? `recent form: only ${r.e.n} trades in your window`
+                 : r.e.net<=0 ? `recent form: losing ${sg(r.e.net)}`
+                 : `recent form: holding beat it by ${sg(r.e.edge).replace('−','')}`);
+      }
+      return {r, fails, near:r.d.edge};
+    }).filter(x=>x.fails.length).sort((a,b)=>b.near-a.near)[0];
+    el.innerHTML=`<div class="pick none"><div class="pickhead">
+        <span class="pickbadge">NO GO-TO COMBO</span>
+        <h3 class="picktitle">Nothing cleared both windows on <span class="picktf">${tf}</span></h3>
+      </div><div class="pickbody">
+        <div style="font-size:12.5px;line-height:1.6;color:var(--muted)">
+          A combo is only suggested when it clears the full test on the <b style="color:var(--txt)">10,000-bar reference</b>
+          — beats buy &amp; hold, PF 1.3, 30+ trades, 30%+ win rate, 60% max drawdown, 70% window stability —
+          <b style="color:var(--txt)">and</b> is still making money and still beating the coin in your window.
+          None here did, which is itself the finding rather than a bug.
+          ${near?`<div style="margin-top:9px;color:var(--txt)">Closest was <b>${near.r.sym.replace('USDT','')} · ${near.r.label}</b> — failed on ${near.fails.slice(0,2).join('; ')}.</div>`:''}
+        </div></div></div>`;
+    return;
+  }
+
+  const p=scored[0], e=p.e, d=p.d;
+  const kpi=(k,v,c,dim,tip)=>`<div class="kpi"><div class="k">${k}</div>`
+    + `<div class="v ${dim?'':(c||'')}"${dim?' style="color:#6e7681;font-weight:600"':''}`
+    + `${tip?` title="${tip}"`:''}>${v}${dim?' *':''}</div></div>`;
+  // Below the 30-trade floor, win rate and stability are arithmetic noise — shown, but muted,
+  // so a 3-trade "33% stable" cannot be mistaken for a verdict sitting next to a 100% one.
+  const winBlock=(w,title,st)=>{ const thin=w.n<30;
+    const tip=thin?`only ${w.n} closed trades here — not enough for this to mean anything`:'';
+    return `<div class="pickwin"><h4>${title}</h4>
+      <div class="winspan">${st}${thin?` · <span style="color:#6e7681">* too few trades to read</span>`:''}</div>
+      <div class="kpis">
+        ${kpi('Net P/L', sg(w.net), cls(w.net))}
+        ${kpi('vs B&amp;H', sg(w.edge), cls(w.edge))}
+        ${kpi('Trades', w.n, '', thin, tip)}
+        ${kpi('Max DD', '−'+(w.dd*100).toFixed(0)+'%','down')}
+        ${kpi('Win rate', (w.wr*100).toFixed(0)+'%','',thin,tip)}
+        ${kpi('Stable', w.sweep?Math.round(w.sweep.pos*100)+'%':'—','',thin,tip)}
+      </div></div>`; };
+
+  const coin=p.sym.replace('USDT','');
+  const why=[];
+  why.push(`Over the reference it beat simply holding ${coin} by <b>${sg(d.edge)}</b> across ${d.n} closed trades. Most rows fail exactly here — trading the coin loses to owning it.`);
+  if(d.sweep) why.push(`Profitable in <b>${Math.round(d.sweep.pos*100)}%</b> of ${d.sweep.nw} sliding windows across the reference, so it works wherever you start rather than from one lucky date.`);
+  why.push(`PF ${isFinite(d.pf)?d.pf.toFixed(2):'∞'} and a ${(d.wr*100).toFixed(0)}% win rate, with capital deployed only <b>${(d.expo*100).toFixed(0)}%</b> of the time at a ${(d.dd*100).toFixed(0)}% worst drawdown — the return came with the market risk switched off most of the time.`);
+  if(!sameWin){
+    why.push(`Still working lately: <b>${sg(e.net)}</b> over your ${span(e)} window (${sg(e.edge)} vs holding) on ${e.n} trade${e.n===1?'':'s'}. ${e.n<30?`<b>${e.n} trades proves nothing on its own</b> — this is a form check that it has not broken down, not a second confirmation of the edge.`:'That window is long enough to carry weight of its own.'}`);
+  }
+  if(d.yrs < 8) why.push({w:1,t:`Reference covers ${d.yrs.toFixed(1)} years — less than two full BTC cycles, so it has not met every regime this asset can produce.`});
+
+  const runners=scored.slice(1,3).map(r=>
+    `<span class="r">${r.sym.replace('USDT','')} · ${r.label}</span> (${sg(r.score)} vs holding)`).join(' · ');
+
+  el.innerHTML=`<div class="pick"><div class="pickhead">
+      <span class="pickbadge">✓ GO-TO COMBO</span>
+      <h3 class="picktitle">${p.sym.replace('USDT','')}<span class="sep">·</span>${p.label}<span class="sep">·</span><span class="picktf">${tf}</span></h3>
+    </div><div class="pickbody">
+      <div class="pickhero">
+        <div class="heronum ${cls(p.score)}">${sg(p.score)}</div>
+        <div class="herolbl">versus buy &amp; hold over the <b>10,000-bar reference</b>. Picks are ranked on this window because it is the one with enough trades to mean anything; recent form only gates the list.</div>
+      </div>
+      <div class="pickcols">
+        ${winBlock(e, 'Your window — recent form', `${cmpWindowLabel()} × ${tf} · ${span(e)}`)}
+        ${sameWin
+          ? `<div class="pickwin"><h4>10,000-bar reference — the edge</h4><div class="winspan">identical to your window</div>
+             <div style="color:var(--muted);font-size:11.5px;line-height:1.5;padding-top:4px">
+             Your Bars setting is already 10,000, so there is only one window here. Set a shorter one to test
+             recent form against the long reference separately.</div></div>`
+          : winBlock(d, '10,000-bar reference — the edge', `10,000 × ${tf} · ${span(d)}`)}
+      </div>
+      <ul class="pickwhy">${why.map(x=>typeof x==='string'?`<li>${x}</li>`:`<li class="warn">${x.t}</li>`).join('')}</ul>
+      <div class="pickcaveat"><b>⚠ Read this before acting on it.</b> ${sameWin
+        ? 'Both panels show the same window, so this is a single measurement, not a confirmation.'
+        : 'Your window sits <b>inside</b> the reference window — they overlap, so this is not two independent tests. It shows recent form has not broken down, not that the edge was confirmed twice.'}
+        Every number is a backtest on past prices with 0.1% fees per side and no slippage or funding; live results will be worse.</div>
+      ${runners?`<div class="pickrunners">Also cleared both windows: ${runners}</div>`:''}
+    </div></div>`;
 }
 document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
   cmpSort = cmpSort.k===th.dataset.k ? {k:cmpSort.k,d:-cmpSort.d} : {k:th.dataset.k,d:-1};
   renderCmp();
 }));
 $('cmpStrat').addEventListener('change',renderCmp);
-$('cmpTf').addEventListener('change',()=>runCompare(false));
+$('cmpTf').addEventListener('change',()=>{
+  // an untouched Bars box tracks the per-TF default, so switching TF keeps grading a sane span
+  if(!cmpBarsTouched) setCmpBars(CMP_BARS[$('cmpTf').value]||4500);
+  cmpSpan(); runCompare(false);
+});
+$('cmpBars').addEventListener('change',()=>{
+  cmpBarsTouched=true;
+  setCmpBars(cmpBars());                                  // clamp what they typed, then persist
+  try{ localStorage.setItem('smb.cmpBars', String(cmpBars())); }catch(e){}
+  runCompare(false);
+});
+$('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
 $('cmpGo').addEventListener('click',()=>runCompare(true));
 
-// ============================ PORTFOLIO HOME ============================
+// ============================ PORTFOLIO HOME =====================
 // The three coins `liqbrk` is actually applied to, and the bench it is scouted against.
 // Rationale for the trio is in ALGORITHM.md ("Portfolio selection"); in short: SOL is the
 // best MEASURED liqbrk performer outside BTC, ETH is the quality/liquidity leg with the
 // shallowest drawdown of the validated set, SUI is the high-beta leg that supplies the fat
 // tail this strategy lives on. Edit these two arrays to re-pick — nothing else depends on them.
-const PF_CORE  = ['SOLUSDT','ETHUSDT','SUIUSDT'];
-const PF_RADAR = ['BTCUSDT','BNBUSDT','LINKUSDT','INJUSDT','HBARUSDT','XRPUSDT','ARBUSDT','ZECUSDT'];
-// bars per TF, sized so the 200-day MA (the regime read) actually exists on that timeframe
-const PF_BARS = { '1h':6000, '2h':3500, '4h':3000, '1d':1200 };
+const PF_CORE  = ['ETHUSDT','SOLUSDT','LINKUSDT'];
+const PF_RADAR = ['BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
+// BTC drives the regime tile — the Sep 2026 research validated BTC's own 200-day MA, pooled
+// across 10 symbols, as the gate that holds out of sample (1h PF 1.71 bull vs 1.00 bear).
+// It is fetched whether or not it sits in PF_RADAR.
+const PF_REGIME_SYM = 'BTCUSDT';
+// Core coins carry the headline equity path, so they get real depth; bench coins only need
+// their CURRENT signal state, so they stay cheap. 4h is the measured sweet spot.
+const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
+const PF_RBARS = { '1h':2500, '2h':2500, '4h':2500,  '1d':1200 };
 const pfCache = {};
 let pfRows = [], pfBusy = false;
 
@@ -777,19 +1348,25 @@ async function pfRun(force){
   const tf = $('pfTf').value, bars = PF_BARS[tf] || 3000;
   if(force) Object.keys(pfCache).forEach(k=>{ if(k.endsWith('|'+tf)) delete pfCache[k]; });
   $('pfAsOf').textContent = 'loading '+tf+' data…';
+  const rbars = PF_RBARS[tf] || 2500;
   const syms = PF_CORE.concat(PF_RADAR);
+  if(syms.indexOf(PF_REGIME_SYM) < 0) syms.push(PF_REGIME_SYM);
   const out = [];
+  let done = 0;
   // small concurrency pool — Binance is happy with this and it keeps the screen fast
   const queue = syms.slice();
   await Promise.all([0,1,2,3].map(async ()=>{
     while(queue.length){
       const sym = queue.shift();
+      const core = PF_CORE.indexOf(sym) >= 0;
       try{
-        const c = await pfLoad(sym, tf, bars);
-        if(!c || c.length < 60) continue;
-        const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false });
-        out.push({ sym, c, res, core: PF_CORE.indexOf(sym) >= 0 });
+        const c = await pfLoad(sym, tf, core ? bars : rbars);   // bench coins stay cheap
+        if(c && c.length >= 60){
+          const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false });
+          out.push({ sym, c, res, core });
+        }
       }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
+      $('pfAsOf').textContent = `loading ${tf}… ${++done}/${syms.length}`;
     }
   }));
   pfRows = out; pfBusy = false;
@@ -870,16 +1447,17 @@ function renderPf(){
   $('kDep').textContent = Math.round(totDep/Math.max(totVal,1)*100)+'%';
   $('kDepS').textContent = pfMoney(totDep)+' at work';
   $('kCash').textContent = pfMoney(Math.max(0, totCash));
-  // regime = the majority read across the three coins; always shown with its word, not colour alone
-  const states = core.map(r=>(r.res.advice.regime||{}).state||'UNKNOWN');
-  const tally = {}; states.forEach(x=>tally[x]=(tally[x]||0)+1);
-  const reg = Object.keys(tally).sort((a,b)=>tally[b]-tally[a])[0];
+  // Regime is read off BTC, not off each coin: pooled across 10 symbols, BTC's own 200-day MA
+  // separates PF 1.71 (bull) from 1.00 (bear) on 1h and holds out of sample. A coin's own MA
+  // does not — see ALGORITHM.md. Always shown with its word, never colour alone.
+  const btcRow = pfRows.find(r=>r.sym===PF_REGIME_SYM);
+  const rg = btcRow ? (btcRow.res.advice.regime||{}) : {};
+  const reg = rg.state || 'UNKNOWN';
   const regCol = reg==='BULL'?'#3fb950':reg==='BEAR'?'#f85149':'#e3c34c';
   $('kReg').innerHTML = `<span style="color:${regCol}">${reg}</span>`;
   $('kReg').className = 'v';
-  const heldD = Math.max(...core.map(r=>((r.res.advice.regime||{}).heldDays)||0));
-  $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough history on this TF'
-    : `${tally[reg]}/${core.length} coins · ~${heldD}d in this state`;
+  $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough BTC history on this TF'
+    : `BTC ${rg.vsMa>=0?'+':''}${rg.vsMa}% vs its 200d MA · ~${rg.heldDays}d in this state`;
 
   // ---- allocation meter: deployed per coin + the cash remainder ----
   const cashW = Math.max(0, totCash);
@@ -919,9 +1497,14 @@ function renderPf(){
   $('pfNote').innerHTML = `<b>How to read this.</b> These are <b>simulated</b> positions: the app has no link to an
     exchange, so it shows what the Liquidity Breakout system would hold if you had followed every signal on the
     loaded window, with 0.1%/side fees. Capital is split equally across the three coins.
-    <b>The strategy is a bull-regime system</b> — on full ZEC history it drew down 61% and lost for ~2.5 years
-    through 2022–24, so treat a BEAR reading above as a reason to size down, not as a stop sign the code enforces.
-    The 149-MA entry filter is <b>not yet backtested</b>. See ALGORITHM.md before trusting any number here.`;
+    <b>Why these three:</b> over 9.1 years of 4h bars ETH took 92 trades with 100% of sliding windows profitable
+    at a −25% drawdown; SOL and LINK are the best of the rest of your watchlist. <b>BTC is not on your watchlist
+    but is the most robust coin for this system</b> — it sits on the radar below and is worth promoting.
+    <b>Regime matters more than the coin:</b> pooled over 10 symbols, entries taken while BTC was above its
+    200-day MA ran at profit factor 1.71 against 1.00 below it, and that split held out of sample. A BEAR
+    reading is a reason to size down; the code does <i>not</i> enforce it.
+    Still unmeasured: the <b>149-MA filter</b>. And SOL's record here is <b>4h-only</b> — on 1h/2h its profit
+    factor falls under 1.0 once its best three trades are removed. See ALGORITHM.md.`;
 }
 
 // the four liqbrk entry conditions, each with its own ✔/✘ — identity never by colour alone
@@ -947,9 +1530,55 @@ $('pfRisk').value = lsGet('pfRisk','100');
 $('pfTf').value = lsGet('pfTf','4h');
 
 let chartLoaded=false;
+$('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
+function syncCmpMode(){
+  const byDate=$('cmpRangeMode').value==='dates';
+  $('cmpBarsWrap').style.display = byDate?'none':'';
+  $('cmpFromWrap').style.display = byDate?'':'none';
+  $('cmpToWrap').style.display   = byDate?'':'none';
+  if(byDate && !$('cmpTo').value) $('cmpTo').value = new Date().toISOString().slice(0,10);
+  if(byDate && !$('cmpFrom').value){
+    const d=new Date(); d.setUTCFullYear(d.getUTCFullYear()-2);
+    $('cmpFrom').value = d.toISOString().slice(0,10);
+  }
+  cmpSpan2();
+}
+// span readout for date mode, same job as #cmpSpan does for the bar count
+function cmpSpan2(){
+  const el=$('cmpSpan2'); if(!el) return;
+  const s=dateSpec('cmpFrom','cmpTo');
+  if(!s){ el.textContent=''; el.classList.remove('thin'); return; }
+  const d=(s.to-s.from)/864e5;
+  el.textContent = d>=730? `≈ ${(d/365).toFixed(1)} yrs` : d>=60? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
+  el.classList.toggle('thin', d<200);
+  el.title = d<200 ? `${Math.round(d)} days is too short for a swing system to produce a readable sample`
+                   : `${Math.round(d)} days per symbol, where its history reaches that far back`;
+}
+$('cmpRangeMode').addEventListener('change',()=>{ syncCmpMode(); runCompare(false); });
+for(const id of ['cmpFrom','cmpTo']){
+  $(id).addEventListener('change',()=>{ cmpSpan2(); if($('cmpRangeMode').value==='dates') runCompare(false); });
+}
+syncCmpMode();
+// editing the symbol list drops the computed rows but KEEPS the klines cache, so re-running
+// only fetches the symbols that are actually new
+function applyCmpSyms(){
+  const next=parseSyms($('cmpSyms').value);
+  if(!next.length){ $('cmpStatus').textContent='no valid symbols — list unchanged'; return; }
+  if(next.join()===CMP_SYMS.join()) return;
+  CMP_SYMS=next;
+  $('cmpSyms').value=cmpSymsText(CMP_SYMS);
+  try{ localStorage.setItem('smb.cmpSyms', CMP_SYMS.join(',')); }catch(e){}
+  for(const k of Object.keys(cmpRowsTf)) delete cmpRowsTf[k];
+  runCompare(false);
+}
+$('cmpSyms').addEventListener('change',applyCmpSyms);
+$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyCmpSyms(); } });
+$('cmpSymsReset').addEventListener('click',()=>{
+  $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
+});
 function showView(v){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  document.body.classList.toggle('noctl', v!=='chart');
+  document.body.classList.toggle('cmp', v!=='chart');   // hides the chart-only controls
   document.querySelector('main').style.display = v==='chart'?'flex':'none';
   $('stratInfo').style.display = v==='chart'?'block':'none';
   $('compareView').style.display = v==='compare'?'block':'none';
@@ -972,6 +1601,10 @@ $('liq').addEventListener('change', recalc);
 $('sym').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
 $('tf').addEventListener('change', run);
 $('bars').addEventListener('change', run);
+$('rangeMode').addEventListener('change', ()=>{ syncRangeMode(); run(); });
+$('fromDate').addEventListener('change', ()=>{ if($('rangeMode').value==='dates') run(); });
+$('toDate').addEventListener('change', ()=>{ if($('rangeMode').value==='dates') run(); });
+syncRangeMode();
 $('scaleMode').addEventListener('click', ()=>{
   logScale=!logScale; $('scaleMode').textContent=logScale?'Log':'Lin';
   if(chart) chart.priceScale('right').applyOptions({ mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal, autoScale:true });
