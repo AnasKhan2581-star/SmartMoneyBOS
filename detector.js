@@ -482,6 +482,29 @@
     // the ADVISOR read: what the context says right now, at the last closed candle
     const i = n - 1, px = closes[i];
     const b = liqBal(i, px);
+    // MARKET REGIME — DISPLAY ONLY. This classifies the backdrop for the portfolio screen;
+    // it does NOT gate entries (no rule in ALGORITHM.md depends on it). A regime read needs
+    // the MA's own SLOPE, not just price-vs-MA: a price/MA crossing test oscillates in a
+    // grinding bear, which is exactly why sweeping lbTrend 5→200 days never fixed fold B.
+    const regime = (() => {
+      const lookback = S(30);
+      if (!isFinite(maL[i]) || i - lookback < 0 || !isFinite(maL[i - lookback])) return { state: 'UNKNOWN' };
+      const slope = maL[i] / maL[i - lookback] - 1;        // 200d MA change over the last 30 days
+      const vsMa = px / maL[i] - 1;
+      const up = slope > 0.01, down = slope < -0.01;
+      const state = (up && vsMa > 0) ? 'BULL' : (down && vsMa < 0) ? 'BEAR' : 'NEUTRAL';
+      // how long this state has held, so a fresh flip reads differently from a settled trend
+      let held = 0;
+      for (let j = i; j > Math.max(0, i - S(400)); j--) {
+        if (!isFinite(maL[j]) || j - lookback < 0 || !isFinite(maL[j - lookback])) break;
+        const sl = maL[j] / maL[j - lookback] - 1, vm = closes[j] / maL[j] - 1;
+        const st = (sl > 0.01 && vm > 0) ? 'BULL' : (sl < -0.01 && vm < 0) ? 'BEAR' : 'NEUTRAL';
+        if (st !== state) break;
+        held++;
+      }
+      return { state, slope: +(slope * 100).toFixed(1), vsMa: +(vsMa * 100).toFixed(1),
+        heldDays: +(held / bpd).toFixed(0), ma200: maL[i] };
+    })();
     const advice = {
       px, stance: (trades.length && trades[trades.length - 1].outcome === 'open') ? 'IN' : 'CASH',
       signals: lb ? [
@@ -496,6 +519,14 @@
         { name: '90-day momentum positive', ok: px > closes[i - lookLen] },
         { name: 'Above 55-day channel mid', ok: px > (hiN[i] + loIn[i]) / 2 },
       ],
+      regime,
+      // live liqbrk trigger levels — what price/volume still has to do for an entry to fire
+      lb: lb ? {
+        breakHigh: lb.hiB[i], trendMa: lb.maT[i], maBars: lb.maBars ? lb.maBars[i] : null,
+        maBarsLen: lbMaBars, relVol: +lb.rv[i].toFixed(2), needVol: p.lbRelVol,
+        trailLow: lb.loE[i], atr: a[i], stopIfEntered: px - p.lbStop * a[i],
+        toBreak: +((lb.hiB[i] / px - 1) * 100).toFixed(2),   // % price must still rise (<0 = already above)
+      } : null,
       z: std20[i] > 0 ? +((px - ma20[i]) / std20[i]).toFixed(2) : 0,
       volAnn: +volA[i].toFixed(2), alloc: +volFrac(i).toFixed(2),
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,

@@ -40,7 +40,7 @@
   #cmpTable th[data-k]{cursor:pointer;user-select:none}
   #cmpTable th[data-k]:hover{color:var(--txt)}
   #cmpCtl{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-  body.cmp .cc{display:none}
+  body.noctl .cc{display:none}
   #cmpTable th:first-child,#cmpTable td:first-child{text-align:left}
   #cmpTable td{padding:10px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
   #cmpTable tbody tr{cursor:pointer}
@@ -79,6 +79,63 @@
   .detail>summary:before{content:'▸ ';display:inline-block;transition:transform .12s}
   .detail[open]>summary:before{transform:rotate(90deg)}
   .detail>summary:hover{color:var(--txt)}
+
+  /* ===== PORTFOLIO HOME (mobile-first: these ARE the phone styles; the media block at the
+     end of this sheet upgrades them for wider screens) ===== */
+  #pfView{flex:1 1 auto;display:none;overflow-y:auto;overflow-x:hidden;padding:14px 16px 86px;-webkit-overflow-scrolling:touch}
+  .pfHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .pfHead h2{font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+  .pfSub{font-size:12px;color:var(--muted)}
+  /* hero — exactly one per view */
+  .hero{padding:4px 0 2px}
+  .hero .k{font-size:12px;color:var(--muted);letter-spacing:.3px}
+  .hero .v{font-size:48px;line-height:1.05;font-weight:700;letter-spacing:-1.4px;margin-top:2px}
+  .hero .d{font-size:15px;font-weight:600;margin-top:4px}
+  /* KPI row of stat tiles */
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .tile .k{font-size:11px;color:var(--muted);letter-spacing:.2px}
+  .tile .v{font-size:19px;font-weight:700;margin-top:3px;letter-spacing:-.3px}
+  .tile .s{font-size:11px;color:var(--muted);margin-top:1px}
+  /* allocation meter */
+  .meter{margin-top:14px}
+  .meter .track{height:10px;border-radius:6px;background:#1b2330;overflow:hidden;display:flex;gap:2px}
+  .meter .seg{height:100%}
+  .meterLeg{display:flex;flex-wrap:wrap;gap:10px;margin-top:7px;font-size:11px;color:var(--muted)}
+  .meterLeg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  /* position / radar cards */
+  .cards{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 13px;cursor:pointer;transition:border-color .12s}
+  .card:active{border-color:#2d6ee0}
+  .cardTop{display:flex;align-items:center;gap:9px}
+  .cardTop .sym{font-size:16px;font-weight:700;letter-spacing:-.2px}
+  .cardTop .px{margin-left:auto;text-align:right}
+  .cardTop .px b{font-size:15px;font-weight:700;display:block}
+  .cardTop .px s{font-size:11px;color:var(--muted);text-decoration:none}
+  .badge{font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 8px;border-radius:20px;text-transform:uppercase;white-space:nowrap}
+  .b-in{background:#11301f;color:#56d364;border:1px solid #1d5234}
+  .b-cash{background:#1c2029;color:#8b949e;border:1px solid #2a313d}
+  .b-near{background:#332a12;color:#e3c34c;border:1px solid #4d3f17}
+  .spark{display:block;width:100%;height:42px;margin:10px 0 2px}
+  .rowK{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:3px 0}
+  .rowK span:first-child{color:var(--muted)}
+  .rowK b{font-weight:600}
+  .conds{display:flex;flex-direction:column;gap:3px;margin-top:8px;font-size:12px}
+  .conds div{display:flex;gap:7px;align-items:flex-start}
+  .conds .ic{flex:0 0 13px;font-size:11px;line-height:1.5}
+  .dots{display:inline-flex;gap:3px;margin-left:auto}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#2a313d;display:block}
+  .dots i.on{background:#56d364}
+  .pfNote{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:16px;padding:11px 12px;background:#12161d;border:1px solid var(--line);border-radius:10px}
+  .pfCtl{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin-top:14px}
+  .pfCtl label{font-size:11px}
+  /* mobile bottom tab bar — the primary nav on a phone */
+  #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:rgba(16,21,29,.96);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  #bottomNav button{flex:1;background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:600;
+    letter-spacing:.3px;padding:5px 2px;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:9px}
+  #bottomNav button .gl{font-size:17px;line-height:1}
+  #bottomNav button.on{color:#58a6ff;background:#141b26}
   /* phone layout (last so it wins the cascade) */
   @media(max-width:768px){
     main{flex-direction:column}
@@ -90,13 +147,28 @@
     #status{width:100%;text-align:left;margin-left:0}
     #compareView{padding:10px}
   }
+  /* wider screens: upgrade the mobile-first portfolio grid, hide the phone tab bar */
+  @media(min-width:700px){
+    #pfView{padding:20px 22px 24px}
+    .kpis{grid-template-columns:repeat(4,1fr)}
+    .cards{grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+    .hero .v{font-size:56px}
+    #bottomNav{display:none}
+  }
+  @media(max-width:699px){
+    #tabs{display:none}
+    header{padding:7px 12px}
+    #compareView{padding:12px 12px 86px}
+    main{padding-bottom:62px}
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>ScreenerPro <span>· Binance spot</span></h1>
   <nav id="tabs">
-    <button class="tab on" data-v="chart">Chart</button>
+    <button class="tab on" data-v="portfolio">Portfolio</button>
+    <button class="tab" data-v="chart">Chart</button>
     <button class="tab" data-v="compare">Compare</button>
   </nav>
   <label class="cc">Strategy
@@ -108,7 +180,7 @@
     </select>
   </label>
   <label class="cc">Symbol<input id="sym" class="sym" value="BTCUSDT" list="symList" /></label>
-  <datalist id="symList"><option>BTCUSDT</option><option>ZECUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>XMRUSDT</option><option>SUIUSDT</option><option>LINKUSDT</option></datalist>
+  <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option></datalist>
   <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
   </label>
@@ -123,6 +195,45 @@
   <span id="status" class="cc">idle</span>
 </header>
 <div id="stratInfo"></div>
+<section id="pfView">
+  <div class="pfHead">
+    <h2>Portfolio</h2>
+    <span class="pfSub" id="pfAsOf">—</span>
+  </div>
+
+  <div class="hero">
+    <div class="k" id="pfHeroK">Model portfolio value</div>
+    <div class="v" id="pfHeroV">—</div>
+    <div class="d" id="pfHeroD"></div>
+  </div>
+
+  <div class="kpis">
+    <div class="tile"><div class="k">Open profit</div><div class="v" id="kOpen">—</div><div class="s" id="kOpenS">on live positions</div></div>
+    <div class="tile"><div class="k">Deployed</div><div class="v" id="kDep">—</div><div class="s" id="kDepS">of capital at work</div></div>
+    <div class="tile"><div class="k">In cash</div><div class="v" id="kCash">—</div><div class="s">waiting for a signal</div></div>
+    <div class="tile"><div class="k">Market regime</div><div class="v" id="kReg">—</div><div class="s" id="kRegS">200-day trend</div></div>
+  </div>
+
+  <div class="meter">
+    <div class="track" id="allocTrack"></div>
+    <div class="meterLeg" id="allocLeg"></div>
+  </div>
+
+  <div class="pfHead" style="margin-top:22px"><h2>Positions</h2><span class="pfSub">tap a card to open its chart</span></div>
+  <div class="cards" id="pfCards"><div class="card">Loading…</div></div>
+
+  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the bench, ranked by how close a buy is</span></div>
+  <div class="cards" id="pfRadar"></div>
+
+  <div class="pfCtl">
+    <label>Capital $<input id="pfCap" class="num" type="number" value="1000" min="1" step="100" style="width:88px" /></label>
+    <label>Invest % per coin<input id="pfRisk" class="num" type="number" value="100" min="1" max="100" step="5" style="width:64px" /></label>
+    <label>TF<select id="pfTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="1d">1d</option></select></label>
+    <button id="pfGo" class="ghost">↻ Refresh</button>
+  </div>
+
+  <div class="pfNote" id="pfNote"></div>
+</section>
 <main>
   <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas></div>
   <aside>
@@ -150,16 +261,15 @@
 </main>
 <section id="compareView">
   <h2>Compare All Strategies</h2>
-  <div class="sub">The 7-coin universe · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart. <span id="cmpStatus"></span></div>
+  <div class="sub">The watchlist universe · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart. <span id="cmpStatus"></span></div>
   <div id="cmpCtl">
     <label>Strategy
       <select id="cmpStrat">
         <option value="all" selected>All strategies</option>
-        <option value="composite">Composite</option>
-        <option value="tsmom">Trend Follow</option>
-        <option value="meanrev">Dip Buyer</option>
-        <option value="donch">Turtle</option>
         <option value="liqbrk">Liq Breakout</option>
+        <option value="tsmom">Trend Follow</option>
+        <option value="donch">Turtle</option>
+        <option value="cycle">BTC Cycle</option>
       </select>
     </label>
     <label>Timeframe
@@ -178,6 +288,11 @@
   </table></div>
 </section>
 
+<nav id="bottomNav">
+  <button class="tab on" data-v="portfolio"><span class="gl">◆</span>Portfolio</button>
+  <button class="tab" data-v="chart"><span class="gl">◧</span>Chart</button>
+  <button class="tab" data-v="compare"><span class="gl">≣</span>Compare</button>
+</nav>
 <script>
 const $ = (id) => document.getElementById(id);
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
@@ -208,6 +323,13 @@ async function fetchKlines(symbol, interval, total){
 
 function ensureChart(){
   if(chart) return;
+  // the charting lib is a CDN script — if it is blocked or offline, say so instead of
+  // throwing and taking the whole page down with it (Portfolio and Compare need no chart)
+  if(typeof LightweightCharts === 'undefined'){
+    $('chart').innerHTML = '<div style="padding:18px;color:#8b949e;font-size:13px">'
+      + 'Chart library didn\'t load (offline or blocked). Portfolio and Compare still work.</div>';
+    return;
+  }
   chart = LightweightCharts.createChart($('chart'), {
     autoSize:true, width:$('chartWrap').clientWidth, height:$('chartWrap').clientHeight,
     layout:{ background:{color:'#0e1117'}, textColor:'#8b949e' },
@@ -411,6 +533,7 @@ function drawOverlay(){
 
 async function run(){
   ensureChart();
+  if(!chart) return;
   const sym=$('sym').value.trim().toUpperCase(), tf=$('tf').value;
   const bars=Math.max(200, Math.min(10000, +$('bars').value||3000));
   $('status').textContent = `fetching ${sym} ${tf}…`;
@@ -498,7 +621,7 @@ function advisor(result){
 }
 let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut while you read it
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
-const CMP_SYMS=['BTCUSDT','ZECUSDT','SOLUSDT','XRPUSDT','XMRUSDT','SUIUSDT','LINKUSDT'];
+const CMP_SYMS=['SOLUSDT','ETHUSDT','SUIUSDT','BTCUSDT','BNBUSDT','LINKUSDT','INJUSDT','HBARUSDT','XRPUSDT','ARBUSDT','ZECUSDT'];
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
 const CMP_BARS={ '4h':10000, '1d':4500, '1w':600 };   // 4h maxed: ~4.6y is all Binance serves
 const cmpCache={}, cmpRowsTf={};                   // klines per sym|tf; computed rows per tf
@@ -573,14 +696,272 @@ document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListene
 $('cmpStrat').addEventListener('change',renderCmp);
 $('cmpTf').addEventListener('change',()=>runCompare(false));
 $('cmpGo').addEventListener('click',()=>runCompare(true));
+
+// ============================ PORTFOLIO HOME ============================
+// The three coins `liqbrk` is actually applied to, and the bench it is scouted against.
+// Rationale for the trio is in ALGORITHM.md ("Portfolio selection"); in short: SOL is the
+// best MEASURED liqbrk performer outside BTC, ETH is the quality/liquidity leg with the
+// shallowest drawdown of the validated set, SUI is the high-beta leg that supplies the fat
+// tail this strategy lives on. Edit these two arrays to re-pick — nothing else depends on them.
+const PF_CORE  = ['SOLUSDT','ETHUSDT','SUIUSDT'];
+const PF_RADAR = ['BTCUSDT','BNBUSDT','LINKUSDT','INJUSDT','HBARUSDT','XRPUSDT','ARBUSDT','ZECUSDT'];
+// bars per TF, sized so the 200-day MA (the regime read) actually exists on that timeframe
+const PF_BARS = { '1h':6000, '2h':3500, '4h':3000, '1d':1200 };
+const pfCache = {};
+let pfRows = [], pfBusy = false;
+
+const lsGet = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
+const lsSet = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+
+// per-coin equity on its own slice of capital: closed trades compound, the open one is
+// marked to the last close. Same 0.1%/side fee model as the Chart tab's backtest.
+function coinEquity(trades, c, cap0, alloc){
+  let eq = cap0, openPL = 0, cost = 0, w = 0, l = 0;
+  const last = c[c.length-1].close;
+  for(const t of trades.slice().sort((a,b)=>a.entryIdx-b.entryIdx)){
+    const f = (t.frac||1)*alloc;
+    if(t.outcome === 'open'){
+      cost = eq*f;                                           // what went in at the entry price
+      openPL = cost*((last/t.entry)*(1-0.001)/(1+0.001)-1);
+    } else if(t.exitPrice != null){
+      const pl = eq*f*((t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1);
+      eq += pl; if(eq < 0) eq = 0;
+      if(pl >= 0) w++; else l++;
+    }
+  }
+  // "at work" must be MARKED TO MARKET, not the cost basis — a position entered at 119 and now
+  // worth 25x is not $294 of exposure. cash is only the part that never went in.
+  const mkt = cost + openPL;
+  return { cash:eq-cost, cost, mkt, openPL, w, l, value:eq+openPL };
+}
+
+// Sparkline: one series, so no legend — the card title names it. Thin 2px line, no grid,
+// no axis. The holding period is drawn in the P/L hue over a muted baseline.
+function sparkline(c, entryIdx, plPos){
+  const N = Math.min(c.length, 120), from = c.length-N;
+  const xs = c.slice(from).map(x=>x.close);
+  const lo = Math.min(...xs), hi = Math.max(...xs), rng = (hi-lo)||1;
+  const W = 300, H = 42, pad = 3;
+  const X = (i)=> (i/(N-1))*W;
+  const Y = (v)=> pad + (1-(v-lo)/rng)*(H-pad*2);
+  const pts = xs.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
+  const held = entryIdx!=null && entryIdx>=from ? entryIdx-from : -1;
+  const accent = plPos ? '#3fb950' : '#f85149';
+  const base = `<polyline points="${pts.join(' ')}" fill="none" stroke="#55606f" stroke-width="2"
+    stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  let hold = '';
+  if(held >= 0){
+    hold = `<polyline points="${pts.slice(held).join(' ')}" fill="none" stroke="${accent}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
+      + `<circle cx="${X(held).toFixed(1)}" cy="${Y(xs[held]).toFixed(1)}" r="3.4" fill="${accent}"
+         stroke="#161b22" stroke-width="2"/>`;
+  }
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${base}${hold}</svg>`;
+}
+
+const pfFmt = (x)=> x==null||!isFinite(x) ? '—' : x>=1000 ? Math.round(x).toLocaleString()
+  : x>=1 ? x.toFixed(2) : x>=0.01 ? x.toFixed(4) : x.toPrecision(3);
+const pfMoney = (x)=> (x<0?'−':'')+'$'+Math.abs(x>=1000?Math.round(x):+x.toFixed(2)).toLocaleString();
+const pfPc = (x)=> (x>=0?'+':'−')+Math.abs(x).toFixed(1)+'%';
+
+async function pfLoad(sym, tf, bars){
+  const key = sym+'|'+tf;
+  if(pfCache[key]) return pfCache[key];
+  const c = await fetchKlines(sym, tf, bars);
+  pfCache[key] = c; return c;
+}
+
+async function pfRun(force){
+  if(pfBusy) return;
+  pfBusy = true;
+  const tf = $('pfTf').value, bars = PF_BARS[tf] || 3000;
+  if(force) Object.keys(pfCache).forEach(k=>{ if(k.endsWith('|'+tf)) delete pfCache[k]; });
+  $('pfAsOf').textContent = 'loading '+tf+' data…';
+  const syms = PF_CORE.concat(PF_RADAR);
+  const out = [];
+  // small concurrency pool — Binance is happy with this and it keeps the screen fast
+  const queue = syms.slice();
+  await Promise.all([0,1,2,3].map(async ()=>{
+    while(queue.length){
+      const sym = queue.shift();
+      try{
+        const c = await pfLoad(sym, tf, bars);
+        if(!c || c.length < 60) continue;
+        const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false });
+        out.push({ sym, c, res, core: PF_CORE.indexOf(sym) >= 0 });
+      }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
+    }
+  }));
+  pfRows = out; pfBusy = false;
+  renderPf();
+}
+
+function renderPf(){
+  if(!pfRows.length){ $('pfCards').innerHTML = '<div class="card">No data — tap ↻ Refresh.</div>'; return; }
+  const cap = Math.max(1, +$('pfCap').value || 1000);
+  const invest = Math.min(100, Math.max(1, +$('pfRisk').value || 100));
+  const core = pfRows.filter(r=>r.core);
+  const slice = cap / Math.max(1, core.length);
+  const alloc = invest/100;
+
+  let totVal = 0, totOpen = 0, totDep = 0, totCash = 0;
+  const segs = [], leg = [];
+  const HUE = ['#58a6ff','#bc8cff','#56d364'];                 // fixed per coin, never by rank
+
+  const cards = core.map((r, idx)=>{
+    const ad = r.res.advice, c = r.c, last = c[c.length-1].close;
+    const open = r.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
+    const eq = coinEquity(r.res.trades, c, slice, alloc);
+    totVal += eq.value; totOpen += eq.openPL; totDep += eq.mkt; totCash += eq.cash;
+    segs.push({ w: eq.mkt, col: HUE[idx % HUE.length] });
+    leg.push({ name: r.sym.replace('USDT',''), col: HUE[idx % HUE.length], v: eq.mkt });
+
+    const bpd = c.length>1 ? 86400/Math.max(60, c[1].time-c[0].time) : 1;
+    const i24 = Math.max(0, c.length-1-Math.round(bpd));
+    const ch24 = (last/c[i24].close - 1)*100;
+    const plPc = open ? (last/open.entry - 1)*100 : 0;
+    const met = (ad.signals||[]).filter(x=>x.ok).length, nSig = (ad.signals||[]).length||1;
+    const badge = open ? '<span class="badge b-in">Invested</span>'
+      : met >= nSig-1 ? '<span class="badge b-near">Close to a buy</span>'
+      : '<span class="badge b-cash">In cash</span>';
+    const record = (eq.w+eq.l) ? `<div class="rowK"><span>System record here</span><b>${eq.w}W / ${eq.l}L <span style="color:var(--muted);font-weight:400">· ${Math.round(eq.w/(eq.w+eq.l)*100)}% win rate</span></b></div>` : '';
+
+    let body;
+    if(open){
+      const heldBars = c.length-1-open.entryIdx;
+      const heldTxt = heldBars/bpd >= 2 ? Math.round(heldBars/bpd)+' days' : Math.round(heldBars/bpd*24)+' hours';
+      const when = new Date(c[open.entryIdx].time*1000).toISOString().slice(0,10);
+      // liqbrk exits on the TRAILING 1-day low far more often than on the initial 3xATR stop —
+      // showing only the entry stop is misleading once a position has run, so show both and
+      // lead with the trail, which is the level that actually takes you out.
+      const toStop = (last/open.stop - 1)*100;
+      const trail = ad.lb ? ad.lb.trailLow : null;
+      const toTrail = trail ? (last/trail - 1)*100 : null;
+      body = sparkline(c, open.entryIdx, plPc>=0)
+        + `<div class="rowK"><span>Open profit</span><b class="${eq.openPL>=0?'up':'down'}">${pfMoney(eq.openPL)} · ${pfPc(plPc)}</b></div>`
+        + `<div class="rowK"><span>Bought at</span><b>${pfFmt(open.entry)}</b></div>`
+        + `<div class="rowK"><span>Held since</span><b>${when} <span style="color:var(--muted);font-weight:400">(${heldTxt})</span></b></div>`
+        + `<div class="rowK"><span>Position worth now</span><b>${pfMoney(eq.mkt)} <span style="color:var(--muted);font-weight:400">· ${pfMoney(eq.cost)} went in</span></b></div>`
+        + (trail ? `<div class="rowK"><span>Exits if it closes below</span><b style="color:#f85149">${pfFmt(trail)} <span style="color:var(--muted);font-weight:400">(${toTrail.toFixed(1)}% below · 1-day low)</span></b></div>` : '')
+        + `<div class="rowK"><span>Initial stop</span><b style="color:var(--muted)">${pfFmt(open.stop)} <span style="font-weight:400">(set at entry, ${toStop.toFixed(0)}% below now)</span></b></div>`
+        + record;
+    } else {
+      body = sparkline(c, null, true)
+        + `<div class="rowK"><span>Waiting in cash</span><b>${pfMoney(eq.cash)}</b></div>`
+        + record + condList(ad);
+    }
+    return `<div class="card" data-sym="${r.sym}">
+      <div class="cardTop"><span class="sym">${r.sym.replace('USDT','')}</span>${badge}
+        <span class="px"><b>${pfFmt(last)}</b><s class="${ch24>=0?'up':'down'}">${pfPc(ch24)} · 24h</s></span></div>
+      ${body}</div>`;
+  }).join('');
+  $('pfCards').innerHTML = cards;
+
+  // ---- hero + KPI tiles ----
+  const pnl = totVal - cap;
+  $('pfHeroV').textContent = pfMoney(totVal);
+  $('pfHeroV').className = 'v';
+  $('pfHeroD').innerHTML = `<span class="${pnl>=0?'up':'down'}">${pfMoney(pnl)} · ${pfPc(pnl/cap*100)}</span>`
+    + ` <span style="color:var(--muted);font-weight:400">since ${new Date(core[0].c[0].time*1000).toISOString().slice(0,10)}</span>`;
+  $('kOpen').innerHTML = `<span class="${totOpen>=0?'up':'down'}">${pfMoney(totOpen)}</span>`;
+  $('kOpen').className = 'v';
+  const nOpen = core.filter(r=>r.res.trades.some(t=>t.outcome==='open')).length;
+  $('kOpenS').textContent = nOpen ? `${nOpen} of ${core.length} coins invested` : 'no live positions';
+  $('kDep').textContent = Math.round(totDep/Math.max(totVal,1)*100)+'%';
+  $('kDepS').textContent = pfMoney(totDep)+' at work';
+  $('kCash').textContent = pfMoney(Math.max(0, totCash));
+  // regime = the majority read across the three coins; always shown with its word, not colour alone
+  const states = core.map(r=>(r.res.advice.regime||{}).state||'UNKNOWN');
+  const tally = {}; states.forEach(x=>tally[x]=(tally[x]||0)+1);
+  const reg = Object.keys(tally).sort((a,b)=>tally[b]-tally[a])[0];
+  const regCol = reg==='BULL'?'#3fb950':reg==='BEAR'?'#f85149':'#e3c34c';
+  $('kReg').innerHTML = `<span style="color:${regCol}">${reg}</span>`;
+  $('kReg').className = 'v';
+  const heldD = Math.max(...core.map(r=>((r.res.advice.regime||{}).heldDays)||0));
+  $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough history on this TF'
+    : `${tally[reg]}/${core.length} coins · ~${heldD}d in this state`;
+
+  // ---- allocation meter: deployed per coin + the cash remainder ----
+  const cashW = Math.max(0, totCash);
+  const all = segs.concat([{ w: cashW, col:'#283040' }]);
+  const tot = all.reduce((a,x)=>a+x.w,0) || 1;
+  $('allocTrack').innerHTML = all.map(x=>`<div class="seg" style="width:${(x.w/tot*100).toFixed(2)}%;background:${x.col}"></div>`).join('');
+  $('allocLeg').innerHTML = leg.map(x=>`<span><i style="background:${x.col}"></i>${x.name} ${pfMoney(x.v)}</span>`).join('')
+    + `<span><i style="background:#283040"></i>Cash ${pfMoney(cashW)}</span>`;
+
+  // ---- radar: every coin NOT currently invested, ranked by how close a buy signal is ----
+  const radar = pfRows.filter(r=>!r.core && !r.res.trades.some(t=>t.outcome==='open'))
+    .map(r=>{
+      const ad = r.res.advice;
+      const met = (ad.signals||[]).filter(x=>x.ok).length;
+      const tot = (ad.signals||[]).length || 1;
+      return { r, ad, met, tot, gap: (ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999 };
+    })
+    .sort((a,b)=> (b.met-a.met) || (a.gap-b.gap))
+    .slice(0, 6);
+  $('pfRadar').innerHTML = radar.map(x=>{
+    const last = x.r.c[x.r.c.length-1].close;
+    const near = x.met >= x.tot-1;
+    const badge = near ? '<span class="badge b-near">Close to a buy</span>' : '<span class="badge b-cash">Watching</span>';
+    const gapTxt = x.gap<=0 ? 'already above the breakout level'
+      : isFinite(x.gap) && x.gap<999 ? `needs <b>+${x.gap.toFixed(1)}%</b> to break the 2-day high` : '';
+    return `<div class="card" data-sym="${x.r.sym}">
+      <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>${badge}
+        <span class="dots">${Array.from({length:x.tot},(_,k)=>`<i class="${k<x.met?'on':''}"></i>`).join('')}</span>
+        <span class="px"><b>${pfFmt(last)}</b><s>${x.met}/${x.tot} conditions</s></span></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:7px">${gapTxt}</div>
+      ${condList(x.ad)}</div>`;
+  }).join('') || '<div class="card">Every bench coin is already invested.</div>';
+
+  $('pfCards').querySelectorAll('.card[data-sym]').forEach(bindCard);
+  $('pfRadar').querySelectorAll('.card[data-sym]').forEach(bindCard);
+  $('pfAsOf').textContent = new Date().toLocaleString()+' · '+$('pfTf').value+' bars';
+  $('pfNote').innerHTML = `<b>How to read this.</b> These are <b>simulated</b> positions: the app has no link to an
+    exchange, so it shows what the Liquidity Breakout system would hold if you had followed every signal on the
+    loaded window, with 0.1%/side fees. Capital is split equally across the three coins.
+    <b>The strategy is a bull-regime system</b> — on full ZEC history it drew down 61% and lost for ~2.5 years
+    through 2022–24, so treat a BEAR reading above as a reason to size down, not as a stop sign the code enforces.
+    The 149-MA entry filter is <b>not yet backtested</b>. See ALGORITHM.md before trusting any number here.`;
+}
+
+// the four liqbrk entry conditions, each with its own ✔/✘ — identity never by colour alone
+function condList(ad){
+  if(!ad || !ad.signals) return '';
+  return '<div class="conds">' + ad.signals.map(sg=>
+    `<div><span class="ic" style="color:${sg.ok?'#56d364':'#f85149'}">${sg.ok?'✔':'✘'}</span><span>${sg.name}</span></div>`
+  ).join('') + '</div>';
+}
+function bindCard(el){
+  el.addEventListener('click', ()=>{
+    $('sym').value = el.dataset.sym; $('strategy').value = 'liqbrk'; $('tf').value = $('pfTf').value;
+    stratInfo(); showView('chart'); run();
+  });
+}
+['pfCap','pfRisk'].forEach(id=>$(id).addEventListener('input', ()=>{
+  lsSet(id, $(id).value); if(pfRows.length) renderPf();
+}));
+$('pfTf').addEventListener('change', ()=>{ lsSet('pfTf', $('pfTf').value); pfRun(false); });
+$('pfGo').addEventListener('click', ()=>pfRun(true));
+$('pfCap').value = lsGet('pfCap','1000');
+$('pfRisk').value = lsGet('pfRisk','100');
+$('pfTf').value = lsGet('pfTf','4h');
+
+let chartLoaded=false;
 function showView(v){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  document.body.classList.toggle('cmp', v==='compare');
+  document.body.classList.toggle('noctl', v!=='chart');
   document.querySelector('main').style.display = v==='chart'?'flex':'none';
   $('stratInfo').style.display = v==='chart'?'block':'none';
   $('compareView').style.display = v==='compare'?'block':'none';
+  $('pfView').style.display = v==='portfolio'?'block':'none';
+  if(v==='portfolio' && !pfRows.length && !pfBusy) pfRun(false);
   if(v==='compare') runCompare(false);
-  if(v==='chart' && chart){ sizeOverlay(); drawOverlay(); }
+  if(v==='chart'){
+    ensureChart();
+    if(!chart) return;
+    if(!chartLoaded){ chartLoaded=true; run(); }
+    else { sizeOverlay(); drawOverlay(); }
+  }
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.v)));
 
@@ -601,7 +982,7 @@ stratInfo();
 // load the engine fresh every time (no cache) then run
 const _ds = document.createElement('script');
 _ds.src = 'detector.js?t=' + Date.now();
-_ds.onload = run;
+_ds.onload = ()=>{ showView('portfolio'); };
 _ds.onerror = () => { $('status').textContent = 'failed to load detector.js'; };
 document.head.appendChild(_ds);
 </script>

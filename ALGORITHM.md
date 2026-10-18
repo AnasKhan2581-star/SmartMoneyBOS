@@ -122,6 +122,52 @@ showed their signal bars were statistically indistinguishable from random bars):
 
 
 
+### Portfolio selection: the three coins `liqbrk` is applied to (Oct 2026)
+
+The app's Portfolio home runs `liqbrk` on **SOL, ETH and SUI**, equal-weighted, with the rest of
+the watchlist (BTC BNB LINK INJ HBAR XRP ARB ZEC) on the bench as a ranked radar.
+
+**This trio was picked from the evidence already in this file, NOT from a fresh backtest** - the
+session that chose it had no route to Binance. Reasoning:
+
+| coin | why it is in | evidence |
+|---|---|---|
+| **SOL** | best measured `liqbrk` performer outside BTC | 44% WR / PF 2.83 at 1d (cross-market check); also passed `composite` at 27% CAGR / dd36 / WR35 |
+| **ETH** | the quality leg - deepest book, shallowest drawdown of the validated set | `composite` 20% CAGR / **dd30** / WR39 - the best drawdown of all eight coins tested |
+| **SUI** | the high-beta leg that supplies the fat tail the strategy lives on | 35% WR / PF 1.77 at 1d |
+
+**Explicitly excluded, with reasons:**
+- **XRP** (28% WR) and **LINK** (PF 1.25) - both are documented deliberate failures: "the weakest
+  structural trenders, no timing system fixed them without overfitting."
+- **BNB** - "nothing times a market that never dips"; its one-way grind beats every timing system here.
+- **ARB** - launched Mar 2023, so it cannot supply 10k 4h bars, and it has spent most of its life
+  in a downtrend, which is the worst possible backdrop for a long-only breakout system.
+- **INJ, HBAR** - no measurement in this repo at all. INJ is the most interesting untested
+  candidate (high beta, real trends) and is the first thing to swap in once it has been benched.
+
+**Caveat that matters:** SUI's listing (May 2023) is shorter than the 4.56 years that 10k 4h bars
+span, so a full-history panel across these three is ragged. Re-rank the trio from a real
+cross-coin run before treating it as settled - the Compare tab now covers all 11 watchlist coins
+and is the fastest way to do that.
+
+**Timeframe.** The Portfolio screen defaults to **4h**. This is a data argument, not a signal one:
+10k bars is ~1.1 years on 1h (ONE regime), ~2.3 years on 2h, but ~4.6 years on 4h - back through
+the 2022 bear, the 2023 chop and the 2024-26 bull. A regime-aware system cannot be validated on a
+window that contains one regime; that is the exact mistake the CORRECTION below documents.
+
+### Market regime read (display only, Oct 2026)
+
+`advice.regime` classifies the backdrop as BULL / NEUTRAL / BEAR from the **200-day MA's own
+slope** over the last 30 days plus price-vs-MA, and reports how long the state has held. It is
+shown on the Portfolio screen and **changes no trading rule** - no entry, exit, stop or size
+depends on it.
+
+It deliberately uses MA *slope* rather than a price/MA crossing. A crossing test oscillates in a
+grinding bear, which is why sweeping `lbTrend` from 5 to 200 days never rescued fold B; that
+sweep is evidence against naive MA gates, not against regime classification. A regime-*switching*
+variant of `liqbrk` (trail in bull, fixed target in bear, size by state) is designed but
+**not built and not measured**.
+
 ### CORRECTION: the 13.5% drawdown was a test-window artifact (Aug 2026)
 
 The benchmark above was run on **2024-08 -> 2026-07** because that was the cached window. The
