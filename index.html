@@ -153,9 +153,10 @@
   .cards{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 13px;cursor:pointer;transition:border-color .12s}
   .card:active{border-color:#2d6ee0}
-  .cardTop{display:flex;align-items:center;gap:9px}
+  .cardTop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .cardTop .dots{margin-left:0}
   .cardTop .sym{font-size:16px;font-weight:700;letter-spacing:-.2px}
-  .cardTop .px{margin-left:auto;text-align:right}
+  .cardTop .px{margin-left:auto;text-align:right;flex:0 0 auto}
   .cardTop .px b{font-size:15px;font-weight:700;display:block}
   .cardTop .px s{font-size:11px;color:var(--muted);text-decoration:none}
   .badge{font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 8px;border-radius:20px;text-transform:uppercase;white-space:nowrap}
@@ -172,6 +173,48 @@
   .dots{display:inline-flex;gap:3px;margin-left:auto}
   .dots i{width:6px;height:6px;border-radius:50%;background:#2a313d;display:block}
   .dots i.on{background:#56d364}
+  /* action badges + the action line. Status colour NEVER carries meaning alone — every one
+     of these ships with its word ("HOLD", "NEXT TRADE", …) and a sentence naming the level. */
+  .a-hold{background:#11301f;color:#56d364;border:1px solid #1d5234}
+  .a-next{background:#10263f;color:#58a6ff;border:1px solid #1d3f63}
+  .a-near{background:#332a12;color:#e3c34c;border:1px solid #4d3f17}
+  .a-wait{background:#1c2029;color:#8b949e;border:1px solid #2a313d}
+  .a-out {background:#331a1a;color:#f0877f;border:1px solid #522525}
+  .b-core{background:#241a33;color:#bc8cff;border:1px solid #3b2a52}
+  .actLine{margin-top:9px;padding:8px 10px;border-radius:8px;font-size:12.5px;line-height:1.55;
+           background:#12161d;border-left:3px solid #2a313d;color:var(--txt)}
+  .actLine b{font-variant-numeric:tabular-nums}
+  .actLine.a-hold{border-left-color:#3fb950;background:#101c15}
+  .actLine.a-next{border-left-color:#58a6ff;background:#0f1722}
+  .actLine.a-near{border-left-color:#e3c34c;background:#1b1810}
+  .actLine.a-out {border-left-color:#f85149;background:#1d1312}
+  .actLine.a-wait{border-left-color:#2a313d}
+  /* first-run empty state */
+  .pfEmptyBox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px;margin-top:6px}
+  .pfEmptyBox .eyebrow{font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .pfEmptyBox h3{margin:7px 0 8px;font-size:20px;letter-spacing:-.3px}
+  .pfEmptyBox p{margin:0 0 15px;font-size:13px;line-height:1.6;color:var(--muted)}
+  .pfEmptyBox button{font-size:14px;padding:10px 16px;border-radius:9px;width:100%}
+  /* collapsible panels: holdings editor + the demoted backtest */
+  .pfPanel{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .pfPanel>summary{cursor:pointer;list-style:none;padding:12px 14px;font-size:12.5px;font-weight:600;color:var(--txt);user-select:none}
+  .pfPanel>summary::-webkit-details-marker{display:none}
+  .pfPanel>summary:before{content:'▸ ';color:var(--muted);display:inline-block;transition:transform .12s}
+  .pfPanel[open]>summary:before{transform:rotate(90deg)}
+  .pfPanelBody{padding:0 14px 14px}
+  .holdTable{width:100%;border-collapse:collapse;font-size:12.5px}
+  .holdTable th{font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 8px;font-weight:600}
+  .holdTable th:first-child,.holdTable td:first-child{text-align:left}
+  .holdTable td{padding:7px 8px;text-align:right;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .holdTable button{padding:2px 8px;font-size:12px;font-weight:600;line-height:1.3}
+  .holdScroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .holdTable td:last-child,.holdTable th:last-child{width:1%;padding-right:0}
+  .holdAdd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;align-items:end}
+  .holdAdd label{font-size:11px}
+  .holdAdd input{width:100%}
+  .holdAdd button{grid-column:1 / -1;padding:9px}
+  .holdHint{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:11px}
+  .holdHint code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
   .pfNote{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:16px;padding:11px 12px;background:#12161d;border:1px solid var(--line);border-radius:10px}
   .pfCtl{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin-top:14px}
   .pfCtl label{font-size:11px}
@@ -199,9 +242,15 @@
     .kpis{grid-template-columns:repeat(4,1fr)}
     .cards{grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
     .hero .v{font-size:56px}
+    .holdAdd{grid-template-columns:1fr 1fr 1fr auto}
+    .holdAdd button{grid-column:auto}
+    .pfEmptyBox button{width:auto}
     #bottomNav{display:none}
   }
   @media(max-width:699px){
+    /* the Cost column is qty x avg — derivable, and dropping it is what lets the remove
+       button fit on a phone instead of clipping off the right edge */
+    .holdTable th:nth-child(4),.holdTable td:nth-child(4){display:none}
     #tabs{display:none}
     header{padding:7px 12px}
     #compareView{padding:12px 12px 86px}
@@ -249,39 +298,73 @@
 <div id="stratInfo"></div>
 <section id="pfView">
   <div class="pfHead">
-    <h2>Portfolio</h2>
+    <h2>My portfolio</h2>
     <span class="pfSub" id="pfAsOf">—</span>
   </div>
 
-  <div class="hero">
-    <div class="k" id="pfHeroK">Model portfolio value</div>
-    <div class="v" id="pfHeroV">—</div>
-    <div class="d" id="pfHeroD"></div>
+  <div id="pfEmpty" style="display:none">
+    <div class="pfEmptyBox">
+      <div class="eyebrow">Nothing added yet</div>
+      <h3>Tell the app what you actually hold</h3>
+      <p>Enter each coin with the quantity you own and the average price you paid. Everything below
+         — live value, profit, and what to do next — is then computed from your real positions.
+         Your holdings stay in this browser only; they are never sent anywhere or saved to the repo.</p>
+      <button id="pfAddFirst">+ Add your first holding</button>
+    </div>
   </div>
 
-  <div class="kpis">
-    <div class="tile"><div class="k">Open profit</div><div class="v" id="kOpen">—</div><div class="s" id="kOpenS">on live positions</div></div>
-    <div class="tile"><div class="k">Deployed</div><div class="v" id="kDep">—</div><div class="s" id="kDepS">of capital at work</div></div>
-    <div class="tile"><div class="k">In cash</div><div class="v" id="kCash">—</div><div class="s">waiting for a signal</div></div>
-    <div class="tile"><div class="k">Market regime (BTC)</div><div class="v" id="kReg">—</div><div class="s" id="kRegS">BTC 200-day trend</div></div>
+  <div id="pfLive">
+    <div class="hero">
+      <div class="k">Your portfolio is worth</div>
+      <div class="v" id="pfHeroV">—</div>
+      <div class="d" id="pfHeroD"></div>
+    </div>
+
+    <div class="kpis">
+      <div class="tile"><div class="k">Unrealised P/L</div><div class="v" id="kOpen">—</div><div class="s" id="kOpenS">against what you paid</div></div>
+      <div class="tile"><div class="k">You invested</div><div class="v" id="kDep">—</div><div class="s" id="kDepS">total cost basis</div></div>
+      <div class="tile"><div class="k">Best / worst</div><div class="v" id="kCash">—</div><div class="s" id="kCashS">by % move</div></div>
+      <div class="tile"><div class="k">Market regime (BTC)</div><div class="v" id="kReg">—</div><div class="s" id="kRegS">BTC 200-day trend</div></div>
+    </div>
+
+    <div class="meter">
+      <div class="track" id="allocTrack"></div>
+      <div class="meterLeg" id="allocLeg"></div>
+    </div>
+
+    <div class="pfHead" style="margin-top:22px"><h2>What to do with what you hold</h2><span class="pfSub">tap a card for its chart</span></div>
+    <div class="cards" id="pfCards"></div>
   </div>
 
-  <div class="meter">
-    <div class="track" id="allocTrack"></div>
-    <div class="meterLeg" id="allocLeg"></div>
-  </div>
-
-  <div class="pfHead" style="margin-top:22px"><h2>Positions</h2><span class="pfSub">tap a card to open its chart</span></div>
-  <div class="cards" id="pfCards"><div class="card">Loading…</div></div>
-
-  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the bench, ranked by how close a buy is</span></div>
+  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the next trade, and what triggers it</span></div>
   <div class="cards" id="pfRadar"></div>
 
+  <details class="pfPanel" id="pfEditor">
+    <summary>My holdings — add, edit, remove</summary>
+    <div class="pfPanelBody">
+      <div class="holdScroll"><table class="holdTable">
+        <thead><tr><th>Coin</th><th>Quantity</th><th>Avg buy price</th><th>Cost</th><th></th></tr></thead>
+        <tbody id="holdBody"></tbody></table></div>
+      <div class="holdAdd">
+        <label>Coin<input id="hSym" class="sym" placeholder="INJ" list="symList" /></label>
+        <label>Quantity<input id="hQty" type="number" step="any" placeholder="20.39" /></label>
+        <label>Avg buy price<input id="hAvg" type="number" step="any" placeholder="6.03" /></label>
+        <button id="hAdd">Add</button>
+      </div>
+      <div class="holdHint">Stored in this browser only (<code>localStorage</code>) — never uploaded, never committed.
+        Reading them off an exchange app: quantity is the coin amount, and if you only see the USDT value and
+        the unrealised P/L, average price = (value − P/L) ÷ quantity.</div>
+    </div>
+  </details>
+
+  <details class="pfPanel" id="pfBacktest">
+    <summary>System track record — backtest, not your money</summary>
+    <div class="pfPanelBody" id="btSummary"></div>
+  </details>
+
   <div class="pfCtl">
-    <label>Capital $<input id="pfCap" class="num" type="number" value="1000" min="1" step="100" style="width:88px" /></label>
-    <label>Invest % per coin<input id="pfRisk" class="num" type="number" value="100" min="1" max="100" step="5" style="width:64px" /></label>
     <label>TF<select id="pfTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="1d">1d</option></select></label>
-    <button id="pfGo" class="ghost">↻ Refresh</button>
+    <button id="pfGo" class="ghost">↻ Refresh prices</button>
   </div>
 
   <div class="pfNote" id="pfNote"></div>
@@ -1262,20 +1345,19 @@ $('cmpBars').addEventListener('change',()=>{
 $('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
 $('cmpGo').addEventListener('click',()=>runCompare(true));
 
-// ============================ PORTFOLIO HOME =====================
-// The three coins `liqbrk` is actually applied to, and the bench it is scouted against.
-// Rationale for the trio is in ALGORITHM.md ("Portfolio selection"); in short: SOL is the
-// best MEASURED liqbrk performer outside BTC, ETH is the quality/liquidity leg with the
-// shallowest drawdown of the validated set, SUI is the high-beta leg that supplies the fat
-// tail this strategy lives on. Edit these two arrays to re-pick — nothing else depends on them.
+// ============================ PORTFOLIO HOME ============================
+// This screen answers "what do I own, what is it worth, and what should I do about it".
+// It is driven by the user's REAL holdings (entered by hand, kept in localStorage and nowhere
+// else) — NOT by a simulated equity curve. The backtest still exists, but it is demoted to a
+// collapsed panel and labelled, because an earlier version led with it and read as profit the
+// user had actually made.
+//
+// Coin coverage: holdings first, then PF_CORE (the three coins ALGORITHM.md's 9.1-year 4h panel
+// supports), then PF_RADAR as the bench. ETH/SOL/LINK carry the evidence; BTC is not on the
+// user's watchlist but is the most robust vehicle this strategy has, so it always loads.
 const PF_CORE  = ['ETHUSDT','SOLUSDT','LINKUSDT'];
 const PF_RADAR = ['BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
-// BTC drives the regime tile — the Sep 2026 research validated BTC's own 200-day MA, pooled
-// across 10 symbols, as the gate that holds out of sample (1h PF 1.71 bull vs 1.00 bear).
-// It is fetched whether or not it sits in PF_RADAR.
-const PF_REGIME_SYM = 'BTCUSDT';
-// Core coins carry the headline equity path, so they get real depth; bench coins only need
-// their CURRENT signal state, so they stay cheap. 4h is the measured sweet spot.
+const PF_REGIME_SYM = 'BTCUSDT';          // BTC's own 200d MA is the gate validated out of sample
 const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
 const PF_RBARS = { '1h':2500, '2h':2500, '4h':2500,  '1d':1200 };
 const pfCache = {};
@@ -1284,56 +1366,97 @@ let pfRows = [], pfBusy = false;
 const lsGet = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
 const lsSet = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 
-// per-coin equity on its own slice of capital: closed trades compound, the open one is
-// marked to the last close. Same 0.1%/side fee model as the Chart tab's backtest.
+// ---- holdings: the user's real positions, this browser only ----
+// symbol normalising is Compare's normSym() — one spelling rule for the whole app
+function loadHoldings(){
+  try{ const a=JSON.parse(lsGet('smb.holdings','[]')); return Array.isArray(a)?a.filter(h=>h&&h.sym&&h.qty>0):[]; }
+  catch(e){ return []; }
+}
+function saveHoldings(h){ lsSet('smb.holdings', JSON.stringify(h)); }
+let holdings = loadHoldings();
+
+const pfFmt = (x)=> x==null||!isFinite(x) ? '—' : x>=1000 ? Math.round(x).toLocaleString()
+  : x>=1 ? x.toFixed(2) : x>=0.01 ? x.toFixed(4) : x.toPrecision(3);
+// money: whole dollars once past 1,000, otherwise always two decimals ("$171.60", not "$171.6")
+const pfMoney = (x)=>{
+  const a = Math.abs(x);
+  return (x<0?'−':'') + '$' + (a>=1000 ? Math.round(a).toLocaleString()
+                                       : a.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}));
+};
+const pfPc = (x)=> (x>=0?'+':'−')+Math.abs(x).toFixed(1)+'%';
+
+// per-coin backtest equity — kept only for the collapsed "system track record" panel
 function coinEquity(trades, c, cap0, alloc){
   let eq = cap0, openPL = 0, cost = 0, w = 0, l = 0;
   const last = c[c.length-1].close;
   for(const t of trades.slice().sort((a,b)=>a.entryIdx-b.entryIdx)){
     const f = (t.frac||1)*alloc;
-    if(t.outcome === 'open'){
-      cost = eq*f;                                           // what went in at the entry price
-      openPL = cost*((last/t.entry)*(1-0.001)/(1+0.001)-1);
-    } else if(t.exitPrice != null){
+    if(t.outcome === 'open'){ cost = eq*f; openPL = cost*((last/t.entry)*(1-0.001)/(1+0.001)-1); }
+    else if(t.exitPrice != null){
       const pl = eq*f*((t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1);
-      eq += pl; if(eq < 0) eq = 0;
-      if(pl >= 0) w++; else l++;
+      eq += pl; if(eq < 0) eq = 0; if(pl >= 0) w++; else l++;
     }
   }
-  // "at work" must be MARKED TO MARKET, not the cost basis — a position entered at 119 and now
-  // worth 25x is not $294 of exposure. cash is only the part that never went in.
-  const mkt = cost + openPL;
-  return { cash:eq-cost, cost, mkt, openPL, w, l, value:eq+openPL };
+  return { cash:eq-cost, cost, mkt:cost+openPL, openPL, w, l, value:eq+openPL };
 }
 
-// Sparkline: one series, so no legend — the card title names it. Thin 2px line, no grid,
-// no axis. The holding period is drawn in the P/L hue over a muted baseline.
-function sparkline(c, entryIdx, plPos){
+// Sparkline: one series, so no legend — the card title names it. Thin 2px line, no grid/axis.
+function sparkline(c, markIdx, plPos){
   const N = Math.min(c.length, 120), from = c.length-N;
   const xs = c.slice(from).map(x=>x.close);
   const lo = Math.min(...xs), hi = Math.max(...xs), rng = (hi-lo)||1;
   const W = 300, H = 42, pad = 3;
-  const X = (i)=> (i/(N-1))*W;
-  const Y = (v)=> pad + (1-(v-lo)/rng)*(H-pad*2);
+  const X = (i)=> (i/(N-1))*W, Y = (v)=> pad + (1-(v-lo)/rng)*(H-pad*2);
   const pts = xs.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
-  const held = entryIdx!=null && entryIdx>=from ? entryIdx-from : -1;
   const accent = plPos ? '#3fb950' : '#f85149';
-  const base = `<polyline points="${pts.join(' ')}" fill="none" stroke="#55606f" stroke-width="2"
+  const mark = markIdx!=null && markIdx>=from ? markIdx-from : -1;
+  let out = `<polyline points="${pts.join(' ')}" fill="none" stroke="#55606f" stroke-width="2"
     stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
-  let hold = '';
-  if(held >= 0){
-    hold = `<polyline points="${pts.slice(held).join(' ')}" fill="none" stroke="${accent}" stroke-width="2"
+  if(mark >= 0){
+    out += `<polyline points="${pts.slice(mark).join(' ')}" fill="none" stroke="${accent}" stroke-width="2"
       stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
-      + `<circle cx="${X(held).toFixed(1)}" cy="${Y(xs[held]).toFixed(1)}" r="3.4" fill="${accent}"
-         stroke="#161b22" stroke-width="2"/>`;
+      + `<circle cx="${X(mark).toFixed(1)}" cy="${Y(xs[mark]).toFixed(1)}" r="3.4" fill="${accent}" stroke="#161b22" stroke-width="2"/>`;
   }
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${base}${hold}</svg>`;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${out}</svg>`;
 }
 
-const pfFmt = (x)=> x==null||!isFinite(x) ? '—' : x>=1000 ? Math.round(x).toLocaleString()
-  : x>=1 ? x.toFixed(2) : x>=0.01 ? x.toFixed(4) : x.toPrecision(3);
-const pfMoney = (x)=> (x<0?'−':'')+'$'+Math.abs(x>=1000?Math.round(x):+x.toFixed(2)).toLocaleString();
-const pfPc = (x)=> (x>=0?'+':'−')+Math.abs(x).toFixed(1)+'%';
+// THE ACTION. Every card carries one, in plain words, with the exact level that triggers it.
+// `held` = the user owns this coin. The system's own simulated position decides the verdict.
+function actionFor(row, held){
+  const ad = row.res.advice, lb = ad.lb || {};
+  const sigs = ad.signals || [];
+  const met = sigs.filter(s=>s.ok).length, tot = sigs.length || 1;
+  const open = row.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
+  const trail = lb.trailLow, brk = lb.breakHigh, gap = lb.toBreak;
+  if(held){
+    if(open) return { tag:'HOLD', cls:'a-hold',
+      line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).` };
+    if(met >= tot-1) return { tag:'HOLD · BUY SIGNAL NEAR', cls:'a-near',
+      line:`You are in, the system is not — but ${met}/${tot} conditions are met. It buys on a close above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.` };
+    return { tag:'NO SYSTEM SUPPORT', cls:'a-out',
+      line:`Liquidity Breakout is flat here (${met}/${tot} conditions). This is your own call, not a system trade — it would only buy above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.` };
+  }
+  if(open) return { tag:'SYSTEM IS LONG', cls:'a-hold',
+    line:`The system holds this and you do not. It exits on a close below <b>${pfFmt(trail)}</b>.` };
+  if(met >= tot-1) return { tag:'NEXT TRADE', cls:'a-next',
+    line:`Closest to firing: ${met}/${tot} conditions. <b>Buy a close above ${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:' — already above'}, on ≥1.3× volume.` };
+  return { tag:'WATCH', cls:'a-wait',
+    line:`${met}/${tot} conditions. Buy trigger sits at <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:''}.` };
+}
+
+function condList(ad){
+  if(!ad || !ad.signals) return '';
+  return '<div class="conds">' + ad.signals.map(sg=>
+    `<div><span class="ic" style="color:${sg.ok?'#56d364':'#f85149'}">${sg.ok?'✔':'✘'}</span><span>${sg.name}</span></div>`
+  ).join('') + '</div>';
+}
+function bindCard(el){
+  el.addEventListener('click', (ev)=>{
+    if(ev.target.closest('button,input')) return;
+    $('sym').value = el.dataset.sym; $('strategy').value = 'liqbrk'; $('tf').value = $('pfTf').value;
+    stratInfo(); showView('chart'); run();
+  });
+}
 
 async function pfLoad(sym, tf, bars){
   const key = sym+'|'+tf;
@@ -1345,25 +1468,23 @@ async function pfLoad(sym, tf, bars){
 async function pfRun(force){
   if(pfBusy) return;
   pfBusy = true;
-  const tf = $('pfTf').value, bars = PF_BARS[tf] || 3000;
+  const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000, rbars = PF_RBARS[tf] || 2500;
   if(force) Object.keys(pfCache).forEach(k=>{ if(k.endsWith('|'+tf)) delete pfCache[k]; });
-  $('pfAsOf').textContent = 'loading '+tf+' data…';
-  const rbars = PF_RBARS[tf] || 2500;
-  const syms = PF_CORE.concat(PF_RADAR);
-  if(syms.indexOf(PF_REGIME_SYM) < 0) syms.push(PF_REGIME_SYM);
-  const out = [];
-  let done = 0;
-  // small concurrency pool — Binance is happy with this and it keeps the screen fast
+  const heldSyms = holdings.map(h=>h.sym);
+  const deep = PF_CORE.concat(heldSyms);                       // holdings get real depth too
+  const syms = [];
+  for(const x of heldSyms.concat(PF_CORE, PF_RADAR, [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
+  const out = []; let done = 0;
   const queue = syms.slice();
+  $('pfAsOf').textContent = `loading ${tf}… 0/${syms.length}`;
   await Promise.all([0,1,2,3].map(async ()=>{
     while(queue.length){
       const sym = queue.shift();
-      const core = PF_CORE.indexOf(sym) >= 0;
       try{
-        const c = await pfLoad(sym, tf, core ? bars : rbars);   // bench coins stay cheap
+        const c = await pfLoad(sym, tf, deep.indexOf(sym)>=0 ? bars : rbars);
         if(c && c.length >= 60){
           const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false });
-          out.push({ sym, c, res, core });
+          out.push({ sym, c, res });
         }
       }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
       $('pfAsOf').textContent = `loading ${tf}… ${++done}/${syms.length}`;
@@ -1372,163 +1493,162 @@ async function pfRun(force){
   pfRows = out; pfBusy = false;
   renderPf();
 }
+const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
 
 function renderPf(){
-  if(!pfRows.length){ $('pfCards').innerHTML = '<div class="card">No data — tap ↻ Refresh.</div>'; return; }
-  const cap = Math.max(1, +$('pfCap').value || 1000);
-  const invest = Math.min(100, Math.max(1, +$('pfRisk').value || 100));
-  const core = pfRows.filter(r=>r.core);
-  const slice = cap / Math.max(1, core.length);
-  const alloc = invest/100;
+  if(!pfRows.length){ $('pfRadar').innerHTML = '<div class="card">No data — tap ↻ Refresh prices.</div>'; return; }
+  const has = holdings.length > 0;
+  $('pfEmpty').style.display = has ? 'none' : 'block';
+  $('pfLive').style.display  = has ? 'block' : 'none';
 
-  let totVal = 0, totOpen = 0, totDep = 0, totCash = 0;
-  const segs = [], leg = [];
-  const HUE = ['#58a6ff','#bc8cff','#56d364'];                 // fixed per coin, never by rank
-
-  const cards = core.map((r, idx)=>{
-    const ad = r.res.advice, c = r.c, last = c[c.length-1].close;
-    const open = r.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
-    const eq = coinEquity(r.res.trades, c, slice, alloc);
-    totVal += eq.value; totOpen += eq.openPL; totDep += eq.mkt; totCash += eq.cash;
-    segs.push({ w: eq.mkt, col: HUE[idx % HUE.length] });
-    leg.push({ name: r.sym.replace('USDT',''), col: HUE[idx % HUE.length], v: eq.mkt });
-
-    const bpd = c.length>1 ? 86400/Math.max(60, c[1].time-c[0].time) : 1;
-    const i24 = Math.max(0, c.length-1-Math.round(bpd));
-    const ch24 = (last/c[i24].close - 1)*100;
-    const plPc = open ? (last/open.entry - 1)*100 : 0;
-    const met = (ad.signals||[]).filter(x=>x.ok).length, nSig = (ad.signals||[]).length||1;
-    const badge = open ? '<span class="badge b-in">Invested</span>'
-      : met >= nSig-1 ? '<span class="badge b-near">Close to a buy</span>'
-      : '<span class="badge b-cash">In cash</span>';
-    const record = (eq.w+eq.l) ? `<div class="rowK"><span>System record here</span><b>${eq.w}W / ${eq.l}L <span style="color:var(--muted);font-weight:400">· ${Math.round(eq.w/(eq.w+eq.l)*100)}% win rate</span></b></div>` : '';
-
-    let body;
-    if(open){
-      const heldBars = c.length-1-open.entryIdx;
-      const heldTxt = heldBars/bpd >= 2 ? Math.round(heldBars/bpd)+' days' : Math.round(heldBars/bpd*24)+' hours';
-      const when = new Date(c[open.entryIdx].time*1000).toISOString().slice(0,10);
-      // liqbrk exits on the TRAILING 1-day low far more often than on the initial 3xATR stop —
-      // showing only the entry stop is misleading once a position has run, so show both and
-      // lead with the trail, which is the level that actually takes you out.
-      const toStop = (last/open.stop - 1)*100;
-      const trail = ad.lb ? ad.lb.trailLow : null;
-      const toTrail = trail ? (last/trail - 1)*100 : null;
-      body = sparkline(c, open.entryIdx, plPc>=0)
-        + `<div class="rowK"><span>Open profit</span><b class="${eq.openPL>=0?'up':'down'}">${pfMoney(eq.openPL)} · ${pfPc(plPc)}</b></div>`
-        + `<div class="rowK"><span>Bought at</span><b>${pfFmt(open.entry)}</b></div>`
-        + `<div class="rowK"><span>Held since</span><b>${when} <span style="color:var(--muted);font-weight:400">(${heldTxt})</span></b></div>`
-        + `<div class="rowK"><span>Position worth now</span><b>${pfMoney(eq.mkt)} <span style="color:var(--muted);font-weight:400">· ${pfMoney(eq.cost)} went in</span></b></div>`
-        + (trail ? `<div class="rowK"><span>Exits if it closes below</span><b style="color:#f85149">${pfFmt(trail)} <span style="color:var(--muted);font-weight:400">(${toTrail.toFixed(1)}% below · 1-day low)</span></b></div>` : '')
-        + `<div class="rowK"><span>Initial stop</span><b style="color:var(--muted)">${pfFmt(open.stop)} <span style="font-weight:400">(set at entry, ${toStop.toFixed(0)}% below now)</span></b></div>`
-        + record;
-    } else {
-      body = sparkline(c, null, true)
-        + `<div class="rowK"><span>Waiting in cash</span><b>${pfMoney(eq.cash)}</b></div>`
-        + record + condList(ad);
-    }
-    return `<div class="card" data-sym="${r.sym}">
-      <div class="cardTop"><span class="sym">${r.sym.replace('USDT','')}</span>${badge}
+  // ---------- your real positions ----------
+  let totVal = 0, totCost = 0;
+  const HUE = ['#58a6ff','#bc8cff','#56d364','#e3c34c','#ff9e64','#7ee787'];
+  const marks = [];
+  const cards = holdings.map((h, idx)=>{
+    const r = rowFor(h.sym);
+    const last = r ? r.c[r.c.length-1].close : null;
+    const value = last!=null ? h.qty*last : 0, cost = h.qty*h.avg, pl = value-cost;
+    const plPc = cost>0 ? pl/cost*100 : 0;
+    totVal += value; totCost += cost;
+    marks.push({ name:h.sym.replace('USDT',''), col:HUE[idx%HUE.length], v:value });
+    if(!r) return `<div class="card"><div class="cardTop"><span class="sym">${h.sym.replace('USDT','')}</span>
+      <span class="badge a-out">No price</span></div>
+      <div class="actLine">Couldn't load this pair from Binance — check the ticker in “My holdings” below.</div></div>`;
+    const act = actionFor(r, true);
+    const bpd = r.c.length>1 ? 86400/Math.max(60, r.c[1].time-r.c[0].time) : 1;
+    const i24 = Math.max(0, r.c.length-1-Math.round(bpd));
+    const ch24 = (last/r.c[i24].close - 1)*100;
+    return `<div class="card" data-sym="${h.sym}">
+      <div class="cardTop"><span class="sym">${h.sym.replace('USDT','')}</span>
+        <span class="badge ${act.cls}">${act.tag}</span>
         <span class="px"><b>${pfFmt(last)}</b><s class="${ch24>=0?'up':'down'}">${pfPc(ch24)} · 24h</s></span></div>
-      ${body}</div>`;
+      ${sparkline(r.c, null, pl>=0)}
+      <div class="rowK"><span>Worth now</span><b>${pfMoney(value)} <span style="color:var(--muted);font-weight:400">· ${h.qty} @ ${pfFmt(last)}</span></b></div>
+      <div class="rowK"><span>You paid</span><b>${pfMoney(cost)} <span style="color:var(--muted);font-weight:400">· avg ${pfFmt(h.avg)}</span></b></div>
+      <div class="rowK"><span>Profit / loss</span><b class="${pl>=0?'up':'down'}">${pfMoney(pl)} · ${pfPc(plPc)}</b></div>
+      <div class="actLine ${act.cls}">${act.line}</div>
+      ${condList(r.res.advice)}</div>`;
   }).join('');
   $('pfCards').innerHTML = cards;
 
-  // ---- hero + KPI tiles ----
-  const pnl = totVal - cap;
-  $('pfHeroV').textContent = pfMoney(totVal);
-  $('pfHeroV').className = 'v';
-  $('pfHeroD').innerHTML = `<span class="${pnl>=0?'up':'down'}">${pfMoney(pnl)} · ${pfPc(pnl/cap*100)}</span>`
-    + ` <span style="color:var(--muted);font-weight:400">since ${new Date(core[0].c[0].time*1000).toISOString().slice(0,10)}</span>`;
-  $('kOpen').innerHTML = `<span class="${totOpen>=0?'up':'down'}">${pfMoney(totOpen)}</span>`;
-  $('kOpen').className = 'v';
-  const nOpen = core.filter(r=>r.res.trades.some(t=>t.outcome==='open')).length;
-  $('kOpenS').textContent = nOpen ? `${nOpen} of ${core.length} coins invested` : 'no live positions';
-  $('kDep').textContent = Math.round(totDep/Math.max(totVal,1)*100)+'%';
-  $('kDepS').textContent = pfMoney(totDep)+' at work';
-  $('kCash').textContent = pfMoney(Math.max(0, totCash));
-  // Regime is read off BTC, not off each coin: pooled across 10 symbols, BTC's own 200-day MA
-  // separates PF 1.71 (bull) from 1.00 (bear) on 1h and holds out of sample. A coin's own MA
-  // does not — see ALGORITHM.md. Always shown with its word, never colour alone.
-  const btcRow = pfRows.find(r=>r.sym===PF_REGIME_SYM);
-  const rg = btcRow ? (btcRow.res.advice.regime||{}) : {};
+  if(has){
+    const pl = totVal - totCost;
+    $('pfHeroV').textContent = pfMoney(totVal);
+    $('pfHeroD').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)} · ${pfPc(totCost>0?pl/totCost*100:0)}</span>`
+      + ` <span style="color:var(--muted);font-weight:400">unrealised, against ${pfMoney(totCost)} invested</span>`;
+    $('kOpen').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)}</span>`;
+    $('kOpenS').textContent = `${holdings.length} holding${holdings.length>1?'s':''}`;
+    $('kDep').textContent = pfMoney(totCost);
+    $('kDepS').textContent = 'total cost basis';
+    // best / worst mover by % — a two-value comparison, so the numbers ARE the chart
+    const movers = holdings.map(h=>{ const r=rowFor(h.sym); if(!r||!(h.avg>0)) return null;
+      const last=r.c[r.c.length-1].close; return { n:h.sym.replace('USDT',''), p:(last/h.avg-1)*100 }; }).filter(Boolean)
+      .sort((a,b)=>b.p-a.p);
+    if(movers.length){
+      const b=movers[0], w=movers[movers.length-1];
+      $('kCash').innerHTML = `<span class="${b.p>=0?'up':'down'}">${b.n} ${pfPc(b.p)}</span>`;
+      $('kCashS').innerHTML = movers.length>1 ? `worst: <span class="${w.p>=0?'up':'down'}">${w.n} ${pfPc(w.p)}</span>` : 'only holding';
+    }
+    const tot = marks.reduce((a,x)=>a+x.v,0) || 1;
+    $('allocTrack').innerHTML = marks.map(x=>`<div class="seg" style="width:${(x.v/tot*100).toFixed(2)}%;background:${x.col}"></div>`).join('');
+    $('allocLeg').innerHTML = marks.map(x=>`<span><i style="background:${x.col}"></i>${x.name} ${pfMoney(x.v)} · ${(x.v/tot*100).toFixed(0)}%</span>`).join('');
+  }
+
+  // ---------- regime, read off BTC ----------
+  const rg = (rowFor(PF_REGIME_SYM)||{res:{advice:{}}}).res.advice.regime || {};
   const reg = rg.state || 'UNKNOWN';
   const regCol = reg==='BULL'?'#3fb950':reg==='BEAR'?'#f85149':'#e3c34c';
   $('kReg').innerHTML = `<span style="color:${regCol}">${reg}</span>`;
-  $('kReg').className = 'v';
   $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough BTC history on this TF'
     : `BTC ${rg.vsMa>=0?'+':''}${rg.vsMa}% vs its 200d MA · ~${rg.heldDays}d in this state`;
 
-  // ---- allocation meter: deployed per coin + the cash remainder ----
-  const cashW = Math.max(0, totCash);
-  const all = segs.concat([{ w: cashW, col:'#283040' }]);
-  const tot = all.reduce((a,x)=>a+x.w,0) || 1;
-  $('allocTrack').innerHTML = all.map(x=>`<div class="seg" style="width:${(x.w/tot*100).toFixed(2)}%;background:${x.col}"></div>`).join('');
-  $('allocLeg').innerHTML = leg.map(x=>`<span><i style="background:${x.col}"></i>${x.name} ${pfMoney(x.v)}</span>`).join('')
-    + `<span><i style="background:#283040"></i>Cash ${pfMoney(cashW)}</span>`;
-
-  // ---- radar: every coin NOT currently invested, ranked by how close a buy signal is ----
-  const radar = pfRows.filter(r=>!r.core && !r.res.trades.some(t=>t.outcome==='open'))
-    .map(r=>{
-      const ad = r.res.advice;
-      const met = (ad.signals||[]).filter(x=>x.ok).length;
-      const tot = (ad.signals||[]).length || 1;
-      return { r, ad, met, tot, gap: (ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999 };
-    })
+  // ---------- radar: coins you do NOT hold, ranked by how close a buy is ----------
+  const heldSet = holdings.map(h=>h.sym);
+  const radar = pfRows.filter(r=>heldSet.indexOf(r.sym)<0)
+    .map(r=>{ const ad=r.res.advice, sigs=ad.signals||[];
+      return { r, met:sigs.filter(x=>x.ok).length, tot:sigs.length||1,
+               gap:(ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999,
+               core: PF_CORE.indexOf(r.sym)>=0 }; })
     .sort((a,b)=> (b.met-a.met) || (a.gap-b.gap))
     .slice(0, 6);
-  $('pfRadar').innerHTML = radar.map(x=>{
+  $('pfRadar').innerHTML = radar.map((x,i)=>{
     const last = x.r.c[x.r.c.length-1].close;
-    const near = x.met >= x.tot-1;
-    const badge = near ? '<span class="badge b-near">Close to a buy</span>' : '<span class="badge b-cash">Watching</span>';
-    const gapTxt = x.gap<=0 ? 'already above the breakout level'
-      : isFinite(x.gap) && x.gap<999 ? `needs <b>+${x.gap.toFixed(1)}%</b> to break the 2-day high` : '';
+    const act = actionFor(x.r, false);
+    // only crown the top card when it is ACTUALLY close — at 2/5 conditions "most likely next"
+    // overstates a coin that is nowhere near firing
+    const lead = (i===0 && x.met >= x.tot-1) ? '<span class="badge a-next">Most likely next</span>' : '';
     return `<div class="card" data-sym="${x.r.sym}">
-      <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>${badge}
+      <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>
+        ${lead || `<span class="badge ${act.cls}">${act.tag}</span>`}
+        ${x.core?'<span class="badge b-core">Core</span>':''}
         <span class="dots">${Array.from({length:x.tot},(_,k)=>`<i class="${k<x.met?'on':''}"></i>`).join('')}</span>
         <span class="px"><b>${pfFmt(last)}</b><s>${x.met}/${x.tot} conditions</s></span></div>
-      <div style="font-size:12.5px;color:var(--muted);margin-top:7px">${gapTxt}</div>
-      ${condList(x.ad)}</div>`;
-  }).join('') || '<div class="card">Every bench coin is already invested.</div>';
+      <div class="actLine ${act.cls}">${act.line}</div>
+      ${condList(x.r.res.advice)}</div>`;
+  }).join('') || '<div class="card">Nothing on the bench right now.</div>';
 
   $('pfCards').querySelectorAll('.card[data-sym]').forEach(bindCard);
   $('pfRadar').querySelectorAll('.card[data-sym]').forEach(bindCard);
+  renderHoldEditor();
+  renderBacktest();
   $('pfAsOf').textContent = new Date().toLocaleString()+' · '+$('pfTf').value+' bars';
-  $('pfNote').innerHTML = `<b>How to read this.</b> These are <b>simulated</b> positions: the app has no link to an
-    exchange, so it shows what the Liquidity Breakout system would hold if you had followed every signal on the
-    loaded window, with 0.1%/side fees. Capital is split equally across the three coins.
-    <b>Why these three:</b> over 9.1 years of 4h bars ETH took 92 trades with 100% of sliding windows profitable
-    at a −25% drawdown; SOL and LINK are the best of the rest of your watchlist. <b>BTC is not on your watchlist
-    but is the most robust coin for this system</b> — it sits on the radar below and is worth promoting.
+  $('pfNote').innerHTML = `<b>What this is.</b> Prices and your profit are real, computed from the holdings you
+    entered and live Binance prices. The <b>action on each card is advice from the Liquidity Breakout system</b>,
+    not an order — nothing is ever bought or sold for you, and the app has no exchange connection.
     <b>Regime matters more than the coin:</b> pooled over 10 symbols, entries taken while BTC was above its
-    200-day MA ran at profit factor 1.71 against 1.00 below it, and that split held out of sample. A BEAR
-    reading is a reason to size down; the code does <i>not</i> enforce it.
-    Still unmeasured: the <b>149-MA filter</b>. And SOL's record here is <b>4h-only</b> — on 1h/2h its profit
-    factor falls under 1.0 once its best three trades are removed. See ALGORITHM.md.`;
+    200-day MA ran at profit factor 1.71 against 1.00 below it, and that split held out of sample — so a BEAR
+    reading is a reason to size down. The system is evidenced on <b>ETH, SOL and LINK</b> (and BTC, which is the
+    most robust of all); on anything else, including INJ, ARB and HBAR, it has <b>never been backtested here</b>
+    and the conditions shown are live readings, not a validated edge. The 149-MA filter is also still unmeasured.
+    See ALGORITHM.md.`;
 }
 
-// the four liqbrk entry conditions, each with its own ✔/✘ — identity never by colour alone
-function condList(ad){
-  if(!ad || !ad.signals) return '';
-  return '<div class="conds">' + ad.signals.map(sg=>
-    `<div><span class="ic" style="color:${sg.ok?'#56d364':'#f85149'}">${sg.ok?'✔':'✘'}</span><span>${sg.name}</span></div>`
-  ).join('') + '</div>';
+// ---------- holdings editor ----------
+function renderHoldEditor(){
+  $('holdBody').innerHTML = holdings.map((h,i)=>{
+    const r = rowFor(h.sym), last = r ? r.c[r.c.length-1].close : null;
+    return `<tr><td><b>${h.sym.replace('USDT','')}</b></td><td>${h.qty}</td><td>${pfFmt(h.avg)}</td>
+      <td>${pfMoney(h.qty*h.avg)}</td><td><button class="hDel ghost" data-i="${i}" title="Remove ${h.sym.replace('USDT','')}" aria-label="Remove ${h.sym.replace('USDT','')}">✕</button></td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted)">No holdings yet.</td></tr>';
+  $('holdBody').querySelectorAll('.hDel').forEach(b=>b.addEventListener('click',()=>{
+    holdings.splice(+b.dataset.i,1); saveHoldings(holdings); pfRun(false);
+  }));
 }
-function bindCard(el){
-  el.addEventListener('click', ()=>{
-    $('sym').value = el.dataset.sym; $('strategy').value = 'liqbrk'; $('tf').value = $('pfTf').value;
-    stratInfo(); showView('chart'); run();
-  });
+function addHolding(){
+  const sym = normSym($('hSym').value), qty = +$('hQty').value, avg = +$('hAvg').value;
+  if(!sym || !(qty>0) || !(avg>0)){ $('hSym').focus(); return; }
+  const at = holdings.findIndex(h=>h.sym===sym);
+  if(at>=0){                                                  // same coin twice = average the two lots
+    const h=holdings[at], q=h.qty+qty;
+    holdings[at] = { sym, qty:q, avg:(h.qty*h.avg + qty*avg)/q };
+  } else holdings.push({ sym, qty, avg });
+  saveHoldings(holdings);
+  $('hSym').value=''; $('hQty').value=''; $('hAvg').value='';
+  pfRun(false);
 }
-['pfCap','pfRisk'].forEach(id=>$(id).addEventListener('input', ()=>{
-  lsSet(id, $(id).value); if(pfRows.length) renderPf();
-}));
+// the backtest, demoted: it is the system's record, NOT the user's money
+function renderBacktest(){
+  const rows = PF_CORE.map(s=>rowFor(s)).filter(Boolean);
+  if(!rows.length){ $('btSummary').innerHTML = ''; return; }
+  $('btSummary').innerHTML = `<p class="holdHint" style="margin:0 0 9px">If $1,000 had been split equally across
+    ETH, SOL and LINK and every Liquidity Breakout signal taken on the loaded window, at 0.1%/side fees.
+    <b>This is a simulation of the strategy, not your portfolio.</b></p>`
+    + `<table class="holdTable"><thead><tr><th>Coin</th><th>Closed trades</th><th>Win rate</th><th>Simulated value</th></tr></thead><tbody>`
+    + rows.map(r=>{ const e=coinEquity(r.res.trades, r.c, 1000/rows.length, 1);
+        return `<tr><td><b>${r.sym.replace('USDT','')}</b></td><td>${e.w+e.l}</td>
+          <td>${(e.w+e.l)?Math.round(e.w/(e.w+e.l)*100)+'%':'—'}</td>
+          <td class="${e.value>=1000/rows.length?'up':'down'}">${pfMoney(e.value)}</td></tr>`; }).join('')
+    + `</tbody></table>`;
+}
+
+$('hAdd').addEventListener('click', addHolding);
+['hSym','hQty','hAvg'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter') addHolding(); }));
+$('pfAddFirst').addEventListener('click', ()=>{ $('pfEditor').open = true; $('hSym').focus();
+  $('pfEditor').scrollIntoView({behavior:'smooth', block:'center'}); });
 $('pfTf').addEventListener('change', ()=>{ lsSet('pfTf', $('pfTf').value); pfRun(false); });
 $('pfGo').addEventListener('click', ()=>pfRun(true));
-$('pfCap').value = lsGet('pfCap','1000');
-$('pfRisk').value = lsGet('pfRisk','100');
 $('pfTf').value = lsGet('pfTf','4h');
-
 let chartLoaded=false;
 $('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
 function syncCmpMode(){
