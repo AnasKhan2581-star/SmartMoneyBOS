@@ -29,13 +29,16 @@ permissions:
 
 jobs:
   signals:
+    # ubuntu-latest deliberately: this job is a single dependency-free node script, so the
+    # Ubuntu 26 migration is a non-event. Pin only if that ever stops being true.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          # 20 went end-of-life in April 2026; the bot only needs global fetch (18+).
+          node-version: '24'
 
       - name: Check for signals
         env:
