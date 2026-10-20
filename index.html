@@ -268,16 +268,16 @@
   </nav>
   <label class="cc">Strategy
     <select id="strategy">
-      <option value="cycle" selected>BTC Cycle · halving playbook</option>
+      <option value="cycle">BTC Cycle · halving playbook</option>
       <option value="tsmom">Trend Follow · CTA momentum</option>
       <option value="donch">Turtle · channel breakout</option>
-      <option value="liqbrk">Liquidity Breakout · 15m swing</option>
+      <option value="liqbrk" selected>Liquidity Breakout · swing</option>
     </select>
   </label>
-  <label class="cc">Symbol<input id="sym" class="sym" value="BTCUSDT" list="symList" /></label>
+  <label class="cc">Symbol<input id="sym" class="sym" value="ARBUSDT" list="symList" /></label>
   <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option></datalist>
   <label class="cc">TF
-    <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option selected>1d</option><option>1w</option></select>
+    <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option selected>2h</option><option>4h</option><option>1d</option><option>1w</option></select>
   </label>
   <label class="cc" title="Fetch the most recent N bars, or everything between two dates.">Fetch
     <select id="rangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select></label>

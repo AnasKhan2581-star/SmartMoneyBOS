@@ -1,0 +1,9 @@
+{
+  "_comment": "What the signal bot watches. Edit freely — the bot reads this file, nothing is hardcoded. 'bars' is how much history each run fetches; it must comfortably exceed the strategy's warm-up (liqbrk needs the 149-bar MA plus a 5-day SMA, so a few hundred bars minimum).",
+  "watch": [
+    { "symbol": "ARBUSDT",  "tf": "2h", "bars": 4500, "strategy": "liqbrk" },
+    { "symbol": "ETHUSDT",  "tf": "4h", "bars": 4500, "strategy": "liqbrk" },
+    { "symbol": "SOLUSDT",  "tf": "4h", "bars": 4500, "strategy": "liqbrk" },
+    { "symbol": "LINKUSDT", "tf": "4h", "bars": 4500, "strategy": "liqbrk" }
+  ]
+}

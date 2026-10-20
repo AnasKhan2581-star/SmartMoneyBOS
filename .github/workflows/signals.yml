@@ -1,0 +1,60 @@
+# Buy/sell alerts for liqbrk, delivered with the browser shut.
+#
+# Runs five past every even hour, which is just after a 2h candle closes (the bot drops any
+# still-forming bar, so a late run is harmless — a skipped one is caught by the next).
+# Position state lives in signals/state.json and is committed back, so each flip alerts once.
+name: liqbrk signals
+
+on:
+  schedule:
+    - cron: '5 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute and log, send nothing, write no state'
+        type: boolean
+        default: false
+
+concurrency:
+  group: liqbrk-signals          # never let two runs race the state file
+  cancel-in-progress: false
+
+permissions:
+  contents: write                # commit signals/state.json
+  issues: write                  # the no-setup fallback channel
+
+jobs:
+  signals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check for signals
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          # the fallback: with no secrets set at all you still get a GitHub issue,
+          # which the GitHub mobile app pushes to your phone
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/signal-bot.js ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Persist position state
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if [ -n "$(git status --porcelain signals/state.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add signals/state.json
+            git commit -m "signals: position state $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+            git push
+          else
+            echo "state unchanged"
+          fi
