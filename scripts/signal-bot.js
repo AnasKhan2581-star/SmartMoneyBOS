@@ -24,7 +24,11 @@
  *   GITHUB_TOKEN + GITHUB_REPOSITORY    — opens an issue; GitHub's mobile app pushes it
  * With none set it prints to stdout and exits 0, which is also what --dry-run forces.
  *
- *   node scripts/signal-bot.js [--dry-run] [--selftest] [--state <path>] [--watch <path>] [--fixture <path>]
+ *   node scripts/signal-bot.js [--dry-run] [--selftest] [--ping]
+ *                              [--state <path>] [--watch <path>] [--fixture <path>]
+ *
+ * --ping sends a test message through every configured channel and exits, so a new channel can
+ * be verified immediately instead of waiting for a real trade.
  */
 'use strict';
 
@@ -38,6 +42,7 @@ const has = (f) => ARGS.includes(f);
 const argOf = (f, d) => { const i = ARGS.indexOf(f); return i >= 0 && ARGS[i + 1] ? ARGS[i + 1] : d; };
 
 const DRY = has('--dry-run') || has('--selftest');
+const PING = has('--ping');   // send a test message through every configured channel, then exit
 // --fixture replays saved candles instead of fetching: lets a scenario be reproduced exactly,
 // which is how the buy/sell transitions are tested without a live market.
 const FIXTURE = argOf('--fixture', null);
@@ -178,6 +183,16 @@ async function notify(msg) {
 
 // ---------- main ----------------------------------------------------------
 (async () => {
+  if (PING) {
+    await notify({ title: 'ScreenerPro signal bot connected',
+      body: ['This is a test message — no trade has happened.',
+             '',
+             'If you can read this, alerts will reach you here when',
+             'Liquidity Breakout opens or closes a position.',
+             `Sent ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`].join('\n'),
+      tag: 'win' });
+    return;
+  }
   const watch = readJSON(WATCH_PATH, null);
   if (!watch || !Array.isArray(watch.watch) || !watch.watch.length) {
     console.error(`no watchlist at ${WATCH_PATH}`); process.exit(1);

@@ -14,6 +14,10 @@ on:
         description: 'Compute and log, send nothing, write no state'
         type: boolean
         default: false
+      ping:
+        description: 'Send a test message to every configured channel and stop'
+        type: boolean
+        default: false
 
 concurrency:
   group: liqbrk-signals          # never let two runs race the state file
@@ -44,10 +48,10 @@ jobs:
           # which the GitHub mobile app pushes to your phone
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/signal-bot.js ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: node scripts/signal-bot.js ${{ inputs.ping && '--ping' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Persist position state
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && !inputs.ping }}
         run: |
           if [ -n "$(git status --porcelain signals/state.json)" ]; then
             git config user.name  "github-actions[bot]"

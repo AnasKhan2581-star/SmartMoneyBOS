@@ -15,10 +15,39 @@ and the GitHub mobile app pushes that to your phone. For anything better, add re
 | Channel | Secrets | Setup |
 |---|---|---|
 | **ntfy** (easiest phone push) | `NTFY_TOPIC` | Install the ntfy app, subscribe to a topic name only you know, put that name in the secret. Optional `NTFY_SERVER` for self-hosting. |
-| **Telegram** | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Create a bot with @BotFather, message it once, then read your chat id from `https://api.telegram.org/bot<TOKEN>/getUpdates`. |
+| **Telegram** | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Full walkthrough below. |
 | **Discord** | `DISCORD_WEBHOOK` | Channel → Edit → Integrations → Webhooks → New. |
 
 A topic name is the only thing protecting an ntfy topic — pick something unguessable.
+
+### Telegram, step by step
+
+1. In Telegram, search **@BotFather** and send `/newbot`. Give it any display name, then a
+   username ending in `bot`. BotFather replies with a token like `8123456789:AAH...`.
+2. **Search your new bot by its @username, open it, and press Start.** Send it any message.
+   This step is not optional — a Telegram bot cannot message a person who has never written
+   to it first, and skipping it is why step 3 comes back empty.
+3. Open `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser and find
+   `"chat":{"id":123456789`. That number is your chat id.
+4. Add both as repo secrets: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+5. Verify: **Actions → liqbrk signals → Run workflow**, tick **ping**. A test message should
+   arrive within a few seconds.
+
+**Never put the bot token in `index.html`.** The webapp is public — anyone reading the page
+source would own the bot. Tokens belong in Actions secrets, which is why alerts are sent from
+the workflow and not from the browser.
+
+### Testing a channel
+
+`--ping` sends a test message through every configured channel and exits, so you never have to
+wait for a real trade to find out whether delivery works:
+
+```bash
+NTFY_TOPIC=my-topic node scripts/signal-bot.js --ping
+```
+
+From GitHub: **Actions → liqbrk signals → Run workflow → tick `ping`**. Note that `dry_run`
+sends nothing at all, so use `ping` (not `dry_run`) when testing a channel.
 
 ## What it watches
 
@@ -46,6 +75,7 @@ non-zero rather than looking like "no signal".
 node scripts/signal-bot.js --dry-run                 # compute and print, send nothing
 node scripts/signal-bot.js --selftest                # synthetic bars, no network
 node scripts/signal-bot.js --fixture bars.json       # replay saved candles
+node scripts/signal-bot.js --ping                    # test your channels, send a hello
 ```
 
 `--fixture` takes a JSON array of `{time,open,high,low,close,volume}` and is how the buy/sell
