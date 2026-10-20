@@ -215,6 +215,24 @@
   .holdAdd button{grid-column:1 / -1;padding:9px}
   .holdHint{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:11px}
   .holdHint code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
+  /* ===== ALERTS tab ===== */
+  #alView{flex:1 1 auto;display:none;overflow-y:auto;overflow-x:hidden;padding:14px 16px 86px;-webkit-overflow-scrolling:touch}
+  .alSync{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;font-size:12.5px;margin-top:10px}
+  .alSync.ok{background:#101c15;border:1px solid #1d5234;color:#56d364}
+  .alSync.pend{background:#1b1810;border:1px solid #4d3f17;color:#e3c34c}
+  .alSync.err{background:#1d1312;border:1px solid #522525;color:#f0877f}
+  .alTable{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+  .alTable th{font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;font-weight:600}
+  .alTable td{padding:8px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .alTable td:last-child,.alTable th:last-child{text-align:right;width:1%}
+  .alTable button{padding:2px 8px;font-size:12px;font-weight:600}
+  .alTable tr.add td{color:#56d364}
+  .alTable tr.drop td{color:#f0877f;text-decoration:line-through}
+  .alAdd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;align-items:end}
+  .alAdd label{font-size:11px} .alAdd input,.alAdd select{width:100%}
+  .alAdd button{grid-column:1 / -1;padding:9px}
+  .alActions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .alActions button{padding:11px;font-size:13.5px}
   .pfNote{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:16px;padding:11px 12px;background:#12161d;border:1px solid var(--line);border-radius:10px}
   .pfCtl{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin-top:14px}
   .pfCtl label{font-size:11px}
@@ -243,6 +261,10 @@
     .cards{grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
     .hero .v{font-size:56px}
     .holdAdd{grid-template-columns:1fr 1fr 1fr auto}
+    .alAdd{grid-template-columns:repeat(4,1fr) auto}
+    .alAdd button{grid-column:auto}
+    .alActions{flex-direction:row}
+    #alView{padding:20px 22px 24px}
     .holdAdd button{grid-column:auto}
     .pfEmptyBox button{width:auto}
     #bottomNav{display:none}
@@ -263,6 +285,7 @@
   <h1>ScreenerPro <span>· Binance spot</span></h1>
   <nav id="tabs">
     <button class="tab on" data-v="portfolio">Portfolio</button>
+    <button class="tab" data-v="alerts">Alerts</button>
     <button class="tab" data-v="chart">Chart</button>
     <button class="tab" data-v="compare">Compare</button>
   </nav>
@@ -369,6 +392,73 @@
 
   <div class="pfNote" id="pfNote"></div>
 </section>
+<section id="alView">
+  <div class="pfHead"><h2>Alert watchlist</h2><span class="pfSub" id="alStatus">—</span></div>
+  <p class="pfSub" style="margin:8px 0 0;line-height:1.6">These are the coin + timeframe combinations the
+    signal bot watches. It runs on GitHub's servers every 2 hours with your browser closed, so this list
+    lives in the repo — not in your phone. Edit it here, then press <b>Apply</b> to push the change.</p>
+
+  <div class="alSync" id="alSync">Loading what the bot is watching…</div>
+
+  <table class="alTable"><thead><tr><th>Coin</th><th>TF</th><th>Bars</th><th>Strategy</th><th></th></tr></thead>
+    <tbody id="alBody"></tbody></table>
+
+  <div class="alAdd">
+    <label>Coin<input id="alSym" class="sym" placeholder="ARB" list="symList" /></label>
+    <label>Timeframe<select id="alTf"><option>15m</option><option>1h</option><option selected>2h</option><option>4h</option><option>1d</option></select></label>
+    <label>Bars<input id="alBars" type="number" value="4500" min="300" step="500" /></label>
+    <label>Strategy<select id="alStrat"></select></label>
+    <button id="alAdd">Add to watchlist</button>
+  </div>
+
+  <div class="alActions">
+    <button id="alApply">Apply to the bot</button>
+    <button id="alRevert" class="ghost">Discard my changes</button>
+  </div>
+
+  <details class="pfPanel" id="alManual">
+    <summary>Apply by hand (no token needed)</summary>
+    <div class="pfPanelBody">
+      <p class="holdHint" style="margin:0 0 9px">Copy this, open the file on GitHub, replace everything, commit.</p>
+      <textarea id="alJson" readonly style="width:100%;height:150px;background:#0d1117;color:var(--txt);
+        border:1px solid var(--line);border-radius:8px;padding:9px;font:12px ui-monospace,monospace"></textarea>
+      <div class="alActions">
+        <button id="alCopy" class="ghost">Copy JSON</button>
+        <a id="alEdit" class="ghost" target="_blank" rel="noopener"
+           style="text-decoration:none;text-align:center;padding:11px;border:1px solid var(--line);
+                  border-radius:6px;color:var(--txt);font-size:13.5px;font-weight:500">Open the file on GitHub ↗</a>
+      </div>
+    </div>
+  </details>
+
+  <details class="pfPanel" id="alTokenPanel">
+    <summary>One-tap apply — save a GitHub token</summary>
+    <div class="pfPanelBody">
+      <p class="holdHint" style="margin:0 0 10px"><b>Optional.</b> Without this, <i>Apply</i> walks you through
+        the copy-and-paste route above. With it, Apply commits the change for you in one tap.</p>
+      <label style="font-size:11px;display:block">Fine-grained personal access token
+        <input id="alToken" type="password" autocomplete="off" placeholder="github_pat_…"
+               style="width:100%;margin-top:3px" /></label>
+      <div class="alActions">
+        <button id="alTokenSave">Save token</button>
+        <button id="alTokenClear" class="ghost">Forget token</button>
+      </div>
+      <div class="holdHint">
+        Create it at <b>github.com → Settings → Developer settings → Personal access tokens → Fine-grained</b>.
+        Scope it to <b>this repository only</b> and give it exactly one permission:
+        <b>Repository permissions → Contents → Read and write</b>. Nothing else.
+        <br><br>
+        It is kept in this browser's <code>localStorage</code> and sent only to <code>api.github.com</code>.
+        It is never written into the page, never committed, and never leaves your device otherwise —
+        but <b>anyone with access to this phone and browser can read it</b>, and it can write to this repo.
+        If that is not a trade you want, skip it and use the manual route. Revoke any time on the same
+        GitHub page.
+      </div>
+    </div>
+  </details>
+
+  <div class="pfNote" id="alNote"></div>
+</section>
 <main>
   <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas></div>
   <aside>
@@ -451,6 +541,7 @@
 
 <nav id="bottomNav">
   <button class="tab on" data-v="portfolio"><span class="gl">◆</span>Portfolio</button>
+  <button class="tab" data-v="alerts"><span class="gl">◉</span>Alerts</button>
   <button class="tab" data-v="chart"><span class="gl">◧</span>Chart</button>
   <button class="tab" data-v="compare"><span class="gl">≣</span>Compare</button>
 </nav>
@@ -1649,6 +1740,187 @@ $('pfAddFirst').addEventListener('click', ()=>{ $('pfEditor').open = true; $('hS
 $('pfTf').addEventListener('change', ()=>{ lsSet('pfTf', $('pfTf').value); pfRun(false); });
 $('pfGo').addEventListener('click', ()=>pfRun(true));
 $('pfTf').value = lsGet('pfTf','4h');
+// ============================ ALERTS TAB ============================
+// Edits signals/watchlist.json — the file the GitHub Action reads — from the phone.
+//
+// The page is static and has no backend, so it cannot write to the repo on its own. Two routes,
+// and the tokenless one must always work:
+//   1. Copy the JSON and paste it into GitHub's web editor (no credential anywhere).
+//   2. Save a fine-grained PAT in localStorage and let Apply commit via the Contents API.
+// A token is NEVER written into the page or the repo — that is the whole reason alerts are sent
+// from the workflow rather than the browser in the first place.
+//
+// The live list is always fetched from the repo, never assumed from local state: if the draft and
+// the repo disagree the banner says so, because silently diverging would mean the user edits a
+// list the bot has never seen and wonders why nothing changed.
+const AL_FILE = 'signals/watchlist.json';
+let alLive = null, alDraft = null, alLoaded = false;
+
+// owner/repo from the Pages URL (<owner>.github.io/<repo>/), overridable for local dev
+function alRepo(){
+  const saved = lsGet('smb.alRepo','');
+  if(saved && saved.indexOf('/')>0) return saved;
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  if(m){
+    const seg = location.pathname.split('/').filter(Boolean)[0];
+    if(seg) return `${m[1]}/${seg}`;
+  }
+  return 'AnasKhan2581-star/SmartMoneyBOS';      // fallback for file:// and localhost
+}
+const alNorm = (w)=> JSON.stringify((w||[]).map(x=>({
+  symbol:x.symbol, tf:x.tf, bars:+x.bars||4500, strategy:x.strategy||'liqbrk'
+})));
+const alFileText = ()=> JSON.stringify({
+  _comment: "What the signal bot watches. Edited from the app's Alerts tab, or by hand here.",
+  watch: alDraft || []
+}, null, 2) + '\n';
+
+async function alFetchLive(){
+  const [owner, repo] = alRepo().split('/');
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${AL_FILE}?t=${Date.now()}`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`could not read ${AL_FILE} (HTTP ${r.status})`);
+  const j = await r.json();
+  if(!j || !Array.isArray(j.watch)) throw new Error('watchlist.json has no "watch" array');
+  return j.watch;
+}
+
+async function alInit(){
+  if(alLoaded) return;
+  alLoaded = true;
+  $('alStrat').innerHTML = CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
+  $('alToken').value = lsGet('smb.ghToken','') ? '••••••••••••' : '';
+  try{
+    alLive = await alFetchLive();
+    const saved = lsGet('smb.alDraft','');
+    alDraft = saved ? JSON.parse(saved) : alLive.slice();
+    $('alStatus').textContent = `${alLive.length} watched · read from the repo`;
+  }catch(e){
+    alLive = null;
+    alDraft = JSON.parse(lsGet('smb.alDraft','[]'));
+    $('alStatus').textContent = 'could not reach the repo';
+    $('alSync').className = 'alSync err';
+    $('alSync').textContent = e.message + ' — you can still edit, but Apply needs the repo reachable.';
+  }
+  alRender();
+}
+
+function alRender(){
+  const liveKeys = new Set((alLive||[]).map(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
+  const draftKeys = new Set(alDraft.map(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
+  const dropped = (alLive||[]).filter(x=>!draftKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
+
+  const row = (x, cls, i)=>`<tr class="${cls}"><td><b>${x.symbol.replace('USDT','')}</b></td><td>${x.tf}</td>
+    <td>${x.bars||4500}</td><td>${(CMP_STRATS.find(s=>s[0]===(x.strategy||'liqbrk'))||[,x.strategy])[1]}</td>
+    <td>${cls==='drop' ? '<button class="alUndo ghost" data-k="'+x.symbol+'|'+x.tf+'|'+(x.strategy||'liqbrk')+'">undo</button>'
+                       : '<button class="alDel ghost" data-i="'+i+'">✕</button>'}</td></tr>`;
+  $('alBody').innerHTML =
+      alDraft.map((x,i)=>row(x, liveKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`)?'':'add', i)).join('')
+    + dropped.map(x=>row(x,'drop',-1)).join('')
+    || '<tr><td colspan="5" style="color:var(--muted);padding:12px">Nothing watched — add a coin below.</td></tr>';
+
+  $('alBody').querySelectorAll('.alDel').forEach(b=>b.addEventListener('click',()=>{
+    alDraft.splice(+b.dataset.i,1); alSaveDraft(); }));
+  $('alBody').querySelectorAll('.alUndo').forEach(b=>b.addEventListener('click',()=>{
+    const back = (alLive||[]).find(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`===b.dataset.k);
+    if(back){ alDraft.push(back); alSaveDraft(); } }));
+
+  const dirty = alLive && alNorm(alDraft) !== alNorm(alLive);
+  const el = $('alSync');
+  if(!alLive){ /* error text already set */ }
+  else if(!dirty){ el.className='alSync ok'; el.textContent = '✔ In sync — the bot is watching exactly this.'; }
+  else {
+    const added = alDraft.filter(x=>!liveKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`)).length;
+    el.className='alSync pend';
+    el.innerHTML = `<b>Not applied yet.</b> ${added} to add, ${dropped.length} to remove — `
+      + `press <b>Apply to the bot</b> or nothing changes.`;
+  }
+  $('alApply').disabled = !dirty;
+  $('alApply').style.opacity = dirty ? '1' : '.5';
+  $('alJson').value = alFileText();
+  const [owner, repo] = alRepo().split('/');
+  $('alEdit').href = `https://github.com/${owner}/${repo}/edit/main/${AL_FILE}`;
+  $('alNote').innerHTML = `<b>How this reaches your phone.</b> The bot re-reads this file on every run, so a
+    change takes effect at the next even hour. A newly added coin records a <b>silent baseline</b> on its first
+    run — you are not told about a position it opened before you started watching — then alerts on the next flip.
+    <br><br><b>Only <code>liqbrk</code> is evidenced</b> on ETH, SOL, LINK and BTC (see ALGORITHM.md). The other
+    strategies fire far too rarely on short timeframes to be useful as alerts — Cycle needs a 200-week MA — and
+    any coin outside that four has never been backtested here.`;
+}
+function alSaveDraft(){ lsSet('smb.alDraft', JSON.stringify(alDraft)); alRender(); }
+
+$('alAdd').addEventListener('click', ()=>{
+  const sym = normSym($('alSym').value);
+  if(!sym){ $('alSym').focus(); return; }
+  const tf = $('alTf').value, strategy = $('alStrat').value;
+  const bars = Math.max(300, +$('alBars').value || 4500);
+  const k = `${sym}|${tf}|${strategy}`;
+  if(alDraft.some(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`===k)){
+    $('alStatus').textContent = sym.replace('USDT','')+' '+tf+' is already on the list'; return;
+  }
+  alDraft.push({ symbol:sym, tf, bars, strategy });
+  $('alSym').value='';
+  alSaveDraft();
+});
+$('alRevert').addEventListener('click', ()=>{
+  if(!alLive) return;
+  alDraft = alLive.slice(); lsSet('smb.alDraft',''); alSaveDraft();
+});
+$('alCopy').addEventListener('click', async ()=>{
+  try{ await navigator.clipboard.writeText(alFileText()); $('alCopy').textContent='Copied ✓';
+       setTimeout(()=>$('alCopy').textContent='Copy JSON',1500); }
+  catch(e){ $('alJson').select(); }
+});
+$('alTokenSave').addEventListener('click', ()=>{
+  const v = $('alToken').value.trim();
+  if(!v || v.startsWith('••')) return;
+  lsSet('smb.ghToken', v); $('alToken').value='••••••••••••';
+  $('alStatus').textContent = 'token saved in this browser';
+});
+$('alTokenClear').addEventListener('click', ()=>{
+  lsSet('smb.ghToken',''); $('alToken').value='';
+  $('alStatus').textContent = 'token forgotten';
+});
+
+// base64 that survives non-ASCII (a comment with an em dash would break raw btoa)
+const b64 = (str)=>{
+  const bytes = new TextEncoder().encode(str);
+  let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+  return btoa(bin);
+};
+$('alApply').addEventListener('click', async ()=>{
+  const token = lsGet('smb.ghToken','');
+  if(!token){                                   // tokenless route: hand them the paste flow
+    $('alManual').open = true;
+    $('alManual').scrollIntoView({behavior:'smooth', block:'center'});
+    $('alSync').className='alSync pend';
+    $('alSync').innerHTML = '<b>No token saved.</b> Copy the JSON below and paste it into the file on GitHub — '
+      + 'or save a token under “One-tap apply” to skip this next time.';
+    return;
+  }
+  const [owner, repo] = alRepo().split('/');
+  const api = `https://api.github.com/repos/${owner}/${repo}/contents/${AL_FILE}`;
+  const H = { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json' };
+  $('alApply').disabled = true; $('alStatus').textContent = 'saving to GitHub…';
+  try{
+    const g = await fetch(`${api}?ref=main&t=${Date.now()}`, { headers:H });
+    if(!g.ok) throw new Error(g.status===401?'token rejected (401) — check it has Contents: read and write on this repo'
+                            : g.status===404?'repo or file not found (404) — is the token scoped to this repository?'
+                            : `GitHub said ${g.status}`);
+    const sha = (await g.json()).sha;
+    const put = await fetch(api, { method:'PUT', headers:{...H,'Content-Type':'application/json'},
+      body: JSON.stringify({ message:'alerts: update watchlist from the app', content:b64(alFileText()), sha, branch:'main' }) });
+    if(!put.ok) throw new Error(`commit failed (${put.status}) ${(await put.text()).slice(0,120)}`);
+    lsSet('smb.alDraft','');
+    alLive = alDraft.slice();
+    $('alStatus').textContent = 'applied · live at the next run';
+    alRender();
+  }catch(e){
+    $('alSync').className='alSync err'; $('alSync').textContent = e.message;
+    $('alApply').disabled = false;
+  }
+});
+
 let chartLoaded=false;
 $('cmpSweep').addEventListener('change',renderCmp);          // sweep rides the cached rows: no refetch
 function syncCmpMode(){
@@ -1703,7 +1975,9 @@ function showView(v){
   $('stratInfo').style.display = v==='chart'?'block':'none';
   $('compareView').style.display = v==='compare'?'block':'none';
   $('pfView').style.display = v==='portfolio'?'block':'none';
+  $('alView').style.display = v==='alerts'?'block':'none';
   if(v==='portfolio' && !pfRows.length && !pfBusy) pfRun(false);
+  if(v==='alerts') alInit();
   if(v==='compare') runCompare(false);
   if(v==='chart'){
     ensureChart();

@@ -52,7 +52,10 @@ sends nothing at all, so use `ping` (not `dry_run`) when testing a channel.
 
 ## What it watches
 
-`signals/watchlist.json`. Edit it and commit; nothing is hardcoded in the script.
+`signals/watchlist.json`. **Easiest way to change it is the webapp's Alerts tab** — it reads the
+live file from the repo, lets you add and remove rows, and either commits for you (if you save a
+fine-grained token) or hands you the JSON to paste into GitHub's editor. Editing this file by hand
+works exactly the same; nothing is hardcoded in the script.
 
 ```json
 { "symbol": "ARBUSDT", "tf": "2h", "bars": 4500, "strategy": "liqbrk" }
