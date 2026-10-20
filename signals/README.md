@@ -9,7 +9,8 @@ There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the al
 ## Turn on a channel
 
 With **no setup at all** you still get alerts: the bot opens a GitHub issue labelled `signal`,
-and the GitHub mobile app pushes that to your phone. For anything better, add repo secrets at
+and the GitHub mobile app pushes that to your phone. This is a *fallback* — configure any
+channel below and the issues stop, so you are not left closing a ticket per signal. For anything better, add repo secrets at
 *Settings → Secrets and variables → Actions*. Any combination works; all configured channels fire.
 
 | Channel | Secrets | Setup |

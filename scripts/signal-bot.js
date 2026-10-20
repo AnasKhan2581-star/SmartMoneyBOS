@@ -21,7 +21,8 @@
  *   NTFY_TOPIC (+ optional NTFY_SERVER)  — easiest phone push, no account
  *   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
  *   DISCORD_WEBHOOK
- *   GITHUB_TOKEN + GITHUB_REPOSITORY    — opens an issue; GitHub's mobile app pushes it
+ *   GITHUB_TOKEN + GITHUB_REPOSITORY    — FALLBACK ONLY: opens an issue (GitHub's mobile app
+ *                                         pushes it), and only when no channel above is set
  * With none set it prints to stdout and exits 0, which is also what --dry-run forces.
  *
  *   node scripts/signal-bot.js [--dry-run] [--selftest] [--ping]
@@ -170,7 +171,9 @@ async function notify(msg) {
     await post(E.DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: `**${msg.title}**\n\`\`\`\n${msg.body}\n\`\`\`` }) }, 'discord');
   }
-  if (E.GITHUB_TOKEN && E.GITHUB_REPOSITORY) {
+  // GitHub issues are the FALLBACK, not a parallel channel: once a real one is configured,
+  // opening an issue per signal just leaves a pile of tickets to close.
+  if (!any && E.GITHUB_TOKEN && E.GITHUB_REPOSITORY) {
     any = true;
     await post(`https://api.github.com/repos/${E.GITHUB_REPOSITORY}/issues`,
       { method: 'POST', headers: { Authorization: `Bearer ${E.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json',
