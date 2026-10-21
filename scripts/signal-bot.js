@@ -220,9 +220,17 @@ async function notify(msg) {
                     lastBar: c[c.length - 1].time };
       const prev = state[key];
 
-      if (!prev) {
+      // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
+      // later, and its old state is still here — comparing against it would announce a trade that
+      // opened and maybe closed while nobody was watching. Treat a long gap as a fresh baseline.
+      const dt = c.length > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+      const stale = prev && (cur.lastBar - prev.lastBar) > 10 * dt;
+
+      if (!prev || stale) {
         // First sighting: record, stay quiet. Announcing a position opened weeks ago is noise.
-        console.log(`${key}: first run — baseline recorded (${cur.inPosition ? 'already long' : 'flat'})`);
+        const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(1) : null;
+        console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
+          + ` (${cur.inPosition ? 'already long' : 'flat'})`);
       } else if (prev.inPosition && !cur.inPosition) {
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
       } else if (!prev.inPosition && cur.inPosition) {
@@ -234,7 +242,7 @@ async function notify(msg) {
       } else {
         console.log(`${key}: no change (${cur.inPosition ? 'holding' : 'flat'})`);
       }
-      if (!prev || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime || prev.lastBar !== cur.lastBar) {
+      if (!prev || stale || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime || prev.lastBar !== cur.lastBar) {
         state[key] = cur; changed = true;
       }
     } catch (e) {
