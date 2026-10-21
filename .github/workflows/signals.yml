@@ -53,8 +53,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/signal-bot.js ${{ inputs.ping && '--ping' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
 
+      # always(): an `if:` with no status function gets success() ANDed in, so ONE symbol's
+      # fetch failure (which sets exitCode 1 on purpose) would skip the commit — and every alert
+      # already sent that run would fire again two hours later, and keep firing until the fetch
+      # recovered. The states that did compute are still correct and must be saved.
       - name: Persist position state
-        if: ${{ !inputs.dry_run && !inputs.ping }}
+        if: ${{ always() && !inputs.dry_run && !inputs.ping }}
         run: |
           if [ -n "$(git status --porcelain signals/state.json)" ]; then
             git config user.name  "github-actions[bot]"

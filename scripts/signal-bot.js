@@ -48,6 +48,8 @@ const PING = has('--ping');   // send a test message through every configured ch
 // which is how the buy/sell transitions are tested without a live market.
 const FIXTURE = argOf('--fixture', null);
 const SELFTEST = has('--selftest');
+const STRAT_NAME = { liqbrk:'Liquidity Breakout', cycle:'BTC Cycle', tsmom:'Trend Follow', donch:'Turtle' };
+
 const STATE_PATH = path.resolve(argOf('--state', path.join(ROOT, 'signals', 'state.json')));
 const WATCH_PATH = path.resolve(argOf('--watch', path.join(ROOT, 'signals', 'watchlist.json')));
 
@@ -104,20 +106,24 @@ const fmtPx = (x) => x == null || !isFinite(x) ? '—'
   : x >= 1000 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x >= 0.01 ? x.toFixed(4) : x.toPrecision(3);
 const fmtDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
-function buyMessage(w, c, trade, advice) {
-  const lb = advice.lb || {}, reg = (advice.regime || {}).state || 'UNKNOWN';
+function buyMessage(w, c, trade, advice, btcReg) {
+  const lb = advice.lb || {};
   const coin = w.symbol.replace(/USDT$/, '');
+  const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
   return {
     title: `BUY ${coin} ${w.tf}`,
     body: [
-      `Liquidity Breakout triggered at ${fmtPx(trade.entry)}`,
+      `${name} triggered at ${fmtPx(trade.entry)}`,
       `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
       ``,
       `Initial stop  ${fmtPx(trade.stop)}`,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       lb.breakHigh ? `Took the pool above ${fmtPx(lb.breakHigh)} on ${lb.relVol}x volume` : null,
-      ``,
-      `BTC regime: ${reg}${reg === 'BEAR' ? ' — the system is weakest here, size down' : ''}`,
+      btcReg ? `` : null,                  // drop the separator too, or the message ends blank
+      // The regime that matters is BTC's own 200d MA — pooled across 10 symbols it separates
+      // PF 1.71 from 1.00 (ALGORITHM.md). A coin's own MA was never shown to do that, so this
+      // line is BTC's read or it is omitted; labelling the coin's own regime "BTC" was a lie.
+      btcReg ? `BTC regime: ${btcReg}${btcReg === 'BEAR' ? ' — the system is weakest here, size down' : ''}` : null,
     ].filter((x) => x !== null).join('\n'),   // '' is a deliberate blank line, don't filter it out
     tag: 'buy',
   };
@@ -125,11 +131,12 @@ function buyMessage(w, c, trade, advice) {
 function sellMessage(w, c, trade) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.exitPrice / trade.entry - 1) * 100;
+  const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
   const why = trade.targetPool === 'STOP' ? 'stop hit' : trade.targetPool === 'TRAIL' ? 'trailed out below the 1-day low' : String(trade.targetPool || '').toLowerCase();
   return {
     title: `SELL ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`,
     body: [
-      `Liquidity Breakout exited at ${fmtPx(trade.exitPrice)} — ${why}`,
+      `${name} exited at ${fmtPx(trade.exitPrice)} — ${why}`,
       `Bar closed ${fmtDay(c[trade.exitIdx].time)}`,
       ``,
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
@@ -203,6 +210,17 @@ async function notify(msg) {
   const state = readJSON(STATE_PATH, {});
   let changed = false, alerts = 0;
 
+  // One extra fetch per run buys a regime line that is actually BTC's.
+  const btcRegime = async (tf) => {
+    if (SELFTEST || FIXTURE) return null;
+    try {
+      const c = await fetchKlines('BTCUSDT', tf, 2500);
+      const r = SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false });
+      return ((r.advice || {}).regime || {}).state || null;
+    } catch (e) { return null; }              // a missing regime line beats a wrong one
+  };
+  const regimeByTf = {};
+
   for (const w of watch.watch) {
     const key = `${w.symbol}|${w.tf}|${w.strategy || 'liqbrk'}`;
     try {
@@ -213,6 +231,12 @@ async function notify(msg) {
       if (c.length < 300) { console.log(`${key}: only ${c.length} closed bars — skipped`); continue; }
 
       const res = SMC.detectAll(c, { strategy: w.strategy || 'liqbrk', longOnly: true, useLiq: false });
+      if (!res.advice) {                      // runQuant bailed: fewer bars than the warm-up needs
+        console.error(`${key}: ${c.length} bars is below the strategy's warm-up — this watch can `
+          + `NEVER fire. Raise "bars" in the watchlist.`);
+        process.exitCode = 1;
+        continue;
+      }
       const open = res.trades.filter((t) => t.outcome === 'open').slice(-1)[0] || null;
       const closed = res.trades.filter((t) => t.outcome !== 'open');
       const last = closed.length ? closed[closed.length - 1] : null;
@@ -223,22 +247,26 @@ async function notify(msg) {
       // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
       // later, and its old state is still here — comparing against it would announce a trade that
       // opened and maybe closed while nobody was watching. Treat a long gap as a fresh baseline.
-      const dt = c.length > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
-      const stale = prev && (cur.lastBar - prev.lastBar) > 10 * dt;
+      // 7 days, not "10 bars": on a 2h watch 10 bars is 20 hours, and a GitHub scheduler gap or
+      // a short run of failed jobs would silently swallow a real flip. The case this guards
+      // against — a coin removed and re-added — is a weeks-long gap, so give it weeks of room.
+      const stale = prev && (cur.lastBar - prev.lastBar) > 7 * 86400;
 
       if (!prev || stale) {
         // First sighting: record, stay quiet. Announcing a position opened weeks ago is noise.
-        const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(1) : null;
+        const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(0) : null;
         console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
           + ` (${cur.inPosition ? 'already long' : 'flat'})`);
       } else if (prev.inPosition && !cur.inPosition) {
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
       } else if (!prev.inPosition && cur.inPosition) {
-        await notify(buyMessage(w, c, open, res.advice)); alerts++;
+        if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
+        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
       } else if (prev.inPosition && cur.inPosition && prev.entryTime !== cur.entryTime) {
         // a close and a re-entry both landed between two runs — report both, in order
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
-        await notify(buyMessage(w, c, open, res.advice)); alerts++;
+        if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
+        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
       } else {
         console.log(`${key}: no change (${cur.inPosition ? 'holding' : 'flat'})`);
       }

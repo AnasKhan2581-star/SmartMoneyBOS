@@ -406,7 +406,7 @@
   <div class="alAdd">
     <label>Coin<input id="alSym" class="sym" placeholder="ARB" list="symList" /></label>
     <label>Timeframe<select id="alTf"><option>15m</option><option>1h</option><option selected>2h</option><option>4h</option><option>1d</option></select></label>
-    <label>Bars<input id="alBars" type="number" value="4500" min="300" step="500" /></label>
+    <label title="Must comfortably exceed the strategy's warm-up — liqbrk needs 482 bars on 15m before it can fire at all.">Bars<input id="alBars" type="number" value="4500" min="600" step="500" /></label>
     <label>Strategy<select id="alStrat"></select></label>
     <button id="alAdd">Add to watchlist</button>
   </div>
@@ -997,7 +997,7 @@ function advisor(result){
   const stance = ad.stance==='IN'
     ? '<b style="color:#7ee787">INVESTED</b> — trend intact, stay with the position'
     : '<b style="color:#f85149">IN CASH</b> — no entry signal, capital protected';
-  const sig = ad.signals.map(s=>`<div>${s.ok?'<span style="color:#7ee787">✔</span>':'<span style="color:#f85149">✘</span>'} ${s.name}</div>`).join('');
+  const sig = (ad.signals||[]).map(s=>`<div>${s.ok?'<span style="color:#7ee787">✔</span>':'<span style="color:#f85149">✘</span>'} ${s.name}</div>`).join('');
   const vol = `<div style="color:var(--muted)">Volatility ${(ad.volAnn*100).toFixed(0)}%/yr → suggested size ${(ad.alloc*100).toFixed(0)}% · panic z ${ad.z}</div>`;
   const liq = (ad.liqUp||ad.liqDn)
     ? `<div style="color:var(--muted)">Liq magnets ${ad.liqUp>=ad.liqDn?'<span style="color:#7ee787">pull UP</span>':'<span style="color:#f85149">pull DOWN</span>'}${ad.nearUp?` · above @ ${fmtP(ad.nearUp)}`:''}${ad.nearDn?` · below @ ${fmtP(ad.nearDn)}`:''}</div>` : '';
@@ -1514,7 +1514,10 @@ function sparkline(c, markIdx, plPos){
 // THE ACTION. Every card carries one, in plain words, with the exact level that triggers it.
 // `held` = the user owns this coin. The system's own simulated position decides the verdict.
 function actionFor(row, held){
-  const ad = row.res.advice, lb = ad.lb || {};
+  const ad = row.res.advice;
+  if(!ad) return { tag:'NOT ENOUGH HISTORY', cls:'a-wait',
+    line:`Only ${row.c.length} bars on this timeframe — the strategy needs more before it can judge this coin.` };
+  const lb = ad.lb || {};
   const sigs = ad.signals || [];
   const met = sigs.filter(s=>s.ok).length, tot = sigs.length || 1;
   const open = row.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
@@ -1550,17 +1553,21 @@ function bindCard(el){
 }
 
 async function pfLoad(sym, tf, bars){
-  const key = sym+'|'+tf;
-  if(pfCache[key]) return pfCache[key];
+  // keyed by DEPTH too: a bench coin cached at 2,500 bars must not satisfy a later request for
+  // 10,000 once it becomes a holding. Reuse a deeper cache by slicing it; never serve a shallower one.
+  for(const k of Object.keys(pfCache)){
+    const [s2,t2,b2] = k.split('|');
+    if(s2===sym && t2===tf && +b2>=bars) return pfCache[k].slice(-bars);
+  }
   const c = await fetchKlines(sym, tf, bars);
-  pfCache[key] = c; return c;
+  pfCache[sym+'|'+tf+'|'+bars] = c; return c;
 }
 
 async function pfRun(force){
   if(pfBusy) return;
   pfBusy = true;
   const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000, rbars = PF_RBARS[tf] || 2500;
-  if(force) Object.keys(pfCache).forEach(k=>{ if(k.endsWith('|'+tf)) delete pfCache[k]; });
+  if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
   const heldSyms = holdings.map(h=>h.sym);
   const deep = PF_CORE.concat(heldSyms);                       // holdings get real depth too
   const syms = [];
@@ -1587,8 +1594,17 @@ async function pfRun(force){
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
 
 function renderPf(){
-  if(!pfRows.length){ $('pfRadar').innerHTML = '<div class="card">No data — tap ↻ Refresh prices.</div>'; return; }
   const has = holdings.length > 0;
+  if(!pfRows.length){
+    // No prices loaded. Still show the right panel and a working editor — being offline must not
+    // strand someone with saved holdings they cannot see or remove.
+    $('pfRadar').innerHTML = '<div class="card">No prices loaded — tap ↻ Refresh prices.</div>';
+    $('pfEmpty').style.display = has ? 'none' : 'block';
+    $('pfLive').style.display  = has ? 'block' : 'none';
+    if(has) $('pfCards').innerHTML = '<div class="card">Waiting for prices…</div>';
+    renderHoldEditor();
+    return;
+  }
   $('pfEmpty').style.display = has ? 'none' : 'block';
   $('pfLive').style.display  = has ? 'block' : 'none';
 
@@ -1599,13 +1615,18 @@ function renderPf(){
   const cards = holdings.map((h, idx)=>{
     const r = rowFor(h.sym);
     const last = r ? r.c[r.c.length-1].close : null;
-    const value = last!=null ? h.qty*last : 0, cost = h.qty*h.avg, pl = value-cost;
+    if(!r){
+      // EXCLUDE it from the totals. Counting its cost with no value reads as a 100% loss on a
+      // coin that is merely unreachable — a scary number invented by a failed fetch.
+      return `<div class="card"><div class="cardTop"><span class="sym">${h.sym.replace('USDT','')}</span>
+        <span class="badge a-out">No price</span></div>
+        <div class="actLine a-out">Couldn't load this pair from Binance, so it is left out of the totals above.
+        Check the ticker under “My holdings”.</div></div>`;
+    }
+    const value = h.qty*last, cost = h.qty*h.avg, pl = value-cost;
     const plPc = cost>0 ? pl/cost*100 : 0;
     totVal += value; totCost += cost;
     marks.push({ name:h.sym.replace('USDT',''), col:HUE[idx%HUE.length], v:value });
-    if(!r) return `<div class="card"><div class="cardTop"><span class="sym">${h.sym.replace('USDT','')}</span>
-      <span class="badge a-out">No price</span></div>
-      <div class="actLine">Couldn't load this pair from Binance — check the ticker in “My holdings” below.</div></div>`;
     const act = actionFor(r, true);
     const bpd = r.c.length>1 ? 86400/Math.max(60, r.c[1].time-r.c[0].time) : 1;
     const i24 = Math.max(0, r.c.length-1-Math.round(bpd));
@@ -1647,7 +1668,7 @@ function renderPf(){
   }
 
   // ---------- regime, read off BTC ----------
-  const rg = (rowFor(PF_REGIME_SYM)||{res:{advice:{}}}).res.advice.regime || {};
+  const rg = ((rowFor(PF_REGIME_SYM)||{}).res || {}).advice ? rowFor(PF_REGIME_SYM).res.advice.regime || {} : {};
   const reg = rg.state || 'UNKNOWN';
   const regCol = reg==='BULL'?'#3fb950':reg==='BEAR'?'#f85149':'#e3c34c';
   $('kReg').innerHTML = `<span style="color:${regCol}">${reg}</span>`;
@@ -1657,7 +1678,7 @@ function renderPf(){
   // ---------- radar: coins you do NOT hold, ranked by how close a buy is ----------
   const heldSet = holdings.map(h=>h.sym);
   const radar = pfRows.filter(r=>heldSet.indexOf(r.sym)<0)
-    .map(r=>{ const ad=r.res.advice, sigs=ad.signals||[];
+    .map(r=>{ const ad=r.res.advice || {}, sigs=ad.signals||[];   // advice is null below the warm-up
       return { r, met:sigs.filter(x=>x.ok).length, tot:sigs.length||1,
                gap:(ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999,
                core: PF_CORE.indexOf(r.sym)>=0 }; })
@@ -1668,10 +1689,13 @@ function renderPf(){
     const act = actionFor(x.r, false);
     // only crown the top card when it is ACTUALLY close — at 2/5 conditions "most likely next"
     // overstates a coin that is nowhere near firing
-    const lead = (i===0 && x.met >= x.tot-1) ? '<span class="badge a-next">Most likely next</span>' : '';
+    // crown only a genuine candidate: nearly triggering AND not already held by the system,
+    // and never INSTEAD of the action badge — the two said opposite things on the same card
+    const crown = (i===0 && x.met >= x.tot-1 && act.tag !== 'SYSTEM IS LONG')
+      ? '<span class="badge a-next">Most likely next</span>' : '';
     return `<div class="card" data-sym="${x.r.sym}">
       <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>
-        ${lead || `<span class="badge ${act.cls}">${act.tag}</span>`}
+        <span class="badge ${act.cls}">${act.tag}</span>${crown}
         ${x.core?'<span class="badge b-core">Core</span>':''}
         <span class="dots">${Array.from({length:x.tot},(_,k)=>`<i class="${k<x.met?'on':''}"></i>`).join('')}</span>
         <span class="px"><b>${pfFmt(last)}</b><s>${x.met}/${x.tot} conditions</s></span></div>
@@ -1787,11 +1811,11 @@ async function alFetchLive(){
 
 async function alInit(){
   if(alLoaded) return;
-  alLoaded = true;
   $('alStrat').innerHTML = CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
   $('alToken').value = lsGet('smb.ghToken','') ? '••••••••••••' : '';
   try{
     alLive = await alFetchLive();
+    alLoaded = true;                       // only latch on SUCCESS, so a flaky network retries
     const saved = lsGet('smb.alDraft','');
     alDraft = saved ? JSON.parse(saved) : alLive.slice();
     $('alStatus').textContent = `${alLive.length} watched · read from the repo`;
@@ -1800,7 +1824,8 @@ async function alInit(){
     alDraft = JSON.parse(lsGet('smb.alDraft','[]'));
     $('alStatus').textContent = 'could not reach the repo';
     $('alSync').className = 'alSync err';
-    $('alSync').textContent = e.message + ' — you can still edit, but Apply needs the repo reachable.';
+    $('alSync').innerHTML = e.message + ' — you can still edit, but Apply needs the repo reachable. '
+      + '<b>Reopen this tab to retry.</b>';
   }
   alRender();
 }
@@ -1831,8 +1856,18 @@ function alRender(){
   else if(!dirty){ el.className='alSync ok'; el.textContent = '✔ In sync — the bot is watching exactly this.'; }
   else {
     const added = alDraft.filter(x=>!liveKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`)).length;
+    // A row can also change WITHOUT being added or removed — editing its bar count. Counting
+    // only adds and removes reported "0 to add, 0 to remove" on a real pending change.
+    const edited = alDraft.filter(x=>{
+      const live = (alLive||[]).find(y=>`${y.symbol}|${y.tf}|${y.strategy||'liqbrk'}`===`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`);
+      return live && (+live.bars||4500) !== (+x.bars||4500);
+    }).length;
+    const bits = [];
+    if(added) bits.push(`${added} to add`);
+    if(dropped.length) bits.push(`${dropped.length} to remove`);
+    if(edited) bits.push(`${edited} changed`);
     el.className='alSync pend';
-    el.innerHTML = `<b>Not applied yet.</b> ${added} to add, ${dropped.length} to remove — `
+    el.innerHTML = `<b>Not applied yet.</b> ${bits.join(', ') || 'order changed'} — `
       + `press <b>Apply to the bot</b> or nothing changes.`;
   }
   $('alApply').disabled = !dirty;
@@ -1853,7 +1888,7 @@ $('alAdd').addEventListener('click', ()=>{
   const sym = normSym($('alSym').value);
   if(!sym){ $('alSym').focus(); return; }
   const tf = $('alTf').value, strategy = $('alStrat').value;
-  const bars = Math.max(300, +$('alBars').value || 4500);
+  const bars = Math.max(600, +$('alBars').value || 4500);   // below the warm-up the bot can never fire
   const k = `${sym}|${tf}|${strategy}`;
   if(alDraft.some(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`===k)){
     $('alStatus').textContent = sym.replace('USDT','')+' '+tf+' is already on the list'; return;
