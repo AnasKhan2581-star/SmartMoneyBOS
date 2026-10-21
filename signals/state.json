@@ -2,21 +2,21 @@
   "ARBUSDT|2h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792519200
+    "lastBar": 1792533600
   },
   "ETHUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792512000
+    "lastBar": 1792526400
   },
   "SOLUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792512000
+    "lastBar": 1792526400
   },
   "LINKUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792512000
+    "lastBar": 1792526400
   }
 }
