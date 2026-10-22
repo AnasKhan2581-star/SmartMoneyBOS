@@ -896,7 +896,13 @@ function drawOverlay(){
   if(!chart || !lastResult) return;
   const cv=$('overlay'), ctx=cv.getContext('2d');
   ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
-  const ts=chart.timeScale(), rightX=cv.clientWidth-70, r=lastResult;
+  // The overlay canvas spans the WHOLE chart, price axis and time axis included. Clip every layer
+  // to the real plot pane, measured from the chart rather than guessed (the old "width − 70" was a
+  // guess at the axis width): without this, a trade box scrolled past the right edge painted
+  // backwards across the price labels.
+  const ts=chart.timeScale(), r=lastResult;
+  const paneW=ts.width(), paneH=cv.clientHeight - ts.height(), rightX=paneW;
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,paneW,paneH); ctx.clip();
   const X=(i)=> (i>=0&&i<candles.length)? ts.timeToCoordinate(candles[i].time) : null;
   const Y=(p)=> candleSeries.priceToCoordinate(p);
 
@@ -950,14 +956,16 @@ function drawOverlay(){
   // (entry→exit) over the holding period — green profit, red loss, blue still open.
   (r.trades||[]).forEach(t=>{
     const exit = t.exitPrice!=null ? t.exitPrice : t.target;
-    const x1=X(t.entryIdx); if(x1==null) return;
+    const x1=X(t.entryIdx); if(x1==null || x1>=paneW) return;          // starts right of the plot
     const x2v=X(t.exitIdx), x2=(x2v==null?rightX:Math.min(x2v,rightX));
+    if(x2<0) return;                                                    // ended left of the plot
     const yE=Y(t.entry), yX=Y(exit), yS=Y(t.stop); if(yE==null||yX==null) return;
     if(yS!=null) box(ctx,x1,x2,yE,yS,'#f8514915','#f8514966',null);        // risk zone below entry
     const pct=(exit/t.entry-1)*100;
     const col= t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
     box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+(t.outcome==='open'?' open':''));
   });
+  ctx.restore();
 }
 
 // Shared by both tabs: turn the date inputs into a {from,to} ms range.
