@@ -2,26 +2,106 @@
   "ARBUSDT|2h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792656000
+    "lastBar": 1792677600
   },
   "ETHUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792641600
+    "lastBar": 1792670400
   },
   "SOLUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792641600
+    "lastBar": 1792670400
   },
   "LINKUSDT|4h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792641600
+    "lastBar": 1792670400
   },
   "IOSTUSDT|1h|liqbrk": {
     "inPosition": false,
     "entryTime": null,
-    "lastBar": 1792663200
+    "lastBar": 1792684800
+  },
+  "STRKUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "LUMIAUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "ALTUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "WUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "ZROUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "ZKUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "AXLUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "CTSIUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "INJUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "SUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "TIAUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "SANDUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "ZECUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "PHAUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "APTUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
+  },
+  "SEIUSDT|2h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "lastBar": 1792677600
   }
 }
