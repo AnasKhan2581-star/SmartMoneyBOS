@@ -17,19 +17,24 @@ const CACHE = path.join(__dirname, 'cache');
 const FEE = 0.001;                                   // 0.1% per side, as everywhere in this repo
 
 // ---------- data ----------
+// Symbols whose Binance ticker was reused after a collapse: keep only the original coin, so the
+// collapse is in the data and the relisted token's price is never stitched onto it.
+const TRUNC = { LUNA: Date.UTC(2022, 4, 14) / 1000, FTT: Date.UTC(2022, 10, 16) / 1000 };
 function load(coin, tf = '2h') {
-  const raw = JSON.parse(fs.readFileSync(path.join(CACHE, `${coin}_2h.json`)));
+  let raw = JSON.parse(fs.readFileSync(path.join(CACHE, `${coin}_2h.json`)));
+  if (TRUNC[coin]) raw = raw.filter(r => r[0] < TRUNC[coin]);
   let c = raw.map(r => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }));
-  if (tf === '4h') {                                 // exact aggregation of 2h -> 4h (UTC-aligned)
-    const out = [];
+  const H = { '4h': 4, '6h': 6, '8h': 8, '12h': 12, '1d': 24 }[tf];
+  if (H) {                                           // exact aggregation of 2h -> 4h..1d (UTC-aligned, like Binance)
+    const out = [], sec = H * 3600, need = H / 2;
     for (const b of c) {
-      const k = Math.floor(b.time / 14400) * 14400, last = out[out.length - 1];
+      const k = Math.floor(b.time / sec) * sec, last = out[out.length - 1];
       if (last && last.time === k) {
         last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low);
         last.close = b.close; last.volume += b.volume; last.n++;
       } else out.push({ time: k, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume, n: 1 });
     }
-    c = out.filter(b => b.n === 2).map(({ n, ...b }) => b);   // drop half-filled buckets
+    c = out.filter(b => b.n === need).map(({ n, ...b }) => b);   // drop part-filled buckets
   }
   return c;
 }
@@ -64,7 +69,7 @@ function indicators(c, prm = {}) {
     sig[i] = px > hiB[i] && closes[i - 1] <= hiB[i - 1] && px > maT[i] && rv[i] >= p.lbRelVol
       && (!maBars || px > maBars[i]) && (!(p.lbBrkExt > 0) || (px - hiB[i]) >= p.lbBrkExt * a[i]);
   }
-  return { a, hiB, loE, sig, warm, bpd, p };
+  return { a, hiB, loE, rv, maT, sig, warm, bpd, p };
 }
 
 // ---------- simulator ----------
@@ -74,18 +79,26 @@ function indicators(c, prm = {}) {
 //            'chand' = 4xATR stop + close below (highest close since entry − k·ATR)
 //            'hybrid' = base rule, but once a trade has run +tR also exit on the chandelier(k)
 // cfg.veto:  per-bar boolean array — only ENTER when true (BTC above its 200-day MA)
+// cfg.fee:   per-side fee override (default 0.1%)
+// cfg.timeStop: days — exit at the close if the trade has not yet closed above entry+1R by then
+// cfg.be:    R multiple — once a close reaches entry+be·R the stop moves up to entry (breakeven)
+// cfg.cool:  days — ignore signals on this coin for this long after a STOP exit
+// cfg.closeOpen: close a still-open trade at the last bar (for delisted coins, so a collapse counts)
 function simulate(c, ind, cfg = {}) {
   const { a, loE, sig, warm, p } = ind, n = c.length;
   const fill = cfg.fill || 'close', slip = cfg.slip ?? 0.0005, exit = cfg.exit || 'base';
-  const k = cfg.k ?? 3, tR = cfg.tR ?? 3;
+  const k = cfg.k ?? 3, tR = cfg.tR ?? 3, fee = cfg.fee ?? FEE;
+  const tsBars = cfg.timeStop ? Math.round(cfg.timeStop * ind.bpd) : 0, coolBars = cfg.cool ? Math.round(cfg.cool * ind.bpd) : 0;
+  let lastStop = -Infinity;
   const trades = [];
   let pos = null;
   const sellPx = (px) => fill === 'next' ? px * (1 - slip) : px;
   const done = (i, px, why) => {
     const legs = pos.legs.concat([{ w: pos.w, px, i }]);
     const gross = legs.reduce((s, l) => s + l.w * l.px, 0) / pos.entry;          // weighted exit / entry
-    const net = legs.reduce((s, l) => s + l.w * (l.px * (1 - FEE)) / (pos.entry * (1 + FEE)), 0) - 1;
-    trades.push({ entryIdx: pos.entryIdx, exitIdx: i, entry: pos.entry, stop: pos.stop0, exit: px, why,
+    const net = legs.reduce((s, l) => s + l.w * (l.px * (1 - fee)) / (pos.entry * (1 + fee)), 0) - 1;
+    if (why === 'STOP') lastStop = i;
+    trades.push({ entryIdx: pos.entryIdx, exitIdx: i, sigIdx: pos.sigIdx, fee, entry: pos.entry, stop: pos.stop0, exit: px, why,
       ret: net, gross: gross - 1, R: (gross * pos.entry - pos.entry) / (pos.entry - pos.stop0), legs });
     pos = null;
   };
@@ -95,6 +108,7 @@ function simulate(c, ind, cfg = {}) {
       if (pos.pendingExit) { done(i, sellPx(b.open), pos.pendingExit); }      // decided at last close
       else {
         if (b.close > pos.hiC) pos.hiC = b.close;
+        if (cfg.be && pos.hiC >= pos.entry + cfg.be * pos.R && pos.stop < pos.entry) pos.stop = pos.entry;
         if (b.low <= pos.stop) { done(i, sellPx(fill === 'next' ? Math.min(b.open, pos.stop) : pos.stop), 'STOP'); }
         else {
           if (exit === 'scale3R' && pos.w === 1 && b.high >= pos.entry + 3 * pos.R) {
@@ -108,13 +122,14 @@ function simulate(c, ind, cfg = {}) {
             if (b.close < loE[i]) why = 'TRAIL';
             if (!why && exit === 'hybrid' && pos.hiC >= pos.entry + tR * pos.R && b.close < chand) why = 'TIGHT';
           }
+          if (!why && tsBars && i - pos.entryIdx >= tsBars && pos.hiC < pos.entry + pos.R) why = 'TIME';
           if (why) {
             if (fill === 'next' && i + 1 < n) pos.pendingExit = why;
             else done(i, sellPx(b.close), why);
           }
         }
       }
-    } else if (!pos && sig[i] && (!cfg.veto || cfg.veto[i])) {
+    } else if (!pos && sig[i] && (!cfg.veto || cfg.veto[i]) && i - lastStop >= coolBars) {
       if (fill === 'close') {
         const e = b.close; pos = { entry: e, stop: e - p.lbStop * a[i], entryIdx: i + 1 };   // exits from next bar
       } else if (i + 1 < n) {
@@ -122,9 +137,10 @@ function simulate(c, ind, cfg = {}) {
         pos = { entry: e, stop: e - p.lbStop * a[i], entryIdx: i + 1 };
       } else continue;
       pos.stop0 = pos.stop; pos.R = pos.entry - pos.stop; pos.hiC = pos.entry; pos.w = 1; pos.legs = [];
-      pos.realEntryIdx = fill === 'close' ? i : i + 1;
+      pos.realEntryIdx = fill === 'close' ? i : i + 1; pos.sigIdx = i;
     }
   }
+  if (pos && cfg.closeOpen && n - 1 >= pos.entryIdx) done(n - 1, sellPx(c[n - 1].close), 'DELIST');
   const open = pos ? { ...pos } : null;
   return { trades, open };
 }
@@ -145,9 +161,10 @@ function stats(c, ind, run) {
       if (i >= cur.exitIdx) { e = e0 * (1 + cur.ret); cur = null; }
       else {
         let v = 0, w = 1;
-        for (const l of cur.legs) if (l.i <= i && l !== cur.legs[cur.legs.length - 1]) { v += l.w * l.px * (1 - FEE); w -= l.w; }
-        v += w * c[i].close * (1 - FEE);
-        e = e0 * v / (cur.entry * (1 + FEE));
+        const f = cur.fee ?? FEE;
+        for (const l of cur.legs) if (l.i <= i && l !== cur.legs[cur.legs.length - 1]) { v += l.w * l.px * (1 - f); w -= l.w; }
+        v += w * c[i].close * (1 - f);
+        e = e0 * v / (cur.entry * (1 + f));
       }
     }
     eq[i] = e;

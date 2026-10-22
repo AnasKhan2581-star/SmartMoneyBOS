@@ -589,6 +589,30 @@ Code: `research/fetch_klines.py` (full Binance history → `research/cache/`, gi
   full). Judge on full history; use the 4y window as recent form only.
 - **4h is more robust than 2h** on every variant (current PF w/o top 1.31 vs 1.09).
 
+**Part 2 (same file, sections 11–22) — still nothing shipped.**
+- **BTC trend gate is a plateau, not a threshold:** BTC above its 50/100/200-day MA and BTC up over 30 days all improve
+  both cycles on 2h and 4h (2h PF w/o top 2% 1.09 → 1.22–1.36). "BTC up over the last 24h" does NOTHING (❌ on both TFs),
+  although a strong BTC day (+2%…+5%, 5%+) does mark better trades (PF 1.86 / 2.14 vs 1.45 at 0–2%, both cycles).
+  The 100-day MA is the middle of the plateau, so it is the one used in the stack.
+- **Defaults sit on a plateau:** relVol 1.3, 4×ATR stop and the 5-day SMA barely matter either way; breakout
+  extension 0 / 0.5 is clearly worse (it is the filter that makes the system work); a longer MA filter (200–300
+  bars) is mildly better on both TFs. Breakeven stops, time stops and post-stop cool-downs all fail (❌).
+  Exit "below the prior 2-day low" ≈ the k=4 ATR trail (more return, deeper DD).
+- **Entry context (descriptive):** coins already up ≥50% over 30 days make the BEST trades (PF 2.1–3.6, both
+  cycles) — momentum, not exhaustion; coins down >50% vs 200 days ago are break-even; coins in their first 90 days
+  on Binance lose (PF 0.96). Hour/weekday buckets are not consistent across cycles — treat as noise.
+- **Stack ③ = BTC > 100d MA + ATR trail k=4 + skip coins listed < 90 days:** 2h PF w/o top 2% 1.09 → 1.60
+  (A 0.96 → 1.96, B 1.09 → 1.50), 4h 1.31 → 1.86; helps your coins, the added coins AND BTC/ETH/LINK. ②c (scale ½ at
+  3R instead of k=4) is the lower-drawdown variant.
+- **Costs:** 0.2% slippage is survivable; 0.5% slippage kills the CURRENT rules (2h PF w/o top 0.83), ③ survives it.
+- **Survivorship (section 21) is the most important result.** On a list fixed in 2021 (≈ top 50 of 2021 incl. LUNA,
+  FTT, delisted MATIC/FTM/EOS and the coins that faded), cycle B (2023→) is a true out-of-sample test. One pot, 5–10
+  slots: **4h** current 2.8–3.0×, ③ 2.3–2.6×, ②c 2.7–2.9× (CAGR 25–34%, max DD −31…−44%, ②c had no losing
+  year) vs **BTC buy & hold 4.9× (CAGR 52%, DD −54%)**. **2h** was ≈ flat (0.9–1.4×). The 100×–1000× portfolio
+  figures on today's 32 coins (section 20) are survivorship + hindsight and must not be read as expectations.
+  Honest summary: on a list chosen in advance, the improved rules beat holding alts but not holding BTC in a
+  BTC-led cycle; what they buy is lower drawdown and ~25–35% invested on average.
+
 ## `cycle` — the BTC halving playbook (July 2026)
 
 BTC-specific full-cycle machine built from the signals that repeated at every cycle turn
