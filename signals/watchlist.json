@@ -36,6 +36,102 @@
       "tf": "2h",
       "bars": 6500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "LUMIAUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ALTUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "WUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ZROUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ZKUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "AXLUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "CTSIUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "INJUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "SUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "TIAUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "IRLCUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "SANDUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ZECUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PHAUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "APTUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "SEIUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
     }
   ]
 }
