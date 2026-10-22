@@ -560,6 +560,7 @@
              title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
     </label>
     <button id="cmpSymsReset" class="ghost" title="restore the default watchlist">Reset list</button>
+    <button id="cmpTop100" class="ghost" title="Fill the list with the 100 largest coins by market cap that trade on Binance spot">Top 100</button>
     <label>Strategy
       <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
@@ -1113,6 +1114,7 @@ const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
 // Every run also measures a FIXED 10,000-bar reference window alongside whatever the user set,
 // so a combo can be required to work both recently and over the long haul before it is suggested.
 const CMP_REF_BARS=10000;
+const CMP_CPU_S=1.0;             // ~compute seconds per coin on a phone, for the Top 100 estimate only
 const cmpCache={}, cmpRowsTf={};
 let cmpSort={k:'net',d:-1}, cmpBusy=false, cmpPending=false;
 
@@ -1265,8 +1267,16 @@ async function runCompare(force){
   cmpBusy=true;
   $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
   const rows=[], bad=[], short=[];
-  for(const sym of CMP_SYMS){
-    $('cmpStatus').textContent='fetching '+sym+' '+tf+' × '+bars+'…';
+  // BIG LISTS (Top 100): 3 coins in flight, so network overlaps compute — fetchKlines already backs
+  // off on 429/418, and 3 x ~5 req/s stays far inside Binance's 6000-weight/min budget. Up to 12
+  // coins keeps the old one-at-a-time behaviour exactly. Big lists also drop each coin's raw
+  // candles once its rows are computed: 100 coins x 20k bars is ~2M candle objects, enough to kill
+  // a phone tab. The rows (all the table needs) are tiny; changing Bars just refetches.
+  const N=CMP_SYMS.length, conc=N>12?3:1, keepCandles=N<=25;
+  const tag=(i)=> N>1 ? `(${i+1}/${N}) ` : '';
+  const one = async (sym, i)=>{
+    await new Promise(r=>setTimeout(r,0));               // let the progress text paint
+    $('cmpStatus').textContent=tag(i)+'fetching '+sym+' '+tf+' × '+bars+'…';
     try{
       const key=sym+'|'+tf;
       // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
@@ -1276,9 +1286,9 @@ async function runCompare(force){
       if(force || !ent || (!byDate && ent.asked<need)){
         const spec = byDate ? {from:refFrom, to:dspec.to} : need;
         const rows=await fetchKlines(sym,tf,spec,(got,want)=>{
-          $('cmpStatus').textContent = want
+          $('cmpStatus').textContent = tag(i) + (want
             ? `fetching ${sym} ${tf} — ${got}/${want} bars…`
-            : `fetching ${sym} ${tf} — ${got} bars…`;
+            : `fetching ${sym} ${tf} — ${got} bars…`);
         });
         ent=cmpCache[ckey]={rows, asked:byDate?Infinity:need};
       }
@@ -1286,7 +1296,7 @@ async function runCompare(force){
       // user's window: the date range, or the last N bars
       const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
                        : (full.length>bars ? full.slice(-bars) : full);
-      if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); continue; }
+      if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); if(!keepCandles) delete cmpCache[ckey]; return; }
       const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
       const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
       // a start date earlier than the listing is clamped by the API — say so rather than
@@ -1305,13 +1315,19 @@ async function runCompare(force){
         }
         rows.push({sym,st,label,e,d,sameWin});
       }
+      if(!keepCandles) delete cmpCache[ckey];
     }catch(e){ bad.push(sym+' (no data)'); }
-  }
+  };
+  const queue=CMP_SYMS.map((sym,i)=>[sym,i]);
+  await Promise.all(Array.from({length:conc}, async ()=>{
+    while(queue.length){ const [sym,i]=queue.shift(); await one(sym,i); }
+  }));
   cmpRowsTf[rk]=rows; cmpBusy=false;
   if(cmpPending){ cmpPending=false; return runCompare(false); }   // settings moved while we fetched
   // a typo'd or delisted symbol should say so, not vanish silently; and a symbol clamped to a
   // later start than you asked for is being graded on less history than its neighbours
   $('cmpStatus').textContent = [
+    cmpListNote,
     bad.length ? 'skipped: '+bad.join(', ') : '',
     short.length ? 'listed later, clamped to earliest: '+short.join(', ') : '',
   ].filter(Boolean).join(' · ');
@@ -2468,10 +2484,93 @@ function applyCmpSyms(){
   for(const k of Object.keys(cmpRowsTf)) delete cmpRowsTf[k];
   runCompare(false);
 }
-$('cmpSyms').addEventListener('change',applyCmpSyms);
-$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyCmpSyms(); } });
+$('cmpSyms').addEventListener('change',()=>{ cmpListNote=''; applyCmpSyms(); });
+$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); cmpListNote=''; applyCmpSyms(); } });
 $('cmpSymsReset').addEventListener('click',()=>{
-  $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
+  cmpListNote=''; $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
+});
+
+// ---- Top 100 by market cap ---------------------------------------------------
+// Ranking comes from CoinGecko (free, keyless, CORS-open); TRADABILITY comes from Binance itself —
+// a coin is only used if BASEUSDT actually traded on Binance spot in the last 24h, because Compare
+// fetches Binance klines and a pair that isn't there just becomes a "skipped" row.
+// Excluded: stablecoins (they are not investments and break every return statistic), wrapped and
+// staked copies (WBTC/stETH are BTC/ETH again, double-weighting them), and tokenised gold.
+// If CoinGecko is unreachable the list is ranked by Binance 24h volume instead — and the UI says so.
+// It never passes volume off as market cap.
+const TOP_KEY='smb.top100';
+const NOT_COIN_SYM=/USD/;                        // USDT USDC FDUSD USDE PYUSD USD1 … all stables
+const NOT_COIN_SET=new Set(['WBTC','WETH','WBETH','BETH','STETH','WSTETH','BNSOL','PAXG','XAUT','EURI','EUR','TUSD','DAI','FRAX']);
+const NOT_COIN_NAME=/wrapped|staked|restaked|bridged|liquid staking|\bgold\b/i;
+let cmpListNote='';
+async function binanceJSON(path){
+  let err=null;
+  for(const base of ENDPOINTS){
+    try{ const r=await fetch(base+path); if(r.ok) return await r.json(); err=`${base} HTTP ${r.status}`; }
+    catch(e){ err=`${base}: ${e.message}`; }
+  }
+  throw new Error(err||'Binance unreachable');
+}
+async function buildTop100(){
+  const tick=await binanceJSON('/api/v3/ticker/24hr?type=MINI');
+  const live=new Map();
+  for(const t of tick) if(/USDT$/.test(t.symbol) && +t.quoteVolume>0) live.set(t.symbol, +t.quoteVolume);
+  // normSym round-trip check: the list is shown without "USDT" and re-parsed, so a base that would
+  // re-parse as a different pair must not get in
+  const fits=(b)=> b && !NOT_COIN_SYM.test(b) && !NOT_COIN_SET.has(b) && normSym(b)===b+'USDT' && live.has(b+'USDT');
+  try{
+    const r=await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const cg=await r.json();
+    if(!Array.isArray(cg)) throw new Error('unexpected reply');
+    const out=[], seen=new Set();
+    for(const c of cg){                              // already in market-cap order
+      const b=String(c.symbol||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(seen.has(b) || NOT_COIN_NAME.test(c.name||'') || !fits(b)) continue;
+      seen.add(b); out.push(b+'USDT');
+      if(out.length===100) break;
+    }
+    if(out.length<50) throw new Error(`only ${out.length} matched Binance`);
+    return { syms:out, source:'market cap', at:Date.now() };
+  }catch(e){
+    const out=[...live.entries()]
+      .filter(([sym])=>{ const b=sym.slice(0,-4); return fits(b) && !/(UP|DOWN|BULL|BEAR)$/.test(b); })
+      .sort((a,b)=>b[1]-a[1]).slice(0,100).map(([sym])=>sym);
+    return { syms:out, source:'24h Binance volume', fallback:'CoinGecko unavailable ('+e.message+')', at:Date.now() };
+  }
+}
+// upper-bound cost of a run, so a 100-coin compare never starts as a surprise
+function cmpEstimate(n){
+  const tf=$('cmpTf').value, ms=TF_MS[tf]||864e5;
+  let bars;
+  if($('cmpRangeMode').value==='dates'){
+    const d=dateSpec('cmpFrom','cmpTo');
+    bars = d ? (d.to - Math.min(d.from, d.to - CMP_REF_BARS*ms))/ms : CMP_REF_BARS;
+  } else bars=Math.max(cmpBars(), CMP_REF_BARS);
+  const avail=(Date.now()-Date.UTC(2017,6,14))/ms;     // nothing on Binance predates mid-2017
+  const pages=n*Math.ceil(Math.min(bars, avail)/1000);
+  return { pages, mins:Math.max(1, Math.round(pages*0.3/3/60 + n*CMP_CPU_S/60)) };
+}
+$('cmpTop100').addEventListener('click', async ()=>{
+  const btn=$('cmpTop100'); btn.disabled=true;
+  $('cmpStatus').textContent='finding the top 100 coins…';
+  try{
+    let t=null; try{ t=JSON.parse(localStorage.getItem(TOP_KEY)||'null'); }catch(e){}
+    // market-cap lists are good for a day; a volume fallback is retried after an hour
+    const fresh = t && Array.isArray(t.syms) && t.syms.length && (Date.now()-t.at) < (t.fallback ? 36e5 : 864e5);
+    if(!fresh){ t=await buildTop100(); try{ localStorage.setItem(TOP_KEY, JSON.stringify(t)); }catch(e){} }
+    const est=cmpEstimate(t.syms.length);
+    const ok=confirm(`Compare the top ${t.syms.length} coins by ${t.source}?`
+      + (t.fallback ? `\n\n${t.fallback}, so this list is ranked by trading volume instead.` : '')
+      + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
+      + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Keep this tab open until it finishes.`);
+    if(!ok){ $('cmpStatus').textContent=''; return; }
+    cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''} · ranked ${new Date(t.at).toLocaleDateString()}`;
+    const same = t.syms.join()===CMP_SYMS.join();
+    $('cmpSyms').value=cmpSymsText(t.syms);
+    if(same) runCompare(false); else applyCmpSyms();
+  }catch(e){ $('cmpStatus').textContent='could not build the top-100 list: '+e.message; }
+  finally{ btn.disabled=false; }
 });
 function showView(v){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
