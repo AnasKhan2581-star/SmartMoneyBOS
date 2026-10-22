@@ -21,7 +21,7 @@ const FEE = 0.001;                                   // 0.1% per side, as everyw
 // collapse is in the data and the relisted token's price is never stitched onto it.
 const TRUNC = { LUNA: Date.UTC(2022, 4, 14) / 1000, FTT: Date.UTC(2022, 10, 16) / 1000 };
 function load(coin, tf = '2h') {
-  let raw = JSON.parse(fs.readFileSync(path.join(CACHE, `${coin}_2h.json`)));
+  let raw = JSON.parse(fs.readFileSync(path.join(CACHE, `${coin}_${tf === '1h' ? '1h' : '2h'}.json`)));   // 1h is its own download
   if (TRUNC[coin]) raw = raw.filter(r => r[0] < TRUNC[coin]);
   let c = raw.map(r => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }));
   const H = { '4h': 4, '6h': 6, '8h': 8, '12h': 12, '1d': 24 }[tf];
@@ -194,7 +194,8 @@ module.exports = { load, slice, indicators, simulate, stats, SMC, P };
 if (require.main === module && process.argv[2] === 'parity') {
   const coins = fs.readdirSync(CACHE).filter(f => f.endsWith('_2h.json')).map(f => f.split('_')[0]);
   let bad = 0, total = 0;
-  for (const coin of coins) for (const tf of ['2h', '4h']) {
+  for (const coin of coins) for (const tf of ['1h', '2h', '4h']) {
+    if (tf === '1h' && !fs.existsSync(path.join(CACHE, `${coin}_1h.json`))) continue;
     const c = load(coin, tf);
     if (c.length < 400) continue;
     const ref = SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false }).trades;

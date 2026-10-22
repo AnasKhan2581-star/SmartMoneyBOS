@@ -7,7 +7,7 @@ const ADDED = 'WIF BONK TAO NEAR AVAX DOGE JUP TIA SEI APT ONDO ENA WLD FLOKI OP
 const CTRL = 'BTC ETH LINK'.split(' ');
 const ALL = [...TREND, ...ADDED, ...CTRL];
 const HONEST = { fill: 'next', slip: 0.0005 };
-const MIN = new Proxy({}, { get: () => 20 });   // minTrades() in the app above 1h, Oct 2026                 // minTrades() in the app, Oct 2026
+const MIN = new Proxy({}, { get: (_, tf) => tf === '1h' ? 12 : 20 });   // minTrades() in the app above 1h, Oct 2026                 // minTrades() in the app, Oct 2026
 
 const pc = x => !isFinite(x) ? '∞' : (x >= 0 ? '+' : '−') + Math.abs(x * 100).toFixed(0) + '%';
 const pp = x => !isFinite(x) ? '—' : (x * 100).toFixed(0) + '%';      // plain share, no sign
@@ -228,7 +228,7 @@ const btcIdx = new Map(btc2h.map((b, i) => [b.time, i]));
 const btcC = btc2h.map(b => b.close);
 const smaArr = (x, len) => { const o = new Array(x.length).fill(NaN); let s = 0;
   for (let i = 0; i < x.length; i++) { s += x[i]; if (i >= len) s -= x[i - len]; if (i >= len - 1) o[i] = s / len; } return o; };
-const TFS = { '2h': 7200, '4h': 14400, '6h': 21600, '8h': 28800, '12h': 43200, '1d': 86400 };
+const TFS = { '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '8h': 28800, '12h': 43200, '1d': 86400 };
 const btcAt = (c, tf) => { const d = TFS[tf]; let last = -1; return c.map(b => { const j = btcIdx.get(b.time + d - 7200); if (j !== undefined) last = j; return last; }); };
 const btcMA = {}; const btcMAof = days => btcMA[days] || (btcMA[days] = smaArr(btcC, days * 12));
 const gateCache = {};
@@ -510,6 +510,37 @@ say(head(['tf', 'rules', 'costs', 'end value (×)', 'CAGR', 'max DD']));
 for (const tf of ['2h', '4h']) for (const [nm, cfg] of [['current', {}], ['③', STACK[5][1]]]) for (const [cn, cc] of [['0.1% fee + 0.05% slip', {}], ['0.1% fee + 0.2% slip', { slip: 0.002 }], ['0.2% fee + 0.5% slip', { fee: 0.002, slip: 0.005 }]]) {
   const r = portfolio(tf, { ...cfg, ...cc }, ALL, 5, P0);
   say(row([tf, nm, cn, r.E.toFixed(1) + '×', pc(r.cagr), pc(-r.dd)]));
+}
+
+// ---------- 23. the user's coins: default vs BTC>100d + scale ½ at 3R, on 1h / 2h / 4h, full history vs last 4500 bars ----------
+{
+  const MINE = [...TREND, 'STX'];
+  const NEW = { veto: G.btc100, exit: 'scale3R' };
+  const last4500 = function last4500(c) { return c.slice(-4500); };
+  say(`\n## 23. Your coins — current rules vs "BTC above its 100-day MA + sell ½ at +3R", 1h / 2h / 4h, full history vs last 4,500 bars\n`);
+  say(`Honest fills (next open ± 0.05%), 0.1%/side fees — so every number is a little below what the app's Compare tab shows, which fills at the signal close. ✓ = the Compare tab's test (net > 0, beats B&H, PF ≥ 1.3, WR ≥ 30%, DD ≤ 60%, trades ≥ 12 on 1h / 20 above, stable ≥ 70%). 4,500 bars = ${(4500 / 24).toFixed(0)} days on 1h, ${(4500 / 12).toFixed(0)} days on 2h, ${(4500 / 6).toFixed(0)} days on 4h. The BTC gate is computed on full history, so a 4,500-bar window never loses its start to a warm-up.\n`);
+  const cols = ['coin', 'window', 'rules', 'trades', 'net', 'vs B&H', 'PF', 'max DD', 'WR', 'in mkt', 'stable', 'yrs', '✓'];
+  const summary = [];
+  for (const tf of ['1h', '2h', '4h']) {
+    say(`\n**${tf}**\n`); say(head(cols));
+    for (const [wn, w] of [['full', null], ['4500', last4500]]) {
+      const agg = { def: [], neu: [] };
+      for (const coin of MINE) for (const [rn, cfg] of [['current', {}], ['new', NEW]]) {
+        const c0 = loadC(coin, tf); if (!c0 || (w ? Math.min(4500, c0.length) : c0.length) < 400) continue;
+        const r = run(coin, tf, { ...HONEST, ...cfg }, w); if (!r) continue;
+        (rn === 'new' ? agg.neu : agg.def).push(r);
+        say(row([coin, wn, rn, r.n, pc(r.net), pc(r.edge), f2(r.pf), pc(-r.dd), pp(r.wr), pp(r.expo), pp(r.stab), r.yrs.toFixed(1), pass(r, tf) ? '✓' : '']));
+      }
+      summary.push([tf, wn, agg.def, agg.neu]);
+    }
+  }
+  say(`\n**Summary — medians across the coins, pooled PF**\n`);
+  say(head(['tf', 'window', 'rules', 'coins', 'trades', 'pooled PF', 'PF w/o top 2%', 'median net', 'median vs B&H', 'median max DD', 'median WR', 'coins net > 0', 'coins ✓', 'coins where new beats current']));
+  for (const [tf, wn, d, n] of summary) for (const [rn, rows] of [['current', d], ['new', n]]) {
+    const p = pooled(rows), better = rn === 'new' ? `${n.filter(r => { const b = d.find(x => x.coin === r.coin); return b && r.net > b.net + 1e-9; }).length}/${n.length}` : '—';
+    say(row([tf, wn, rn, rows.length, p.n, f2(p.pf), f2(p.pfTop), pc(med(rows.map(r => r.net))), pc(med(rows.map(r => r.edge))), pc(-med(rows.map(r => r.dd))),
+      pp(med(rows.map(r => r.wr))), `${rows.filter(r => r.net > 0).length}/${rows.length}`, `${rows.filter(r => pass(r, tf)).length}/${rows.length}`, better]));
+  }
 }
 
 console.log(out.join('\n'));
