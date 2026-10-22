@@ -558,6 +558,37 @@ Every filter tested trades win rate against expectancy *except* `lbBrkExt` and t
 often **and** rarely run. The veto works because it removes a regime rather than trimming
 trades. Neither touches the fat tail, which is where the edge lives.
 
+## `liqbrk` research — trend-coin basket, exits, BTC veto, 4y vs full history (Oct 2026) — NOTHING SHIPPED
+
+Research only: `detector.js` defaults, the webapp and the signal bot are unchanged until the user approves a step.
+Code: `research/fetch_klines.py` (full Binance history → `research/cache/`, git-ignored), `research/liqbrk_lab.js`
+(engine replica — `node research/liqbrk_lab.js parity` must print `PARITY OK`, 64 coin/TF runs trade-for-trade vs
+`detector.js`), `research/liqbrk_report.js` → `research/RESULTS_liqbrk_2026-10.md` (all tables). 32 coins: the user's
+14 trend coins, 15 added (WIF BONK TAO NEAR AVAX DOGE JUP TIA SEI APT ONDO ENA WLD FLOKI OP), controls BTC ETH LINK.
+"Honest" fills = next bar's open ± 0.05% slippage, on top of 0.1%/side fees. Robustness = PF with the top 2% of trades removed.
+
+- **Fills are not the edge.** Close-fill → honest-fill costs PF 1.69 → 1.65 on 2h (26 → 24 coins net-positive).
+- **149-bar MA validated, modestly:** honest 2h PF 1.56 → 1.65, median vs B&H +84% → +110% with it on.
+- **The exit is not "ATR only".** 86% of trades close on the 1-day-low trail (+157% of total profit); the 4×ATR
+  stop closes 14% (avg −8%, −57% of profit) and is a disaster stop.
+- **Exits (full history, honest, 2h / 4h, PF w/o top 2%):** current 1.09 / 1.31 · scale ½ at entry+3R 1.17 / 1.34
+  (same or better DD, stability 60→67%) · ATR trail from highest close k=4: 1.25 / 1.51 (median net +53→+110% on 2h,
+  but median DD −46→−56%, trades held 2.2 → 3.4 days). k is a plateau 4–6 on both TFs, not a spike. "Tighten after +3R"
+  (hybrid) did nothing — the late-exit-after-a-pump cost is not fixable by trailing harder.
+- **BTC 200-day-MA veto** (only enter while BTC > its 200d MA): the best bear-cycle protection. Walk-forward 2h, cycle A
+  2020–22 / cycle B 2023→: PF w/o top 0.96 / 1.09 → 1.39 / 1.19. ATR trail k=4 + veto: 2h PF 2.18, w/o top 1.43,
+  median net +118%, DD −50%. On 2h every change improved BOTH cycles; on 4h all did except scale-out in cycle A (1.10 → 1.08).
+- **Past coin performance does NOT predict the next cycle.** Spearman ρ(PF, cycle A → cycle B) = **−0.71** (n=12):
+  cycle-A losers FET XLM INJ HBAR were cycle-B stars, cycle-A stars AVAX DOGE ETH faded. The top half by cycle-A PF had
+  cycle-B median PF 1.37 vs 1.63 for the bottom half. A causal "skip a coin while its last 180/365 days of signals are
+  net losing" filter HURT on 2h (net +53 → +9 / +28%) and was mixed on 4h. **Do not pick coins by past liqbrk results.**
+- **The user's trend coins are mostly carried by a few trades.** PF without each coin's top 3 trades: < 1 for XLM HBAR
+  ARB CFX STRK ZEC RENDER INJ RAY; above 1 for FET (1.36) PEPE SOL. Controls are the most robust (BTC 1.78, ETH 1.65,
+  LINK 1.48) but still trail buy & hold. AERO (6 trades, 0.2 yrs) is unusable.
+- **The last-18,000-bar (≈4y, from 2022-09) window flatters:** more ✓ rows than full history (ETH PF 1.05 there vs 2.19
+  full). Judge on full history; use the 4y window as recent form only.
+- **4h is more robust than 2h** on every variant (current PF w/o top 1.31 vs 1.09).
+
 ## `cycle` — the BTC halving playbook (July 2026)
 
 BTC-specific full-cycle machine built from the signals that repeated at every cycle turn

@@ -6,3 +6,5 @@ __pycache__/
 
 pytester/session_bt_results.csv
 pytester/liqbrk_v2_results.csv
+
+research/cache/
