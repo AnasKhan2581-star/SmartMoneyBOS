@@ -17,6 +17,16 @@
  *     Without it every run would re-announce a position opened days ago. On the FIRST run for
  *     a watch item the state is recorded silently — you are not told about history.
  *
+ *  3. liqbrk's MARKET GATE needs BTC (Oct 2026: enter only while BTC > its 50-day MA, or the coin
+ *     is a +50%/30d leader). BTC is fetched once per timeframe with 51 days of extra history so
+ *     its MA is warm. If that fetch fails the watch items on that timeframe are SKIPPED with an
+ *     error — an alert computed without the gate would be a trade the rules never take.
+ *     It also SELLS HALF at +3R: that is its own alert ("TAKE HALF"), sent once per position.
+ *
+ *  4. A RULES CHANGE re-baselines. State carries the rules version; when it differs, the new
+ *     rules' view is recorded, and if it disagrees with what the old rules said (long vs flat)
+ *     you get one "rules updated" note instead of a fake BUY or SELL.
+ *
  * Channels are all optional and all additive; whichever secrets exist get used.
  *   NTFY_TOPIC (+ optional NTFY_SERVER)  — easiest phone push, no account
  *   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
@@ -57,6 +67,8 @@ const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8'))
 
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
+// bump when the trading rules change, so stored positions are re-read under the new rules (note 4)
+const RULES = 'liqbrk-2026-10-btc50-lead50-scale3R';
 
 // ---------- data ----------------------------------------------------------
 async function fetchKlines(symbol, interval, total) {
@@ -106,6 +118,13 @@ const fmtPx = (x) => x == null || !isFinite(x) ? '—'
   : x >= 1000 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x >= 0.01 ? x.toFixed(4) : x.toPrecision(3);
 const fmtDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
+function gateLine(lb) {
+  const g = lb.btcGate;
+  if (!g) return null;
+  if (g.missing) return 'Market gate: BTC data missing — gate skipped';
+  return g.btcOk ? `Market gate: BTC above its ${g.maDays}-day MA`
+    : `Market gate: BTC below its ${g.maDays}-day MA — allowed as a 30-day leader (+${Math.round(g.leadPump * 100)}%)`;
+}
 function buyMessage(w, c, trade, advice, btcReg) {
   const lb = advice.lb || {};
   const coin = w.symbol.replace(/USDT$/, '');
@@ -117,8 +136,10 @@ function buyMessage(w, c, trade, advice, btcReg) {
       `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
       ``,
       `Initial stop  ${fmtPx(trade.stop)}`,
+      trade.tp ? `Take half     at ${fmtPx(trade.tp)} (+${lb.scaleR || 3}R) — separate alert when hit` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       lb.breakHigh ? `Took the pool above ${fmtPx(lb.breakHigh)} on ${lb.relVol}x volume` : null,
+      gateLine(lb),
       btcReg ? `` : null,                  // drop the separator too, or the message ends blank
       // The regime that matters is BTC's own 200d MA — pooled across 10 symbols it separates
       // PF 1.71 from 1.00 (ALGORITHM.md). A coin's own MA was never shown to do that, so this
@@ -133,16 +154,49 @@ function sellMessage(w, c, trade) {
   const pc = (trade.exitPrice / trade.entry - 1) * 100;
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
   const why = trade.targetPool === 'STOP' ? 'stop hit' : trade.targetPool === 'TRAIL' ? 'trailed out below the 1-day low' : String(trade.targetPool || '').toLowerCase();
+  const rest = trade.exitRest != null ? trade.exitRest : trade.exitPrice;
   return {
     title: `SELL ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`,
     body: [
-      `${name} exited at ${fmtPx(trade.exitPrice)} — ${why}`,
+      `${name} exited ${trade.scale ? 'the remaining half ' : ''}at ${fmtPx(rest)} — ${why}`,
       `Bar closed ${fmtDay(c[trade.exitIdx].time)}`,
       ``,
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
-      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)`,
-    ].join('\n'),
+      trade.scale ? `First half sold at ${fmtPx(trade.scale.px)} on ${fmtDay(c[trade.scale.idx].time)}` : null,
+      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)${trade.scale ? ' — both halves' : ''}`,
+    ].filter((x) => x !== null).join('\n'),
     tag: pc >= 0 ? 'win' : 'loss',
+  };
+}
+
+function halfMessage(w, c, trade) {
+  const coin = w.symbol.replace(/USDT$/, '');
+  const pc = (trade.scale.px / trade.entry - 1) * 100;
+  return {
+    title: `TAKE HALF ${coin} ${w.tf}  +${pc.toFixed(1)}%`,
+    body: [
+      `Sell half at ${fmtPx(trade.scale.px)} (+3R target reached)`,
+      `Bar ${fmtDay(c[trade.scale.idx].time)}`,
+      ``,
+      `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
+      `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
+    ].join('\n'),
+    tag: 'win',
+  };
+}
+function rulesMessage(w, cur) {
+  const coin = w.symbol.replace(/USDT$/, '');
+  return {
+    title: `Rules updated — ${coin} ${w.tf}`,
+    body: [
+      'liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)',
+      'and sells half at +3R.',
+      '',
+      cur.inPosition ? `Under the new rules this coin is LONG since ${fmtDay(cur.entryTime)}.`
+        : 'Under the new rules this coin is FLAT — the old rules had it long.',
+      'No trade happened just now; this only re-reads the position.',
+    ].join('\n'),
+    tag: 'win',
   };
 }
 
@@ -221,6 +275,19 @@ async function notify(msg) {
   };
   const regimeByTf = {};
 
+  // BTC for liqbrk's market gate — one fetch per timeframe, deep enough for the 50-day MA
+  const btcByTf = {};
+  const btcFor = async (tf, bars) => {
+    if (SELFTEST || FIXTURE) return null;      // offline modes run with the gate skipped (flagged)
+    const extra = Math.ceil(51 * 86400e3 / (TF_MS[tf] || 864e5));
+    const want = bars + extra;
+    const hit = btcByTf[tf];
+    if (hit && hit.bars >= want) return hit.c;
+    const c = await fetchKlines('BTCUSDT', tf, want);   // throws -> caller skips the item
+    btcByTf[tf] = { bars: want, c };
+    return c;
+  };
+
   for (const w of watch.watch) {
     const key = `${w.symbol}|${w.tf}|${w.strategy || 'liqbrk'}`;
     try {
@@ -230,7 +297,13 @@ async function notify(msg) {
               : await fetchKlines(w.symbol, w.tf, bars);
       if (c.length < 300) { console.log(`${key}: only ${c.length} closed bars — skipped`); continue; }
 
-      const res = SMC.detectAll(c, { strategy: w.strategy || 'liqbrk', longOnly: true, useLiq: false });
+      const strat = w.strategy || 'liqbrk';
+      let btc = null;
+      if (strat === 'liqbrk') {
+        try { btc = w.symbol === 'BTCUSDT' ? c : await btcFor(w.tf, bars); }
+        catch (e) { throw new Error(`BTC fetch failed (${e.message}) — skipped, the market gate cannot be checked`); }
+      }
+      const res = SMC.detectAll(c, { strategy: strat, longOnly: true, useLiq: false, btc });
       if (!res.advice) {                      // runQuant bailed: fewer bars than the warm-up needs
         console.error(`${key}: ${c.length} bars is below the strategy's warm-up — this watch can `
           + `NEVER fire. Raise "bars" in the watchlist.`);
@@ -241,8 +314,9 @@ async function notify(msg) {
       const closed = res.trades.filter((t) => t.outcome !== 'open');
       const last = closed.length ? closed[closed.length - 1] : null;
       const cur = { inPosition: !!open, entryTime: open ? c[open.entryIdx].time : null,
-                    lastBar: c[c.length - 1].time };
+                    scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: RULES };
       const prev = state[key];
+      const rulesChanged = prev && prev.rules !== RULES;
 
       // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
       // later, and its old state is still here — comparing against it would announce a trade that
@@ -252,25 +326,37 @@ async function notify(msg) {
       // against — a coin removed and re-added — is a weeks-long gap, so give it weeks of room.
       const stale = prev && (cur.lastBar - prev.lastBar) > 7 * 86400;
 
-      if (!prev || stale) {
+      if (prev && !stale && rulesChanged) {
+        // note 4: re-read under the new rules; speak only if long/flat actually changed
+        console.log(`${key}: rules changed — re-baselined (${cur.inPosition ? 'long' : 'flat'} under the new rules)`);
+        if (prev.inPosition !== cur.inPosition) { await notify(rulesMessage(w, cur)); alerts++; }
+      } else if (!prev || stale) {
         // First sighting: record, stay quiet. Announcing a position opened weeks ago is noise.
         const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(0) : null;
         console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
           + ` (${cur.inPosition ? 'already long' : 'flat'})`);
       } else if (prev.inPosition && !cur.inPosition) {
+        // the half may have been taken AND the rest closed between two runs: say both
+        if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
       } else if (!prev.inPosition && cur.inPosition) {
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
         await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
+        if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
       } else if (prev.inPosition && cur.inPosition && prev.entryTime !== cur.entryTime) {
         // a close and a re-entry both landed between two runs — report both, in order
+        if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
         await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
+        if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
+      } else if (prev.inPosition && cur.inPosition && !prev.scaled && cur.scaled) {
+        await notify(halfMessage(w, c, open)); alerts++;
       } else {
         console.log(`${key}: no change (${cur.inPosition ? 'holding' : 'flat'})`);
       }
-      if (!prev || stale || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime || prev.lastBar !== cur.lastBar) {
+      if (!prev || stale || rulesChanged || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime
+          || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar) {
         state[key] = cur; changed = true;
       }
     } catch (e) {

@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 JS = r"""
 const SMC=require(process.argv[2]);
 const rows=JSON.parse(require('fs').readFileSync(process.argv[3],'utf8'));
-const r=SMC.detectAll(rows,{strategy:process.argv[4],longOnly:true,atrLen:14,htfMult:1,useLiq:false,liqTargets:false});
+// liqbrk's Oct-2026 BTC gate and +3R scale-out are switched off here: the Python tester models the
+// core rules only (no BTC series, single-exit trades). Shipped-rule parity lives in research/liqbrk_lab.js.
+const r=SMC.detectAll(rows,{strategy:process.argv[4],longOnly:true,atrLen:14,htfMult:1,useLiq:false,liqTargets:false,lbBtcMaDays:0,lbScaleR:0});
 const T=r.trades.filter(t=>t.outcome!=='open');
 const FEE=0.001,RISK=0.01;
 let eq=1,pk=1,dd=0,w=0,gp=0,gl=0,sumR=0;

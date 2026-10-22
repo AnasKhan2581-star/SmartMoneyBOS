@@ -432,11 +432,12 @@ say(head(['year', 'BTC that year', '2h current: trades', 'PF', 'avg trade', '2h 
 // is skipped; competing signals on the same bar go to the higher relative volume. Marked to market every
 // bar. Approximation: a coin whose trade was skipped still "holds" it in its own simulation, so its next
 // signal comes no sooner than it would have — this slightly understates the portfolio's trade count.
-function portfolio(tf, cfg, coins, N, start) {
+function portfolio(tf, cfg, coins, N, start) { return portfolioP(tf, cfg, null, coins, N, start); }
+function portfolioP(tf, cfg, prm, coins, N, start) {
   const ser = {}, ent = new Map(); let tradesAll = 0;
   for (const coin of coins) {
     const c = loadC(coin, tf); if (c.length < 400) continue;
-    const r = run(coin, tf, { ...HONEST, ...cfg }), ind = cache[coin + tf + c.length];
+    const r = run(coin, tf, { ...HONEST, ...cfg }, null, prm), ind = cache[coin + tf + c.length + (prm ? JSON.stringify(prm) : '')];
     ser[coin] = { c, idx: new Map(c.map((b, i) => [b.time, i])) };
     for (const t of r.trades) { const tIn = c[t.entryIdx].time; if (tIn < start) continue; tradesAll++;
       const x = { coin, t, tOut: c[t.exitIdx].time, rv: ind.rv[t.sigIdx] }; (ent.get(tIn) || ent.set(tIn, []).get(tIn)).push(x); }
@@ -583,5 +584,73 @@ for (const [ln, list] of [['32 coins', ALL], ['2021 list (50)', U21]]) for (cons
     const v = evalV(tf, cfg, prm, list);
     say(row([ln, tf, cn, v.p.n, f2(v.p.pf), f2(v.p.pfTop), `${v.full.filter(r => r.pf3 > 1).length}/${v.full.length}`, pc(med(v.full.map(r => r.net))), pc(-med(v.full.map(r => r.dd))), f2(v.pA.pfTop), f2(v.pB.pfTop)]));
   }
+
+// =====================================================================================================
+// 25. FINAL DECISION — what does the BTC filter leave behind, can it be rescued, and which rule set wins?
+// =====================================================================================================
+G.pump50 = gate('pump50', (coin, tf, c) => { const L30 = Math.round(30 * 86400 / TFS[tf]); return c.map((b, i) => i >= L30 && b.close >= 1.5 * c[i - L30].close); });
+G.strong = gate('strong', (coin, tf, c) => { const a = G.own200(coin, tf, c), b = G.rs30(coin, tf, c); return a.map((x, i) => x && b[i]); });
+const orG = (name, ...gs) => gate(name, (coin, tf, c) => { const arr = gs.map(g => g(coin, tf, c)); return c.map((_, i) => arr.some(x => x[i])); });
+G.btc100_or_pump50 = orG('btc100|pump50', G.btc100, G.pump50);
+G.btc100_or_strong = orG('btc100|strong', G.btc100, G.strong);
+G.btc50_or_pump50 = orG('btc50|pump50', G.btc50, G.pump50);
+say(`\n---\n\n# 25. Final decision — what the BTC filter leaves behind, and which rule set to ship\n`);
+
+// 25a. the trades the BTC>100d filter throws away
+say(`## 25a. The trades "BTC above its 100-day MA" skips (current rules, honest fills, all 32 coins)\n`);
+say(`Every trade the current rules take while BTC is BELOW its 100-day MA — exactly the set the filter removes.\n`);
+say(head(['tf', 'trades kept', 'kept PF', 'kept avg', '│', 'trades skipped', 'skipped WR', 'skipped PF', 'skipped avg', 'skipped PF w/o top 2%', 'share of all profit from skipped', 'skipped in cycle A: PF', 'skipped in cycle B: PF']));
+const skippedTop = {};
+for (const tf of ['2h', '4h']) {
+  const v = evalV(tf), kept = [], skip = [];
+  for (const r of v.full) { const c = loadC(r.coin, tf), g = G.btc100(r.coin, tf, c);
+    for (const t of r.trades) (g[t.sigIdx] ? kept : skip).push({ ...t, coin: r.coin, time: c[t.sigIdx].time }); }
+  const ps = xs => { const gp = xs.filter(x => x.ret > 0).reduce((s, x) => s + x.ret, 0), gl = -xs.filter(x => x.ret <= 0).reduce((s, x) => s + x.ret, 0); return gl > 0 ? gp / gl : Infinity; };
+  const tot = [...kept, ...skip].filter(x => x.ret > 0).reduce((s, x) => s + x.ret, 0);
+  const sk = pooled([{ trades: skip }]);
+  say(row([tf, kept.length, f2(ps(kept)), pc(kept.reduce((s, x) => s + x.ret, 0) / kept.length), '│', skip.length, pp(skip.filter(x => x.ret > 0).length / skip.length), f2(ps(skip)),
+    pc(skip.reduce((s, x) => s + x.ret, 0) / skip.length), f2(sk.pfTop), pp(skip.filter(x => x.ret > 0).reduce((s, x) => s + x.ret, 0) / tot),
+    f2(ps(skip.filter(x => x.time >= A0 && x.time < B0))), f2(ps(skip.filter(x => x.time >= B0)))]));
+  skippedTop[tf] = skip.sort((a, b) => b.ret - a.ret).slice(0, 12);
+}
+for (const tf of ['2h', '4h']) {
+  say(`\n**Biggest ${tf} winners the filter would have skipped — and whether a rescue rule catches them**\n`);
+  say(head(['coin', 'signal date', 'trade', 'BTC vs its 100d MA', 'coin up ≥ 50% in 30d?', 'coin > own 200d MA & beating BTC?']));
+  for (const t of skippedTop[tf]) { const c = loadC(t.coin, tf), j = btcAt(c, tf)[t.sigIdx], ma = btcMAof(100)[j];
+    say(row([t.coin, new Date(t.time * 1000).toISOString().slice(0, 10), pc(t.ret), pc(btcC[j] / ma - 1), G.pump50(t.coin, tf, c)[t.sigIdx] ? 'yes' : 'no', G.strong(t.coin, tf, c)[t.sigIdx] ? 'yes' : 'no'])); }
+}
+
+// 25b. the candidates, judged on everything at once
+const CANDS = [
+  ['A. current (149 MA, 1-day-low trail)', {}, null],
+  ['B. current + sell ½ at 3R', { exit: 'scale3R' }, null],
+  ['C. BTC>100d + sell ½ at 3R', { veto: G.btc100, exit: 'scale3R' }, null],
+  ['D. C without the 149 MA', { veto: G.btc100, exit: 'scale3R' }, { lbMaBars: 0 }],
+  ['E. (BTC>100d OR coin +50% in 30d) + ½ at 3R', { veto: G.btc100_or_pump50, exit: 'scale3R' }, null],
+  ['F. (BTC>100d OR coin strong vs BTC) + ½ at 3R', { veto: G.btc100_or_strong, exit: 'scale3R' }, null],
+  ['G. (BTC>50d OR coin +50% in 30d) + ½ at 3R', { veto: G.btc50_or_pump50, exit: 'scale3R' }, null],
+  ['H. BTC>100d + ATR trail k=4', { veto: G.btc100, exit: 'chand', k: 4 }, null],
+  ['I. (BTC>100d OR coin +50% in 30d) + ATR trail k=4', { veto: G.btc100_or_pump50, exit: 'chand', k: 4 }, null],
+  ['J. BTC>100d + ½ at 3R, rest on ATR trail k=4', { veto: G.btc100, exit: 'scaleChand', k: 4 }, null],
+  ['K. H without the 149 MA', { veto: G.btc100, exit: 'chand', k: 4 }, { lbMaBars: 0 }],
+  ['L. J without the 149 MA', { veto: G.btc100, exit: 'scaleChand', k: 4 }, { lbMaBars: 0 }]];
+const MINE15 = [...TREND, 'STX'];
+say(`\n## 25b. Every candidate on every test\n`);
+say(`Score = PF without the top 2% of trades (does it make money without its jackpots). **Worst-case** = the lowest of the four robustness scores (32 coins cycle A, 32 coins cycle B, your 15 coins full history, and the 2021 list in 2023→ — the only test where neither the coins nor the rules could have been chosen with hindsight). The rule set to ship is the one with the best worst-case, not the best single number.\n`);
+const FINAL = [];
+for (const tf of ['2h', '4h']) {
+  say(`\n**${tf}**\n`);
+  say(head(['rules', 'trades (32)', '32: PF w/o top', '32: A', '32: B', 'yours 15: PF w/o top', 'yours 15: median net', 'yours 15: median DD', '2021 list 2023→: PF w/o top', '**worst-case**', 'portfolio 2021 list 2023→ (N=10)', 'portfolio 32 coins 2020→ (N=10)']));
+  for (const [nm, cfg, prm] of CANDS) {
+    const v = evalV(tf, cfg, prm), m = evalV(tf, cfg, prm, MINE15), u = evalV(tf, cfg, prm, U21);
+    const worst = Math.min(v.pA.pfTop, v.pB.pfTop, m.p.pfTop, u.pB.pfTop);
+    // portfolio needs prm: run() takes prm via cfg._prm below
+    const pu = portfolioP(tf, cfg, prm, U21, 10, B23), pa = portfolioP(tf, cfg, prm, ALL, 10, P0);
+    FINAL.push({ tf, nm, worst });
+    say(row([nm, v.p.n, f2(v.p.pfTop), f2(v.pA.pfTop), f2(v.pB.pfTop), f2(m.p.pfTop), pc(med(m.full.map(r => r.net))), pc(-med(m.full.map(r => r.dd))), f2(u.pB.pfTop),
+      `**${f2(worst)}**`, `${pu.E.toFixed(1)}× · DD ${pc(-pu.dd)}`, `${pa.E.toFixed(1)}× · DD ${pc(-pa.dd)}`]));
+  }
+}
+say(`\nBTC buy & hold for reference: 2023→ ${bh(B23)} · 2020→ ${bh(P0)}.`);
 
 console.log(out.join('\n'));

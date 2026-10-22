@@ -619,6 +619,7 @@
 const $ = (id) => document.getElementById(id);
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 let chart, candleSeries, candles = [], lastResult = null, logScale = true;
+let btcSeries = null;    // BTC candles for liqbrk's market gate on the Chart tab (null = gate skipped, flagged)
 const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
 const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 
@@ -676,6 +677,23 @@ function finishKlines(collected){
   const seen = new Set();
   return collected.filter(c => !seen.has(c.time) && seen.add(c.time)).sort((a,b)=>a.time-b.time);
 }
+// BTC candles for liqbrk's market gate (Oct 2026: enter only while BTC > its 50-day MA, or the coin
+// is a +50%/30d leader). Same timeframe as the coin, reaching 51 days before the coin's first bar
+// so the MA is warm. One fetch per timeframe is shared by every caller (Compare runs 3 coins at
+// once); it is reused for 5 minutes, then refreshed so the live gate reads the latest BTC close.
+// A failed fetch returns null — the engine then skips the gate and SAYS so in its conditions list.
+const btcCache = {};
+async function btcFor(tf, c, sym){
+  if(!c || !c.length) return null;
+  if(sym === 'BTCUSDT') return c;
+  const from = (c[0].time - 51*86400) * 1000;
+  let e = btcCache[tf];
+  if(!e || e.from > from || Date.now() - e.at > 5*60e3){
+    e = btcCache[tf] = { from, at: Date.now(), p: fetchKlines('BTCUSDT', tf, { from }) };
+  }
+  try{ return await e.p; }
+  catch(err){ if(btcCache[tf] === e) delete btcCache[tf]; return null; }
+}
 
 function ensureChart(){
   if(chart) return;
@@ -728,7 +746,7 @@ function equityStats(trades, cap0, investPct){
   for(const t of list){
     const f = (t.frac||1)*alloc;
     for(let j=t.entryIdx;j<=t.exitIdx;j++){
-      const v = eq*(1+f*(candles[j].close/t.entry-1));
+      const v = eq*(1+f*(SMC.markMult(t,j,candles[j].close)-1));   // a scaled-out half stays banked
       if(v>peak) peak=v; const dd=peak>0?(peak-v)/peak:0; if(dd>maxDD) maxDD=dd;
       daysIn++;
     }
@@ -765,7 +783,9 @@ function backtest(){
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
     const open=t.outcome==='open';
     const pl = led ? (open?`<span style="color:#58a6ff">${pm(led.pl)} open</span>`:`<span class="${led.pl>=0?'up':'down'}">${pm(led.pl)}</span>`) : '—';
-    const exitCell = open ? `<span style="color:#58a6ff">TP ${fp(t.tp)}</span>` : `<span class="${mv>=0?'up':'down'}">${fp(t.exitPrice)}</span>`;
+    // a split exit shows both fills (half at +3R / the rest); Move and P/L are the weighted result
+    const exitCell = open ? `<span style="color:#58a6ff">${t.scale?`½ ${fp(t.scale.px)} · `:''}TP ${fp(t.tp)}</span>`
+      : `<span class="${mv>=0?'up':'down'}" title="weighted exit ${fp(t.exitPrice)}">${t.scale?`½ ${fp(t.scale.px)} · ${fp(t.exitRest)}`:fp(t.exitPrice)}</span>`;
     return `<tr><td>${fmtTime(c[t.entryIdx].time)}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
   }).join('') || '<tr><td colspan="7" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
   // summary grid
@@ -967,6 +987,14 @@ function drawOverlay(){
     const pct=(exit/t.entry-1)*100;
     const col= t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
     box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+(t.outcome==='open'?' open':''));
+    if(t.scale){                                                        // where the first half was sold (+3R)
+      const xs=X(t.scale.idx), ys=Y(t.scale.px);
+      if(xs!=null && ys!=null && xs>=0 && xs<=rightX){
+        ctx.save(); ctx.fillStyle='#3fb950'; ctx.strokeStyle='#0e1117'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(xs,ys,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.font='11px system-ui,sans-serif'; ctx.fillText('½', xs+6, ys-5); ctx.restore();
+      }
+    }
   });
   ctx.restore();
 }
@@ -1004,6 +1032,8 @@ async function run(){
       $('status').textContent = `fetching ${sym} ${tf} · ${got} bars…`;
     });
     if(!candles.length){ $('status').textContent = byDate ? 'no bars in that date range' : 'no data'; return; }
+    $('status').textContent = `fetching BTC ${tf} for the market gate…`;
+    btcSeries = await btcFor(tf, candles, sym);
     recalc();
     // Say what was actually fetched — a requested start before the pair listed is clamped
     // silently by the API, and the user should see that rather than assume full coverage.
@@ -1012,6 +1042,7 @@ async function run(){
       $('status').textContent = `${candles.length} bars · ${got0} → ${fmtDay(candles[candles.length-1].time)}`
         + (got0>want0 ? ` · ${sym} only lists from ${got0}` : '');
     }
+    if(!btcSeries) $('status').innerHTML += ' • <span style="color:#f85149">BTC data unavailable — the 50-day BTC gate is skipped</span>';
   }
   catch(e){ $('status').textContent='error: '+e.message; }
 }
@@ -1032,14 +1063,14 @@ function recalc(){
   const liq=$('liq').value;
   const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
     useLiq:liq!=='off', liqTargets:liq==='trade',
-    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0) };
+    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0), btc: btcSeries };
   render(SMC.detectAll(candles, params));
 }
 // what the selected system does, in one breath
 const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — signals that repeated at every cycle turn since 2015 (2013 documented): BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout. Accumulation is TWO tranches: half in zone A (200w→×1.1), half on the deep-zone recovery (0.72–1.0×200w — every real bottom pierces the 200w), entry = tranche average, stop 0.65×200w (under the deepest pierce on record). SELL on the Pi-Cycle cross (2017 & Apr-2021 tops to the day) or a persistent 40-week break. BTC-specific.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
-  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
+  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
 const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
@@ -1052,10 +1083,11 @@ function advisor(result){
   // ---- PLAIN ENGLISH FIRST: are we in, with how much, from where, up or down ----
   const open = result.trades.filter(t=>t.outcome==='open').slice(-1)[0];
   const investPct = Math.max(0, Math.min(100, +$('risk').value||100));
-  const deployed = open ? investPct*(open.frac!=null?open.frac:1) : 0;
+  const deployed = open ? investPct*(open.frac!=null?open.frac:1)*(open.remain!=null?open.remain:1) : 0;
   const dt = open ? new Date(candles[open.entryIdx].time*1000) : null;
   const when = dt ? dt.toISOString().slice(0,10)+' '+dt.toISOString().slice(11,16) : '';
-  const now = ad.px, pl = open ? (now/open.entry-1)*100 : 0;
+  // P/L of the whole position: a scaled-out half counts at its fill, only the rest floats
+  const now = ad.px, pl = open ? ((open.exitPrice!=null?open.exitPrice:now)/open.entry-1)*100 : 0;
   const held = open ? candles.length-1-open.entryIdx : 0;
   const dtBar = candles.length>1 ? Math.max(60,candles[1].time-candles[0].time) : 86400;
   const heldTxt = held*dtBar>=172800 ? Math.round(held*dtBar/86400)+' days' : Math.round(held*dtBar/3600)+' hours';
@@ -1065,7 +1097,8 @@ function advisor(result){
       + bigNum(`${deployed.toFixed(0)}% of your money is in the market`, '#3fb950')
       + `<div style="margin-top:5px">Bought at <b>${fmtP(open.entry)}</b> · ${when} <span style="color:var(--muted)">(${heldTxt} ago)</span></div>`
       + `<div>Now <b>${fmtP(now)}</b> → <b class="${pl>=0?'up':'down'}">${pl>=0?'+':''}${pl.toFixed(1)}%</b> on this position</div>`
-      + `<div style="color:var(--muted)">Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>${open.tp?` · take-profit ${fmtP(open.tp)}`:''}</div>`
+      + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (+3R) — riding the other half</div>` : '')
+      + `<div style="color:var(--muted)">Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (+3R)`:''}</div>`
       + `</div>`
     : `<div style="padding:2px 0 8px">`
       + bigNum('0% in the market — all cash', '#f85149')
@@ -1187,7 +1220,8 @@ function pathStats(trades,c){
   let w=0,l=0,gp=0,gl=0,inBars=0;
   for(const t of trades){ if(t.exitPrice==null) continue;
     const f=t.frac||1;
-    for(let j=t.entryIdx+1;j<=t.exitIdx;j++) r[j]=f*(c[j].close/c[j-1].close-1);
+    for(let j=t.entryIdx+1;j<=t.exitIdx;j++)                   // markMult: after a scale-out only half floats
+      r[j]=f*(SMC.markMult(t,j,c[j].close)/SMC.markMult(t,j-1,c[j-1].close)-1);
     r[t.exitIdx]-=f*0.002;                                     // 0.1% fee each side
     inBars+=Math.max(0,t.exitIdx-t.entryIdx);                  // capital actually at risk
     if(t.outcome!=='open'){
@@ -1315,6 +1349,7 @@ async function runCompare(force){
                        : (full.length>bars ? full.slice(-bars) : full);
       if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); if(!keepCandles) delete cmpCache[ckey]; return; }
       const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
+      const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
       const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
       // a start date earlier than the listing is clamped by the API — say so rather than
       // letting a short row look like a like-for-like comparison
@@ -1322,12 +1357,12 @@ async function runCompare(force){
         short.push(`${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`);
       }
       for(const [st,label] of CMP_STRATS){
-        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false});
+        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc});
         const e=pathStats(res.trades,c);
         // the 10k reference run — skipped only when it would be the identical window
         let d=e;
         if(!sameWin && ref.length>=250){
-          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false});
+          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc});
           d=pathStats(rr.trades,ref);
         }
         rows.push({sym,st,label,e,d,sameWin});
@@ -1639,7 +1674,7 @@ function coinEquity(trades, c, cap0, alloc){
   const last = c[c.length-1].close;
   for(const t of trades.slice().sort((a,b)=>a.entryIdx-b.entryIdx)){
     const f = (t.frac||1)*alloc;
-    if(t.outcome === 'open'){ cost = eq*f; openPL = cost*((last/t.entry)*(1-0.001)/(1+0.001)-1); }
+    if(t.outcome === 'open'){ cost = eq*f; openPL = cost*(((t.exitPrice!=null?t.exitPrice:last)/t.entry)*(1-0.001)/(1+0.001)-1); }
     else if(t.exitPrice != null){
       const pl = eq*f*((t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1);
       eq += pl; if(eq < 0) eq = 0; if(pl >= 0) w++; else l++;
@@ -1679,20 +1714,25 @@ function actionFor(row, held){
   const met = sigs.filter(s=>s.ok).length, tot = sigs.length || 1;
   const open = row.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
   const trail = lb.trailLow, brk = lb.breakHigh, gap = lb.toBreak;
+  // the +3R half: either still to take, or already banked
+  const half = !open ? '' : open.scale ? ` Half already taken at <b>${pfFmt(open.scale.px)}</b>.`
+    : open.tp ? ` <b>Sell half at ${pfFmt(open.tp)}</b> (+3R).` : '';
+  // the market gate blocks entries no matter how many other conditions are met
+  const g = lb.btcGate, gateNote = (g && !g.open) ? ` <b>Blocked while BTC is below its ${g.maDays}-day MA</b> (unless the coin runs +${Math.round(g.leadPump*100)}% in 30 days).` : '';
   if(held){
     if(open) return { tag:'HOLD', cls:'a-hold',
-      line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).` };
+      line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).${half}` };
     if(met >= tot-1) return { tag:'HOLD · BUY SIGNAL NEAR', cls:'a-near',
-      line:`You are in, the system is not — but ${met}/${tot} conditions are met. It buys on a close above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.` };
+      line:`You are in, the system is not — but ${met}/${tot} conditions are met. It buys on a close above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.${gateNote}` };
     return { tag:'NO SYSTEM SUPPORT', cls:'a-out',
-      line:`Liquidity Breakout is flat here (${met}/${tot} conditions). This is your own call, not a system trade — it would only buy above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.` };
+      line:`Liquidity Breakout is flat here (${met}/${tot} conditions). This is your own call, not a system trade — it would only buy above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.${gateNote}` };
   }
   if(open) return { tag:'SYSTEM IS LONG', cls:'a-hold',
-    line:`The system holds this and you do not. It exits on a close below <b>${pfFmt(trail)}</b>.` };
+    line:`The system holds this and you do not. It exits on a close below <b>${pfFmt(trail)}</b>.${half}` };
   if(met >= tot-1) return { tag:'NEXT TRADE', cls:'a-next',
-    line:`Closest to firing: ${met}/${tot} conditions. <b>Buy a close above ${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:' — already above'}, on ≥1.3× volume.` };
+    line:`Closest to firing: ${met}/${tot} conditions. <b>Buy a close above ${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:' — already above'}, on ≥1.3× volume.${gateNote}` };
   return { tag:'WATCH', cls:'a-wait',
-    line:`${met}/${tot} conditions. Buy trigger sits at <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:''}.` };
+    line:`${met}/${tot} conditions. Buy trigger sits at <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:''}.${gateNote}` };
 }
 
 function condList(ad){
@@ -1738,7 +1778,8 @@ async function pfRun(force){
       try{
         const c = await pfLoad(sym, tf, deep.indexOf(sym)>=0 ? bars : rbars);
         if(c && c.length >= 60){
-          const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false });
+          const btc = await btcFor(tf, c, sym);
+          const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
           out.push({ sym, c, res });
         }
       }catch(e){ /* a dead or unlisted pair just drops out of the view */ }

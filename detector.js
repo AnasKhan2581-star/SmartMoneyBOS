@@ -55,6 +55,14 @@
                      // because this is the "149 MA" a trader reads off the chart in front of
                      // them. So it is NOT the same signal across TFs: 149 bars is ~37h on 15m,
                      // ~25d on 4h, ~149d on 1d. Entries only; never exits a live position.
+    // Oct 2026 (user-approved; research/RESULTS_liqbrk_2026-10.md §25, ALGORITHM.md):
+    lbBtcMaDays: 50, // market gate: only enter while BTC closes above its n-DAY MA. 0 = off.
+                     // Needs a BTC candle series in params.btc (any TF); without one the gate is
+                     // open and the result says btcGate.missing — never silently pretends.
+    lbLeadPump: 0.5, // ...OR the coin itself is up ≥ this over the last 30 days (a leader running
+                     // on its own gets through a weak-BTC gate). 0 = no rescue.
+    lbScaleR: 3,     // sell HALF at entry + n×R (R = entry − initial stop); the rest keeps the
+                     // normal stop/trail. 0 = off. One trade record; exitPrice = weighted average.
     longOnly: false, // investment/spot mode: never short (structure is still tracked both ways)
     regimeExit: 'daily', // 'daily' = exit on base-TF CHoCH too (benched: best drawdown control) | 'weekly' = HTF flip only
     momoBosOnly: false, // momentum: true = continuation breaks only, skip CHoCH reversal entries
@@ -368,19 +376,41 @@
         const avg = vs / Math.min(i + 1, vL);
         rv[i] = avg > 0 ? v / avg : 1;
       }
+      // MARKET GATE: BTC above its n-day MA, read from the last BTC candle CLOSED by this candle's
+      // close (two-pointer on close times, so any BTC timeframe works and nothing leaks forward),
+      // OR this coin up ≥ lbLeadPump over 30 days. Gate arrays stay all-true when it is off.
+      const btcOk = new Array(n).fill(true), leadOk = new Array(n).fill(false);
+      let btcMissing = false;
+      if (p.lbBtcMaDays > 0) {
+        const B = p.btc;
+        if (B && B.length > 1) {
+          const dB = Math.max(60, B[1].time - B[0].time), L = Math.max(2, Math.round(p.lbBtcMaDays * 86400 / dB));
+          const up = new Array(B.length).fill(false);
+          let s = 0;
+          for (let j = 0; j < B.length; j++) { s += B[j].close; if (j >= L) s -= B[j - L].close; if (j >= L - 1) up[j] = B[j].close > s / L; }
+          for (let i = 0, j = -1; i < n; i++) {
+            while (j + 1 < B.length && B[j + 1].time + dB <= c[i].time + dt) j++;
+            btcOk[i] = j >= 0 && up[j];
+          }
+        } else btcMissing = true;
+        if (p.lbLeadPump > 0) { const L30 = S(30); for (let i = L30; i < n; i++) leadOk[i] = closes[i] >= (1 + p.lbLeadPump) * closes[i - L30]; }
+      }
       lb = { hiB, loE, rv, maT: sma(S(p.lbTrend)),
              // bar-native 149 MA of THIS chart's timeframe; null when the filter is off
-             maBars: lbMaBars >= 2 ? sma(lbMaBars) : null };
+             maBars: lbMaBars >= 2 ? sma(lbMaBars) : null,
+             btcOk, leadOk, btcMissing, gate: (i) => btcMissing || btcOk[i] || leadOk[i] };
     }
 
     let pos = null, sigRun = 0;
     const close = (i, exit, why) => {
+      const exitRest = exit;
+      if (pos.scale) exit = pos.scale.w * pos.scale.px + (1 - pos.scale.w) * exit;   // weighted: both halves
       const risk0 = pos.entry - pos.stop;
       const rMult = (isFinite(risk0) && risk0 > 0) ? (exit - pos.entry) / risk0 : (exit / pos.entry - 1);
       trades.push({ dir: 'long', poiIdx: pos.entryIdx, fvgIdx: -1, zoneLow: pos.stop, zoneTop: pos.entry,
         sweepIdx: -1, targetPool: why, entry: pos.entry, stop: pos.stop, target: exit, exitPrice: exit,
         tp: pos.tp || null, entryIdx: pos.entryIdx, exitIdx: i, outcome: rMult >= 0 ? 'win' : 'loss', frac: pos.frac || 1,
-        rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4) });
+        rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4), scale: pos.scale || null, exitRest });
       pos = null;
     };
     // CYCLE (BTC halving playbook) precomputes — validated 2018→2026: +3535% vs B&H +767%,
@@ -461,13 +491,19 @@
       } else if (p.strategy === 'liqbrk') {
         if (pos) {
           if (c[i].low <= pos.stop) close(i, pos.stop, 'STOP');
-          else if (px < lb.loE[i]) close(i, px, 'TRAIL');
+          else {
+            // scale-out: half goes at entry + lbScaleR·R the first time a high touches it
+            if (pos.tp && !pos.scale && c[i].high >= pos.tp) pos.scale = { idx: i, px: pos.tp, w: 0.5 };
+            if (px < lb.loE[i]) close(i, px, 'TRAIL');
+          }
         } else if (px > lb.hiB[i] && closes[i - 1] <= lb.hiB[i - 1]   // FIRST close through the pool
                    && px > lb.maT[i] && lb.rv[i] >= p.lbRelVol
                    && (!lb.maBars || px > lb.maBars[i])            // entry price above the 149-bar MA
                    && (!(p.lbBrkExt > 0) || (px - lb.hiB[i]) >= p.lbBrkExt * a[i])  // decisive break
+                   && lb.gate(i)                                   // BTC > its 50d MA, or a 30-day leader
                    && magnetOK(i, px)) {
-          pos = { entry: px, stop: px - p.lbStop * a[i], entryIdx: i };
+          const stop = px - p.lbStop * a[i];
+          pos = { entry: px, stop, entryIdx: i, tp: p.lbScaleR > 0 ? px + p.lbScaleR * (px - stop) : null };
         }
       } else {                                                     // donch
         if (pos) {
@@ -479,11 +515,14 @@
       }
     }
     if (pos) {
-      const last = closes[n - 1], risk0 = pos.entry - pos.stop;
+      const lastPx = closes[n - 1], risk0 = pos.entry - pos.stop;
+      const last = pos.scale ? pos.scale.w * pos.scale.px + (1 - pos.scale.w) * lastPx : lastPx;
       trades.push({ dir: 'long', poiIdx: pos.entryIdx, fvgIdx: -1, zoneLow: pos.stop, zoneTop: pos.entry,
         sweepIdx: -1, targetPool: 'OPEN', entry: pos.entry, stop: pos.stop, target: last, exitPrice: last,
-        tp: pos.tp || null, entryIdx: pos.entryIdx, exitIdx: n - 1, outcome: 'open', frac: pos.frac || 1,
-        rr: +(risk0 > 0 ? (last - pos.entry) / risk0 : 0).toFixed(2) });
+        // a scaled position has banked its target: tp then means nothing left to take
+        tp: pos.scale ? null : (pos.tp || null), entryIdx: pos.entryIdx, exitIdx: n - 1, outcome: 'open', frac: pos.frac || 1,
+        rr: +(risk0 > 0 ? (last - pos.entry) / risk0 : 0).toFixed(2), scale: pos.scale || null, exitRest: lastPx,
+        remain: pos.scale ? 1 - pos.scale.w : 1, scaleTarget: pos.tp || null });
     }
     // the ADVISOR read: what the context says right now, at the last closed candle
     const i = n - 1, px = closes[i];
@@ -522,6 +561,9 @@
         { name: `Volume ≥ ${p.lbRelVol}× its daily average`, ok: lb.rv[i] >= p.lbRelVol },
         ...(p.lbBrkExt > 0 ? [{ name: `Broke it by ≥ ${p.lbBrkExt}× ATR (decisive)`,
                                 ok: (px - lb.hiB[i]) >= p.lbBrkExt * a[i] }] : []),
+        ...(p.lbBtcMaDays > 0 ? [{ name: lb.btcMissing ? `BTC ${p.lbBtcMaDays}-day MA — BTC data missing, gate skipped`
+            : `BTC above its ${p.lbBtcMaDays}-day MA${p.lbLeadPump > 0 ? ` (or coin +${Math.round(p.lbLeadPump * 100)}% in 30 days)` : ''}`,
+                                ok: lb.gate(i) }] : []),
       ]) : [
         { name: 'Above 200-day average', ok: px > maL[i] },
         { name: '90-day momentum positive', ok: px > closes[i - lookLen] },
@@ -533,6 +575,9 @@
         breakHigh: lb.hiB[i], trendMa: lb.maT[i], maBars: lb.maBars ? lb.maBars[i] : null,
         maBarsLen: lbMaBars, relVol: +lb.rv[i].toFixed(2), needVol: p.lbRelVol,
         trailLow: lb.loE[i], atr: a[i], stopIfEntered: px - p.lbStop * a[i],
+        btcGate: p.lbBtcMaDays > 0 ? { missing: lb.btcMissing, btcOk: !lb.btcMissing && lb.btcOk[i], leadOk: lb.leadOk[i],
+          open: lb.gate(i), maDays: p.lbBtcMaDays, leadPump: p.lbLeadPump } : null,
+        scaleR: p.lbScaleR,
         toBreak: +((lb.hiB[i] / px - 1) * 100).toFixed(2),   // % price must still rise (<0 = already above)
       } : null,
       z: std20[i] > 0 ? +((px - ma20[i]) / std20[i]).toFixed(2) : 0,
@@ -869,7 +914,14 @@
       advice: quant ? rq.advice : null, cycleLines: quant ? rq.cycleLines : null };
   }
 
-  const api = { detectAll, detectPivots, labelStructure, detectFVG, detectUnmitigated, detectLiquidity, detectLiqClusters, armOrder, pickTarget, simTrade, runQuant, walkStructure, aggregateHTF, computeHtfBias, atr, DEFAULTS };
+  // Gross value multiple of a trade at bar j given that bar's close: after a scale-out the banked
+  // half is fixed at its fill and only the remainder floats. Every equity path uses this.
+  function markMult(t, j, close) {
+    if (t.scale && j >= t.scale.idx) return (t.scale.w * t.scale.px + (1 - t.scale.w) * close) / t.entry;
+    return close / t.entry;
+  }
+
+  const api = { markMult, detectAll, detectPivots, labelStructure, detectFVG, detectUnmitigated, detectLiquidity, detectLiqClusters, armOrder, pickTarget, simTrade, runQuant, walkStructure, aggregateHTF, computeHtfBias, atr, DEFAULTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.SMC = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -72,11 +72,27 @@ function indicators(c, prm = {}) {
   return { a, hiB, loE, rv, maT, sig, warm, bpd, p };
 }
 
+// ---------- the Oct 2026 market gate, written independently of detector.js so parity means something ----------
+// BTC above its n-day MA (last BTC bar closed by this bar's close) OR coin up >= pump over 30 days.
+function marketGate(c, btc, days = P.lbBtcMaDays, pump = P.lbLeadPump) {
+  const n = c.length, dt = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400, bpd = 86400 / dt;
+  const dB = btc[1].time - btc[0].time, L = Math.round(days * 86400 / dB), L30 = Math.max(2, Math.round(30 * bpd));
+  const ma = []; let s = 0;
+  btc.forEach((b, j) => { s += b.close; if (j >= L) s -= btc[j - L].close; ma[j] = j >= L - 1 ? s / L : NaN; });
+  const out = []; let j = -1;
+  for (let i = 0; i < n; i++) {
+    while (j + 1 < btc.length && btc[j + 1].time + dB <= c[i].time + dt) j++;
+    out[i] = (j >= 0 && btc[j].close > ma[j]) || (pump > 0 && i >= L30 && c[i].close >= (1 + pump) * c[i - L30].close);
+  }
+  return out;
+}
+
 // ---------- simulator ----------
 // cfg.fill:  'close' (what the app does) | 'next' (next bar's open, plus slippage — achievable)
 // cfg.exit:  'base' = shipped rule: 4xATR intrabar stop, close below the prior 1-day low
 //            'scale3R' = sell half at entry+3R, the rest keeps the base rule
 //            'chand' = 4xATR stop + close below (highest close since entry − k·ATR)
+//            'scaleChand' = sell half at entry+3R, the rest on the chandelier(k)
 //            'hybrid' = base rule, but once a trade has run +tR also exit on the chandelier(k)
 // cfg.veto:  per-bar boolean array — only ENTER when true (BTC above its 200-day MA)
 // cfg.fee:   per-side fee override (default 0.1%)
@@ -111,13 +127,13 @@ function simulate(c, ind, cfg = {}) {
         if (cfg.be && pos.hiC >= pos.entry + cfg.be * pos.R && pos.stop < pos.entry) pos.stop = pos.entry;
         if (b.low <= pos.stop) { done(i, sellPx(fill === 'next' ? Math.min(b.open, pos.stop) : pos.stop), 'STOP'); }
         else {
-          if (exit === 'scale3R' && pos.w === 1 && b.high >= pos.entry + 3 * pos.R) {
+          if ((exit === 'scale3R' || exit === 'scaleChand') && pos.w === 1 && b.high >= pos.entry + 3 * pos.R) {
             const t = pos.entry + 3 * pos.R;
             pos.legs.push({ w: 0.5, px: sellPx(fill === 'next' ? Math.max(b.open, t) : t), i }); pos.w = 0.5;
           }
           let why = null;
           const chand = pos.hiC - k * a[i];
-          if (exit === 'chand') { if (b.close < chand) why = 'CHAND'; }
+          if (exit === 'chand' || exit === 'scaleChand') { if (b.close < chand) why = 'CHAND'; }
           else {
             if (b.close < loE[i]) why = 'TRAIL';
             if (!why && exit === 'hybrid' && pos.hiC >= pos.entry + tR * pos.R && b.close < chand) why = 'TIGHT';
@@ -188,26 +204,32 @@ function stats(c, ind, run) {
     yrs: (c[n - 1].time - c[w0].time) / 31557600, expo: held / Math.max(1, n - w0), _eqEnd: eq[n - 1] };
 }
 
-module.exports = { load, slice, indicators, simulate, stats, SMC, P };
+module.exports = { load, slice, indicators, simulate, stats, marketGate, SMC, P };
 
 // ---------- parity: the harness must reproduce detector.js exactly ----------
 if (require.main === module && process.argv[2] === 'parity') {
   const coins = fs.readdirSync(CACHE).filter(f => f.endsWith('_2h.json')).map(f => f.split('_')[0]);
   let bad = 0, total = 0;
+  const BTC2H = load('BTC', '2h');
   for (const coin of coins) for (const tf of ['1h', '2h', '4h']) {
     if (tf === '1h' && !fs.existsSync(path.join(CACHE, `${coin}_1h.json`))) continue;
     const c = load(coin, tf);
     if (c.length < 400) continue;
-    const ref = SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false }).trades;
-    const mine = simulate(c, indicators(c), { fill: 'close', exit: 'base' });
-    const refClosed = ref.filter(x => x.outcome !== 'open');
-    const same = refClosed.length === mine.trades.length && refClosed.every((r, i) => {
-      const m = mine.trades[i];
-      return r.entryIdx === m.entryIdx - 1 && r.exitIdx === m.exitIdx && Math.abs(r.exitPrice - m.exit) < 1e-9 * r.exitPrice
-          && Math.abs(r.entry - m.entry) < 1e-9 * r.entry;
-    });
-    const openSame = (ref.some(x => x.outcome === 'open')) === !!mine.open;
-    total++; if (!same || !openSame) { bad++; console.log(`MISMATCH ${coin} ${tf}: detector ${refClosed.length} closed, lab ${mine.trades.length}`); }
+    // twice: the pre-Oct-2026 rules (gate + scale-out off) and the shipped defaults (BTC 2h series supplied)
+    for (const mode of ['core', 'shipped']) {
+      const prm = mode === 'core' ? { lbBtcMaDays: 0, lbScaleR: 0 } : { btc: BTC2H };
+      const ref = SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false, ...prm }).trades;
+      const mine = simulate(c, indicators(c), mode === 'core' ? { fill: 'close', exit: 'base' }
+        : { fill: 'close', exit: 'scale3R', veto: marketGate(c, BTC2H) });
+      const refClosed = ref.filter(x => x.outcome !== 'open');
+      const same = refClosed.length === mine.trades.length && refClosed.every((r, i) => {
+        const m = mine.trades[i], mExit = m.legs.reduce((s, l) => s + l.w * l.px, 0);   // weighted, like detector
+        return r.entryIdx === m.entryIdx - 1 && r.exitIdx === m.exitIdx && Math.abs(r.exitPrice - mExit) < 1e-9 * r.exitPrice
+            && Math.abs(r.entry - m.entry) < 1e-9 * r.entry && (!!r.scale === (m.legs.length > 1));
+      });
+      const openSame = (ref.some(x => x.outcome === 'open')) === !!mine.open;
+      total++; if (!same || !openSame) { bad++; console.log(`MISMATCH ${coin} ${tf} ${mode}: detector ${refClosed.length} closed, lab ${mine.trades.length}`); }
+    }
   }
   console.log(bad ? `${bad}/${total} MISMATCHED` : `PARITY OK — ${total} coin/timeframe runs reproduce detector.js trade-for-trade`);
 }

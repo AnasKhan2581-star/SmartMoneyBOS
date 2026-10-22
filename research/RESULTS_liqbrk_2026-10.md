@@ -1080,3 +1080,91 @@ Honest fills (next open ± 0.05%), 0.1%/side fees — so every number is a littl
 | 2021 list (50) | 4h | current, no MA | 3376 | 1.56 | 0.97 | 16/50 | +41% | −63% | 0.97 | 0.96 |
 | 2021 list (50) | 4h | new + 149 MA | 1865 | 1.83 | 1.31 | 19/50 | +66% | −47% | 1.45 | 1.16 |
 | 2021 list (50) | 4h | new, no MA | 2158 | 1.84 | 1.31 | 19/50 | +99% | −49% | 1.39 | 1.31 |
+
+---
+
+# 25. Final decision — what the BTC filter leaves behind, and which rule set to ship
+
+## 25a. The trades "BTC above its 100-day MA" skips (current rules, honest fills, all 32 coins)
+
+Every trade the current rules take while BTC is BELOW its 100-day MA — exactly the set the filter removes.
+
+| tf | trades kept | kept PF | kept avg | │ | trades skipped | skipped WR | skipped PF | skipped avg | skipped PF w/o top 2% | share of all profit from skipped | skipped in cycle A: PF | skipped in cycle B: PF |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2h | 1385 | 1.99 | +3% | │ | 687 | 35% | 0.99 | −0% | 0.64 | 21% | 0.67 | 1.13 |
+| 4h | 907 | 2.31 | +5% | │ | 339 | 39% | 1.21 | +1% | 0.87 | 16% | 1.09 | 1.20 |
+
+**Biggest 2h winners the filter would have skipped — and whether a rescue rule catches them**
+
+| coin | signal date | trade | BTC vs its 100d MA | coin up ≥ 50% in 30d? | coin > own 200d MA & beating BTC? |
+| --- | --- | --- | --- | --- | --- |
+| FET | 2023-01-02 | +168% | −8% | yes | yes |
+| ZEC | 2025-09-29 | +132% | −1% | yes | yes |
+| DOGE | 2022-10-25 | +104% | −4% | no | no |
+| RENDER | 2025-12-27 | +72% | −14% | no | no |
+| FET | 2025-04-17 | +46% | −7% | no | no |
+| LINK | 2020-03-31 | +35% | −21% | no | no |
+| SOL | 2026-08-18 | +35% | −3% | no | no |
+| XLM | 2018-07-13 | +33% | −18% | no | no |
+| TAO | 2025-04-17 | +32% | −7% | no | no |
+| CFX | 2021-08-05 | +32% | −1% | no | no |
+| BTC | 2023-01-08 | +31% | −5% | no | no |
+| NEAR | 2021-12-22 | +31% | −10% | no | yes |
+
+**Biggest 4h winners the filter would have skipped — and whether a rescue rule catches them**
+
+| coin | signal date | trade | BTC vs its 100d MA | coin up ≥ 50% in 30d? | coin > own 200d MA & beating BTC? |
+| --- | --- | --- | --- | --- | --- |
+| DOGE | 2022-10-26 | +99% | −3% | no | no |
+| HBAR | 2023-01-08 | +60% | −5% | no | no |
+| OP | 2022-07-27 | +59% | −18% | yes | no |
+| ZEC | 2026-08-17 | +57% | −5% | no | no |
+| WLD | 2025-09-08 | +46% | −1% | no | yes |
+| FET | 2025-04-17 | +44% | −7% | no | no |
+| FET | 2023-01-10 | +36% | −3% | yes | yes |
+| RENDER | 2026-01-03 | +33% | −10% | no | no |
+| WIF | 2024-07-15 | +33% | −2% | no | no |
+| XLM | 2018-07-13 | +31% | −18% | no | no |
+| CFX | 2021-08-05 | +29% | −2% | no | no |
+| OP | 2022-10-23 | +28% | −7% | no | no |
+
+## 25b. Every candidate on every test
+
+Score = PF without the top 2% of trades (does it make money without its jackpots). **Worst-case** = the lowest of the four robustness scores (32 coins cycle A, 32 coins cycle B, your 15 coins full history, and the 2021 list in 2023→ — the only test where neither the coins nor the rules could have been chosen with hindsight). The rule set to ship is the one with the best worst-case, not the best single number.
+
+
+**2h**
+
+| rules | trades (32) | 32: PF w/o top | 32: A | 32: B | yours 15: PF w/o top | yours 15: median net | yours 15: median DD | 2021 list 2023→: PF w/o top | **worst-case** | portfolio 2021 list 2023→ (N=10) | portfolio 32 coins 2020→ (N=10) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A. current (149 MA, 1-day-low trail) | 2072 | 1.09 | 0.96 | 1.09 | 1.04 | +83% | −67% | 0.73 | **0.73** | 1.3× · DD −59% | 21.1× · DD −47% |
+| B. current + sell ½ at 3R | 2072 | 1.17 | 1.04 | 1.17 | 1.14 | +88% | −59% | 0.80 | **0.80** | 1.0× · DD −57% | 13.1× · DD −41% |
+| C. BTC>100d + sell ½ at 3R | 1414 | 1.42 | 1.52 | 1.39 | 1.48 | +124% | −52% | 0.91 | **0.91** | 1.1× · DD −50% | 17.7× · DD −22% |
+| D. C without the 149 MA | 1547 | 1.43 | 1.47 | 1.43 | 1.47 | +188% | −48% | 0.94 | **0.94** | 0.9× · DD −51% | 18.2× · DD −21% |
+| E. (BTC>100d OR coin +50% in 30d) + ½ at 3R | 1441 | 1.38 | 1.41 | 1.35 | 1.43 | +124% | −52% | 0.92 | **0.92** | 1.3× · DD −50% | 17.8× · DD −22% |
+| F. (BTC>100d OR coin strong vs BTC) + ½ at 3R | 1482 | 1.38 | 1.38 | 1.36 | 1.40 | +124% | −52% | 0.94 | **0.94** | 1.4× · DD −50% | 17.9× · DD −22% |
+| G. (BTC>50d OR coin +50% in 30d) + ½ at 3R | 1545 | 1.40 | 1.45 | 1.37 | 1.48 | +172% | −46% | 0.96 | **0.96** | 1.7× · DD −42% | 22.0× · DD −22% |
+| H. BTC>100d + ATR trail k=4 | 1273 | 1.58 | 1.85 | 1.47 | 1.60 | +374% | −52% | 1.03 | **1.03** | 1.4× · DD −45% | 98.0× · DD −31% |
+| I. (BTC>100d OR coin +50% in 30d) + ATR trail k=4 | 1298 | 1.54 | 1.76 | 1.45 | 1.57 | +340% | −54% | 1.04 | **1.04** | 1.6× · DD −45% | 108.6× · DD −31% |
+| J. BTC>100d + ½ at 3R, rest on ATR trail k=4 | 1273 | 1.62 | 1.81 | 1.55 | 1.65 | +316% | −49% | 1.09 | **1.09** | 1.2× · DD −40% | 43.4× · DD −30% |
+| K. H without the 149 MA | 1401 | 1.53 | 1.87 | 1.47 | 1.53 | +405% | −56% | 1.05 | **1.05** | 1.1× · DD −47% | 98.8× · DD −37% |
+| L. J without the 149 MA | 1401 | 1.57 | 1.81 | 1.53 | 1.58 | +241% | −56% | 1.11 | **1.11** | 1.0× · DD −45% | 40.7× · DD −37% |
+
+**4h**
+
+| rules | trades (32) | 32: PF w/o top | 32: A | 32: B | yours 15: PF w/o top | yours 15: median net | yours 15: median DD | 2021 list 2023→: PF w/o top | **worst-case** | portfolio 2021 list 2023→ (N=10) | portfolio 32 coins 2020→ (N=10) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A. current (149 MA, 1-day-low trail) | 1246 | 1.31 | 1.10 | 1.24 | 1.22 | +92% | −58% | 0.91 | **0.91** | 2.8× · DD −32% | 24.1× · DD −35% |
+| B. current + sell ½ at 3R | 1246 | 1.34 | 1.08 | 1.28 | 1.28 | +65% | −56% | 0.96 | **0.96** | 2.3× · DD −30% | 14.1× · DD −33% |
+| C. BTC>100d + sell ½ at 3R | 921 | 1.54 | 1.37 | 1.50 | 1.45 | +77% | −54% | 1.16 | **1.16** | 2.7× · DD −31% | 13.2× · DD −23% |
+| D. C without the 149 MA | 1067 | 1.62 | 1.37 | 1.67 | 1.54 | +152% | −52% | 1.31 | **1.31** | 2.4× · DD −34% | 16.9× · DD −22% |
+| E. (BTC>100d OR coin +50% in 30d) + ½ at 3R | 942 | 1.52 | 1.31 | 1.48 | 1.40 | +78% | −54% | 1.18 | **1.18** | 3.1× · DD −31% | 14.2× · DD −23% |
+| F. (BTC>100d OR coin strong vs BTC) + ½ at 3R | 965 | 1.50 | 1.29 | 1.46 | 1.40 | +68% | −54% | 1.16 | **1.16** | 3.1× · DD −29% | 13.6× · DD −25% |
+| G. (BTC>50d OR coin +50% in 30d) + ½ at 3R | 1030 | 1.51 | 1.30 | 1.43 | 1.50 | +171% | −43% | 1.13 | **1.13** | 3.0× · DD −28% | 16.5× · DD −25% |
+| H. BTC>100d + ATR trail k=4 | 764 | 1.83 | 2.43 | 1.57 | 1.77 | +162% | −62% | 1.47 | **1.47** | 2.6× · DD −41% | 68.9× · DD −41% |
+| I. (BTC>100d OR coin +50% in 30d) + ATR trail k=4 | 783 | 1.76 | 2.26 | 1.52 | 1.75 | +162% | −62% | 1.49 | **1.49** | 2.8× · DD −41% | 71.5× · DD −41% |
+| J. BTC>100d + ½ at 3R, rest on ATR trail k=4 | 764 | 1.82 | 2.19 | 1.63 | 1.78 | +151% | −61% | 1.49 | **1.49** | 1.9× · DD −37% | 30.0× · DD −33% |
+| K. H without the 149 MA | 878 | 1.85 | 2.10 | 1.84 | 1.80 | +168% | −60% | 1.68 | **1.68** | 1.7× · DD −47% | 70.6× · DD −41% |
+| L. J without the 149 MA | 878 | 1.84 | 1.96 | 1.84 | 1.78 | +174% | −55% | 1.64 | **1.64** | 1.5× · DD −44% | 31.6× · DD −37% |
+
+BTC buy & hold for reference: 2023→ 4.9× · CAGR +52% · DD −54% · 2020→ 11.4× · CAGR +43% · DD −77%.

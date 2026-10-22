@@ -6,6 +6,17 @@ Binance klines, and pushes a message only when a position actually flips. The Gi
 
 There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the alerts change.
 
+**What you can receive** (liqbrk, since Oct 2026):
+- **BUY** — a new position. Includes the stop, the **take-half price (+3R)** and whether BTC's 50-day
+  MA let it through (or the coin was a +50%/30-day leader).
+- **TAKE HALF** — price reached entry + 3R: sell half there; the other half stays on.
+- **SELL** — the position (or its remaining half) closed; the result counts both halves.
+- **Rules updated** — sent once per coin, only when a rules change flips that coin between long and
+  flat. No trade happened; the bot just re-read the position under the new rules.
+
+The bot also fetches BTC on every run (one request set per timeframe) for the 50-day gate. If that
+fetch fails, the coins on that timeframe are skipped with an error rather than alerted without the gate.
+
 ## Turn on a channel
 
 With **no setup at all** you still get alerts: the bot opens a GitHub issue labelled `signal`,

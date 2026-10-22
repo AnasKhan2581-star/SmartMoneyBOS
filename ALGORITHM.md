@@ -41,6 +41,37 @@ strategy**, not as a strategy on its own.
 
 ## `liqbrk` - buy-side liquidity continuation (July 2026)
 
+> **SHIPPED Oct 2026 (user-approved) — two additions on top of the rules below. Defaults; each switches off.**
+> 1. **Market gate (entries only):** take a signal only if **BTC closes above its own 50-day MA**
+>    (`lbBtcMaDays` = 50, 0 = off) **OR the coin itself is up ≥ 50% over the last 30 days**
+>    (`lbLeadPump` = 0.5, 0 = no rescue — a leader running on its own is allowed through). BTC is read
+>    from the last BTC candle that has CLOSED by the coin candle's close — never later. If the caller
+>    supplies no BTC series the gate is open and the result says so (`btcGate: 'missing'`).
+> 2. **Scale-out:** sell **half at entry + 3R** (`lbScaleR` = 3, 0 = off; R = entry − initial stop),
+>    filled at that level; the other half stays on the unchanged rules (4×ATR stop, prior-1-day-low trail).
+>    The trade record keeps one row: `exitPrice` is the weighted average of both halves and `scale`
+>    = `{idx, px, w}` says when and where the first half went, so every equity path can mark the
+>    remaining half correctly.
+> The 149-bar MA, the 1×ATR decisive break and every other rule below are unchanged.
+>
+> **Why this and not the alternatives** (research/RESULTS_liqbrk_2026-10.md §25; honest fills, 32 coins,
+> both walk-forward cycles, your 15 coins, and a coin list frozen in 2021 incl. LUNA/FTT, traded 2023→
+> as the hindsight-free test):
+> - The trades a BTC filter removes are **break-even as a group** (2h PF 0.99; 4h 1.21 but 0.87 without
+>   its top 2%) — the filter mostly removes junk, so keeping it beats not having it.
+> - Its real cost is the early-cycle leader (FET Jan 2023, ZEC Sep 2025): the "coin +50% in 30 days"
+>   rescue and the faster 50-day BTC MA (vs 100) win some of those back. Most of the biggest skipped
+>   winners are not catchable by any rule tested — that cost is accepted.
+> - Against current rules / BTC>100d + ½ at 3R / this, on the frozen-2021 list 2023→ (one pot, 10 slots):
+>   **4h 2.8× DD −32% / 2.7× −31% / 3.0× −28%**; **2h 1.3× −59% / 1.1× −50% / 1.7× −42%**; your 15 coins'
+>   median drawdown 4h −58% / −54% / **−43%**, median net +92% / +77% / **+171%**.
+> - The ATR-trail exits (k=4) score higher on profit factor without the top trades, but made LESS money
+>   on the frozen list (4h 1.5–2.6×) at deeper drawdown (−37…−47%) — they hold ~7 days and block slots.
+>   Rejected for shipping.
+> - Honest limits: on the frozen list every variant trails **BTC buy & hold (4.9×, DD −54%) in 2023→**;
+>   2h barely beats cash there. **4h is the timeframe this is validated for.**
+
+
 A **swing** system that runs on 15m bars: it holds ~30h and trades ~6x/month. It is **not** a
 day-trading setup - three day-trade variants were built and all lost to it (see below). Built for
 **ZEC 15m**, day-denominated so it runs on any TF. Long only.
