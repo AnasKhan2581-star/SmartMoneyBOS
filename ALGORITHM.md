@@ -465,7 +465,7 @@ symbol (SOL/DOT/AVAX reach ~6y where BTC/ETH reach 9.1y), so it silently compare
 periods; the two trailing windows just restated it over arbitrary cuts. Added **Net P/L**,
 **vs B&H**, **PF** and **In mkt** (share of bars with capital deployed). Twelve columns, same
 width. ✓ is now an investment test: `net>0 AND edge>0 AND PF≥1.3 AND WR≥30% AND DD≤60% AND
-n≥30 AND ≥70% of windows profitable` — 5 of 40 rows pass on 4h.
+n≥30 AND ≥70% of windows profitable` — 5 of 40 rows pass on 4h. *(Trade floor revised Oct 2026 — see below.)*
 
 `vs B&H` = `(1+net)/(1+bh) − 1`, i.e. how much richer you ended than holding the same coin over
 the same window. Adding it produced the most decision-relevant result in this whole study and
@@ -515,7 +515,7 @@ The windows therefore carry different burdens, and this is the design point wort
 
 | window | burden | why |
 |---|---|---|
-| 10,000-bar reference | **full** test — beats B&H, PF ≥1.3, ≥30 trades, WR ≥30%, DD ≤60%, ≥70% stability | only window with enough trades to establish anything |
+| 10,000-bar reference | **full** test — beats B&H, PF ≥1.3, ≥12 trades on ≤1h / ≥20 above, WR ≥30%, DD ≤60%, ≥70% stability | only window with enough trades to establish anything |
 | user's window | **form check** — ≥3 trades, net >0, still beating the coin | confirms it has not broken down; cannot prove an edge |
 
 Ranking is by the **reference** edge over buy & hold. Ranking by the weaker of the two (the first
@@ -524,7 +524,7 @@ design) let a 3-trade window decide the order, which is exactly backwards.
 Two honesty constraints are built into the panel and must survive any redesign:
 - **The windows overlap.** The recent window sits *inside* the reference, so this is not two
   independent confirmations. The panel says so in its caveat box.
-- **Sub-30-trade stats are muted with a `*`.** Without this a 3-trade "33% stable" renders beside
+- **Stats below the trade floor are muted with a `*`.** Without this a 3-trade "33% stable" renders beside
   the reference's "100%" and reads as a failure rather than as noise.
 
 When nothing qualifies the panel says so and names the closest miss with the test it failed —
@@ -735,3 +735,18 @@ orders sit in the imbalance that leg leaves behind. So:
   (even by wick) — demand if left above, supply if left below.
 - **HTF bias (off by default):** aggregate candles ×`htfMult`, run this same engine, expand
   the trend back per base candle using only the last *closed* HTF bar (no lookahead).
+
+### Oct 2026 — trade floor lowered and made per-timeframe (user decision)
+
+The ✓ verdict's minimum closed trades went from a flat **30** to **12 on 1h and below, 20 above 1h**
+(`minTrades()` in `index.html`). Reason: `liqbrk` is regime-gated, and a 10,000-bar 1h window is
+only ~14 months. If most of that window was a bear market, a low trade count means the system
+correctly stayed out — penalising that rewards systems that overtrade.
+
+**What it costs, recorded so nobody rediscovers it:** at a ~35% win rate, 12 trades leaves the win
+rate with roughly ±14 points of sampling noise (binomial SE ≈ √(0.35·0.65/12) ≈ 0.14); at 20 it is
+≈ ±11. On thin rows the trade count no longer protects anything, so the verdict rests on the
+other gates — PF ≥ 1.3, beats buy & hold, DD ≤ 60%, and especially **≥ 70% of sliding windows
+profitable**, which is the one check that a single lucky trade cannot pass. Treat a ✓ with 12–20
+trades as "promising", not "proven", and expect more ✓ rows than before, especially on Top 100
+lists where some will pass by chance alone.
