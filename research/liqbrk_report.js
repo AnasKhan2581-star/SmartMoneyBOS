@@ -543,4 +543,45 @@ for (const tf of ['2h', '4h']) for (const [nm, cfg] of [['current', {}], ['③',
   }
 }
 
+// ---------- 24. the same coins: 149-bar MA ON vs OFF × current vs new ----------
+{
+  const MINE = [...TREND, 'STX'];
+  const NEW = { veto: G.btc100, exit: 'scale3R' };
+  const last4500 = function last4500(c) { return c.slice(-4500); };
+  const COMBOS = [['current + 149 MA', {}, null], ['current, no MA', {}, { lbMaBars: 0 }], ['new + 149 MA', NEW, null], ['new, no MA', NEW, { lbMaBars: 0 }]];
+  say(`\n## 24. Your coins — the 149-bar MA condition ON vs OFF, for both the current rules and the new option (1h / 2h / 4h)\n`);
+  say(`"new" = BTC above its 100-day MA + sell ½ at +3R. "no MA" sets \`lbMaBars = 0\`, which is how the app switches the condition off; nothing else changes. Honest fills as in section 23.\n`);
+  const all = {};
+  for (const tf of ['1h', '2h', '4h']) for (const [wn, w] of [['full', null], ['4500', last4500]]) for (const [cn, cfg, prm] of COMBOS)
+    all[tf + wn + cn] = MINE.map(coin => run(coin, tf, { ...HONEST, ...cfg }, w, prm)).filter(Boolean);
+  say(head(['tf', 'window', 'rules', 'trades', 'pooled PF', 'PF w/o top 2%', 'median net', 'median vs B&H', 'median max DD', 'median WR', 'coins net > 0', 'coins ✓', 'coins better than current + 149 MA']));
+  for (const tf of ['1h', '2h', '4h']) for (const wn of ['full', '4500']) for (const [cn] of COMBOS) {
+    const rows = all[tf + wn + cn], base = all[tf + wn + COMBOS[0][0]], p = pooled(rows);
+    say(row([tf, wn, cn, p.n, f2(p.pf), f2(p.pfTop), pc(med(rows.map(r => r.net))), pc(med(rows.map(r => r.edge))), pc(-med(rows.map(r => r.dd))),
+      pp(med(rows.map(r => r.wr))), `${rows.filter(r => r.net > 0).length}/${rows.length}`, `${rows.filter(r => pass(r, tf)).length}/${rows.length}`,
+      cn === COMBOS[0][0] ? '—' : `${rows.filter(r => { const b = base.find(x => x.coin === r.coin); return b && r.net > b.net + 1e-9; }).length}/${rows.length}`]));
+  }
+  for (const tf of ['1h', '2h', '4h']) for (const wn of ['full', '4500']) {
+    say(`\n**${tf}, ${wn === 'full' ? 'full history' : 'last 4,500 bars'} — net · PF · max DD (trades)**\n`);
+    say(head(['coin', ...COMBOS.map(x => x[0])]));
+    for (const coin of MINE) say(row([coin, ...COMBOS.map(([cn]) => { const r = all[tf + wn + cn].find(x => x.coin === coin);
+      return r ? `${pc(r.net)} · ${f2(r.pf)} · ${pc(-r.dd)} (${r.n})${pass(r, tf) ? ' ✓' : ''}` : '—'; })]));
+  }
+  // walk-forward for the MA question on these coins
+  say(`\n**Walk-forward on these coins — PF w/o top 2% in cycle A (2020–22) / cycle B (2023→)**\n`);
+  say(head(['tf', ...COMBOS.map(x => x[0])]));
+  for (const tf of ['1h', '2h', '4h']) say(row([tf, ...COMBOS.map(([cn, cfg, prm]) => {
+    const A = MINE.map(c => run(c, tf, { ...HONEST, ...cfg }, cycA, prm)).filter(r => r && r.yrs >= 1), B = MINE.map(c => run(c, tf, { ...HONEST, ...cfg }, cycB, prm)).filter(r => r && r.yrs >= 1);
+    return `${f2(pooled(A).pfTop)} / ${f2(pooled(B).pfTop)}`; })]));
+}
+
+// ---------- 24b. is that true beyond these 15 coins? ----------
+say(`\n**24b. Same four combinations on the broader lists (32 coins of section 1, and the 2021 list of section 21) — 2h and 4h, full history**\n`);
+say(head(['list', 'tf', 'rules', 'trades', 'PF', 'PF w/o top 2%', 'coins PF>1 w/o top 3', 'median net', 'median max DD', 'A', 'B']));
+for (const [ln, list] of [['32 coins', ALL], ['2021 list (50)', U21]]) for (const tf of ['2h', '4h'])
+  for (const [cn, cfg, prm] of [['current + 149 MA', {}, null], ['current, no MA', {}, { lbMaBars: 0 }], ['new + 149 MA', { veto: G.btc100, exit: 'scale3R' }, null], ['new, no MA', { veto: G.btc100, exit: 'scale3R' }, { lbMaBars: 0 }]]) {
+    const v = evalV(tf, cfg, prm, list);
+    say(row([ln, tf, cn, v.p.n, f2(v.p.pf), f2(v.p.pfTop), `${v.full.filter(r => r.pf3 > 1).length}/${v.full.length}`, pc(med(v.full.map(r => r.net))), pc(-med(v.full.map(r => r.dd))), f2(v.pA.pfTop), f2(v.pB.pfTop)]));
+  }
+
 console.log(out.join('\n'));
