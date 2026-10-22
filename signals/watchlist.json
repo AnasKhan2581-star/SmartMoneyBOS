@@ -30,6 +30,12 @@
       "tf": "1h",
       "bars": 1500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "STRKUSDT",
+      "tf": "2h",
+      "bars": 6500,
+      "strategy": "liqbrk"
     }
   ]
 }
