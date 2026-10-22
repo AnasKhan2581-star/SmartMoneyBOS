@@ -215,6 +215,47 @@
   .holdAdd button{grid-column:1 / -1;padding:9px}
   .holdHint{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:11px}
   .holdHint code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
+  /* ===== Holdings & orders ===== */
+  .ordH{margin:18px 0 8px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .coinRow{border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:#12161d;overflow:hidden}
+  .coinRow>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 12px;font-size:12.5px}
+  .coinRow>summary::-webkit-details-marker{display:none}
+  .coinRow>summary .c{font-weight:700;font-size:14px;min-width:46px}
+  .coinRow>summary .q{font-variant-numeric:tabular-nums}
+  .coinRow>summary .m{color:var(--muted)}
+  .coinRow>summary .chev{margin-left:auto;color:var(--muted);transition:transform .12s}
+  .coinRow[open]>summary .chev{transform:rotate(90deg)}
+  .coinRow.closed>summary .c,.coinRow.closed>summary .q{color:var(--muted)}
+  .ordTbl{width:100%;border-collapse:collapse;font-size:12px}
+  .ordTbl td{padding:7px 6px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.35}
+  .ordTbl td:first-child{padding-left:12px}
+  .ordTbl td:last-child{text-align:right;width:1%}
+  .ordTbl tr.sup td{color:var(--muted);text-decoration:line-through}
+  .ordTbl button{padding:2px 8px;font-size:12px;font-weight:600}
+  .sideB{color:#56d364;font-weight:700} .sideS{color:#f0877f;font-weight:700} .sideO{color:#58a6ff;font-weight:700}
+  .warnChip{margin:0 12px 8px;padding:7px 9px;border-radius:7px;font-size:11.5px;line-height:1.5;background:#1b1810;border:1px solid #4d3f17;color:#e3c34c}
+  .ordAdd{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end}
+  .ordAdd label{font-size:11px} .ordAdd input,.ordAdd select{width:100%}
+  .ordAdd .ordWhen{grid-column:1 / -1}
+  .ordAdd button{grid-column:1 / -1;padding:10px}
+  .ordMsg{font-size:12px;margin-top:8px;color:var(--muted);line-height:1.5;min-height:0}
+  .ordMsg.err{color:#f0877f} .ordMsg.ok{color:#56d364}
+  .fileBtn{display:block;text-align:center;padding:11px;border-radius:7px;background:#1f6feb;color:#fff;font-weight:600;font-size:13.5px;cursor:pointer}
+  .fileBtn input{display:none}
+  .fileBtn.ghostBtn{background:#0d1117;color:var(--txt);border:1px solid var(--line);font-weight:500}
+  .rvCard{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:#12161d}
+  .rvCard.off{opacity:.55}
+  .rvCard.bad{border-color:#4d3f17}
+  .rvTop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+  .rvTop input[type=checkbox]{width:18px;height:18px;margin:0}
+  .rvTop .shot{margin-left:auto;color:var(--muted);font-size:11px}
+  .rvGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .rvGrid label{font-size:10.5px;color:var(--muted)} .rvGrid input,.rvGrid select{width:100%}
+  .rvGrid .wide{grid-column:1 / -1}
+  .rvWarn{margin-top:7px;font-size:11.5px;color:#e3c34c;line-height:1.5}
+  .rvRaw{margin-top:6px;font-size:10.5px;color:var(--muted)}
+  .rvRaw pre{white-space:pre-wrap;margin:4px 0 0;font:10.5px ui-monospace,monospace;background:#0d1117;padding:6px;border-radius:6px}
+  .rvSum{margin-top:10px;font-size:12.5px;line-height:1.6}
   /* ===== ALERTS tab ===== */
   #alView{flex:1 1 auto;display:none;overflow-y:auto;overflow-x:hidden;padding:14px 16px 86px;-webkit-overflow-scrolling:touch}
   .alSync{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;font-size:12.5px;margin-top:10px}
@@ -262,6 +303,10 @@
     .hero .v{font-size:56px}
     .holdAdd{grid-template-columns:1fr 1fr 1fr auto}
     .alAdd{grid-template-columns:repeat(4,1fr) auto}
+    .ordAdd{grid-template-columns:1.2fr .8fr 1fr 1fr 1.6fr auto}
+    .ordAdd .ordWhen,.ordAdd button{grid-column:auto}
+    .rvGrid{grid-template-columns:1.1fr .8fr 1fr 1fr 1.6fr}
+    .rvGrid .wide{grid-column:auto}
     .alAdd button{grid-column:auto}
     .alActions{flex-direction:row}
     #alView{padding:20px 22px 24px}
@@ -273,6 +318,7 @@
     /* the Cost column is qty x avg — derivable, and dropping it is what lets the remove
        button fit on a phone instead of clipping off the right edge */
     .holdTable th:nth-child(4),.holdTable td:nth-child(4){display:none}
+    .ordTbl .tot{display:none}            /* total = qty x price, derivable; the room goes to the ✕ */
     #tabs{display:none}
     header{padding:7px 12px}
     #compareView{padding:12px 12px 86px}
@@ -328,11 +374,12 @@
   <div id="pfEmpty" style="display:none">
     <div class="pfEmptyBox">
       <div class="eyebrow">Nothing added yet</div>
-      <h3>Tell the app what you actually hold</h3>
-      <p>Enter each coin with the quantity you own and the average price you paid. Everything below
-         — live value, profit, and what to do next — is then computed from your real positions.
-         Your holdings stay in this browser only; they are never sent anywhere or saved to the repo.</p>
-      <button id="pfAddFirst">+ Add your first holding</button>
+      <h3>Add your buys and sells</h3>
+      <p>Type orders in by hand, or import screenshots of your Binance order history. The app replays
+         every order from the oldest date forward to work out what you hold, your average cost, and the
+         profit you have already taken. Screenshots are read on this phone and never uploaded; your
+         orders stay in this browser only.</p>
+      <button id="pfAddFirst">+ Add orders</button>
     </div>
   </div>
 
@@ -363,20 +410,39 @@
   <div class="cards" id="pfRadar"></div>
 
   <details class="pfPanel" id="pfEditor">
-    <summary>My holdings — add, edit, remove</summary>
+    <summary>Holdings &amp; orders</summary>
     <div class="pfPanelBody">
-      <div class="holdScroll"><table class="holdTable">
-        <thead><tr><th>Coin</th><th>Quantity</th><th>Avg buy price</th><th>Cost</th><th></th></tr></thead>
-        <tbody id="holdBody"></tbody></table></div>
-      <div class="holdAdd">
-        <label>Coin<input id="hSym" class="sym" placeholder="INJ" list="symList" /></label>
-        <label>Quantity<input id="hQty" type="number" step="any" placeholder="20.39" /></label>
-        <label>Avg buy price<input id="hAvg" type="number" step="any" placeholder="6.03" /></label>
-        <button id="hAdd">Add</button>
+      <div class="holdHint" style="margin:0 0 10px">Holdings are <b>worked out from your orders</b>, replayed
+        oldest first. Tap a coin to see every order behind it.</div>
+      <div id="holdList"></div>
+
+      <h4 class="ordH">Add an order</h4>
+      <div class="ordAdd">
+        <label>Coin<input id="oSym" class="sym" placeholder="INJ" list="symList" autocomplete="off" /></label>
+        <label>Side<select id="oSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+        <label>Quantity<input id="oQty" type="number" step="any" inputmode="decimal" placeholder="20.39" /></label>
+        <label>Price (USDT)<input id="oPx" type="number" step="any" inputmode="decimal" placeholder="6.03" /></label>
+        <label class="ordWhen">Date &amp; time<input id="oTime" type="datetime-local" step="1" /></label>
+        <button id="oAdd">Add order</button>
       </div>
-      <div class="holdHint">Stored in this browser only (<code>localStorage</code>) — never uploaded, never committed.
-        Reading them off an exchange app: quantity is the coin amount, and if you only see the USDT value and
-        the unrealised P/L, average price = (value − P/L) ÷ quantity.</div>
+      <div class="ordMsg" id="oMsg"></div>
+
+      <h4 class="ordH">Import from screenshots</h4>
+      <div class="holdHint" style="margin:0 0 9px">Pick screenshots of your Binance <b>order history</b> or
+        <b>trade history</b> — as many as you like, in any order. Each one is read <b>on this phone</b>
+        (nothing is uploaded), then you check every order before it is added. Overlapping screenshots
+        are fine: duplicates are caught.</div>
+      <label class="fileBtn">Choose screenshots<input id="oFiles" type="file" accept="image/*" multiple /></label>
+      <div class="ordMsg" id="oImpStatus"></div>
+      <div id="oReview"></div>
+
+      <h4 class="ordH">Backup</h4>
+      <div class="holdHint" style="margin:0 0 9px">Your orders live only in this browser. Clearing site data, or
+        switching phone, loses them — keep a backup file.</div>
+      <div class="alActions" style="margin-top:0">
+        <button id="oExport" class="ghost">Download backup</button>
+        <label class="fileBtn ghostBtn">Restore from backup<input id="oRestore" type="file" accept="application/json,.json" /></label>
+      </div>
     </div>
   </details>
 
@@ -1457,14 +1523,72 @@ let pfRows = [], pfBusy = false;
 const lsGet = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
 const lsSet = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 
-// ---- holdings: the user's real positions, this browser only ----
-// symbol normalising is Compare's normSym() — one spelling rule for the whole app
-function loadHoldings(){
-  try{ const a=JSON.parse(lsGet('smb.holdings','[]')); return Array.isArray(a)?a.filter(h=>h&&h.sym&&h.qty>0):[]; }
-  catch(e){ return []; }
+// ---- ORDERS LEDGER — the source of truth. Holdings are DERIVED by replaying it. ----
+// smb.orders = [{ id, sym:'INJUSDT', side:'buy'|'sell'|'open', qty, price, time(ms), src }]
+// Kept in this browser only — never uploaded, never committed (same rule as before).
+//
+// side 'open' is an OPENING-BALANCE SNAPSHOT: the old "type in what you hold" entries are carried
+// over as these. A snapshot SETS the coin's position at its time, so orders for that coin dated
+// before it are superseded — they are already baked into the balance the user typed. That is what
+// stops imported history from double-counting a hand-entered balance. Orders after it apply on top.
+//
+// Cost method: AVERAGE COST. A buy blends into the average; a sell realises (price − avg) × qty and
+// leaves the average alone; a position sold to zero resets the average for the next buy. Fees are
+// not modelled, so quantities can differ from the exchange by the ~0.1% fee — expected, not a bug.
+const ORD_KEY = 'smb.orders';
+const oid = ()=> Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4);
+const validOrder = (o)=> o && typeof o.sym==='string' && /^(buy|sell|open)$/.test(o.side)
+  && +o.qty>0 && +o.price>0 && isFinite(+o.time);
+
+function loadOrders(){
+  try{ const a = JSON.parse(lsGet(ORD_KEY,'null')); if(Array.isArray(a)) return a.filter(validOrder); }catch(e){}
+  // One-time migration from the old holdings list. The old key is deliberately left in place, so
+  // nothing the user typed can be lost by this upgrade.
+  let old = []; try{ old = JSON.parse(lsGet('smb.holdings','[]')) || []; }catch(e){}
+  const now = Date.now();
+  const mig = (Array.isArray(old)?old:[]).filter(h=>h && h.sym && +h.qty>0 && +h.avg>0)
+    .map(h=>({ id:oid(), sym:h.sym, side:'open', qty:+h.qty, price:+h.avg, time:now, src:'opening' }));
+  lsSet(ORD_KEY, JSON.stringify(mig));
+  return mig;
 }
-function saveHoldings(h){ lsSet('smb.holdings', JSON.stringify(h)); }
-let holdings = loadHoldings();
+
+function replay(list){
+  const snap = {};                                   // latest snapshot time per coin
+  for(const o of list) if(o.side==='open') snap[o.sym] = Math.max(snap[o.sym] ?? -Infinity, o.time);
+  const pos = {};
+  // OLDEST FIRST — the whole point. A snapshot sorts ahead of anything at the same instant.
+  const sorted = list.slice().sort((a,b)=> a.time-b.time || (a.side==='open'?-1:b.side==='open'?1:0));
+  for(const o of sorted){
+    const p = pos[o.sym] || (pos[o.sym] = { sym:o.sym, qty:0, avg:0, realized:0, short:0, superseded:0, orders:[] });
+    const sup = snap[o.sym]!=null && o.time < snap[o.sym];
+    p.orders.push({ ...o, superseded:sup });
+    if(sup){ p.superseded++; continue; }
+    if(o.side==='open'){ p.qty = +o.qty; p.avg = +o.price; }
+    else if(o.side==='buy'){
+      p.avg = (p.qty*p.avg + o.qty*o.price) / (p.qty + o.qty);
+      p.qty += +o.qty;
+    } else {                                          // sell
+      const q = Math.min(+o.qty, p.qty);
+      // Selling more than the recorded buys means earlier buys are missing. Realise only what is
+      // accounted for, and flag the rest instead of inventing a cost for it.
+      if(o.qty > p.qty*(1+1e-6) + 1e-12) p.short += o.qty - p.qty;
+      p.realized += q * (o.price - p.avg);
+      p.qty -= q;
+      if(p.qty < 1e-12){ p.qty = 0; p.avg = 0; }
+    }
+  }
+  return pos;
+}
+const deriveHoldings = (lg)=> Object.values(lg).filter(p=>p.qty>0).map(p=>({ sym:p.sym, qty:p.qty, avg:p.avg }));
+
+let orders = loadOrders();
+let ledger = replay(orders);
+let holdings = deriveHoldings(ledger);
+const realizedTotal = ()=> Object.values(ledger).reduce((a,p)=>a+p.realized, 0);
+function saveOrders(){
+  lsSet(ORD_KEY, JSON.stringify(orders));
+  ledger = replay(orders); holdings = deriveHoldings(ledger);
+}
 
 const pfFmt = (x)=> x==null||!isFinite(x) ? '—' : x>=1000 ? Math.round(x).toLocaleString()
   : x>=1 ? x.toFixed(2) : x>=0.01 ? x.toFixed(4) : x.toPrecision(3);
@@ -1594,7 +1718,7 @@ async function pfRun(force){
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
 
 function renderPf(){
-  const has = holdings.length > 0;
+  const has = orders.length > 0;      // live once ANY order exists — a fully sold book still has history
   if(!pfRows.length){
     // No prices loaded. Still show the right panel and a working editor — being offline must not
     // strand someone with saved holdings they cannot see or remove.
@@ -1642,7 +1766,8 @@ function renderPf(){
       <div class="actLine ${act.cls}">${act.line}</div>
       ${condList(r.res.advice)}</div>`;
   }).join('');
-  $('pfCards').innerHTML = cards;
+  $('pfCards').innerHTML = cards || (has ? `<div class="card">No open positions — everything is sold.
+    Realised so far: <b class="${realizedTotal()>=0?'up':'down'}">${pfMoney(realizedTotal())}</b>.</div>` : '');
 
   if(has){
     const pl = totVal - totCost;
@@ -1650,13 +1775,16 @@ function renderPf(){
     $('pfHeroD').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)} · ${pfPc(totCost>0?pl/totCost*100:0)}</span>`
       + ` <span style="color:var(--muted);font-weight:400">unrealised, against ${pfMoney(totCost)} invested</span>`;
     $('kOpen').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)}</span>`;
-    $('kOpenS').textContent = `${holdings.length} holding${holdings.length>1?'s':''}`;
+    const rz = realizedTotal();
+    $('kOpenS').innerHTML = `${holdings.length} holding${holdings.length===1?'':'s'}`
+      + (Math.abs(rz)>1e-9 ? ` · realised <span class="${rz>=0?'up':'down'}">${pfMoney(rz)}</span>` : '');
     $('kDep').textContent = pfMoney(totCost);
     $('kDepS').textContent = 'total cost basis';
     // best / worst mover by % — a two-value comparison, so the numbers ARE the chart
     const movers = holdings.map(h=>{ const r=rowFor(h.sym); if(!r||!(h.avg>0)) return null;
       const last=r.c[r.c.length-1].close; return { n:h.sym.replace('USDT',''), p:(last/h.avg-1)*100 }; }).filter(Boolean)
       .sort((a,b)=>b.p-a.p);
+    if(!movers.length){ $('kCash').textContent='—'; $('kCashS').textContent='no open positions'; }
     if(movers.length){
       const b=movers[0], w=movers[movers.length-1];
       $('kCash').innerHTML = `<span class="${b.p>=0?'up':'down'}">${b.n} ${pfPc(b.p)}</span>`;
@@ -1719,29 +1847,367 @@ function renderPf(){
     See ALGORITHM.md.`;
 }
 
-// ---------- holdings editor ----------
+// ---------- Holdings & orders panel ----------
+const toLocalInput = (ms)=>{ const d=new Date(ms), z=(n)=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+const fmtWhen = (ms)=>{ const d=new Date(ms), z=(n)=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+const coin = (s)=> s.replace(/USDT$/,'');
+
 function renderHoldEditor(){
-  $('holdBody').innerHTML = holdings.map((h,i)=>{
-    const r = rowFor(h.sym), last = r ? r.c[r.c.length-1].close : null;
-    return `<tr><td><b>${h.sym.replace('USDT','')}</b></td><td>${h.qty}</td><td>${pfFmt(h.avg)}</td>
-      <td>${pfMoney(h.qty*h.avg)}</td><td><button class="hDel ghost" data-i="${i}" title="Remove ${h.sym.replace('USDT','')}" aria-label="Remove ${h.sym.replace('USDT','')}">✕</button></td></tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--muted)">No holdings yet.</td></tr>';
-  $('holdBody').querySelectorAll('.hDel').forEach(b=>b.addEventListener('click',()=>{
-    holdings.splice(+b.dataset.i,1); saveHoldings(holdings); pfRun(false);
+  const rows = Object.values(ledger).sort((a,b)=> (b.qty>0)-(a.qty>0) || a.sym.localeCompare(b.sym));
+  const openNow = new Set([...document.querySelectorAll('#holdList details[open]')].map(d=>d.dataset.sym));
+  $('holdList').innerHTML = rows.map(p=>{
+    const closed = p.qty===0;
+    const warns = [];
+    if(p.short>0) warns.push(`Sold ${pfFmt(p.short)} more ${coin(p.sym)} than your recorded buys — some earlier buys are missing. Add them, or this coin's profit is incomplete.`);
+    if(p.superseded>0) warns.push(`${p.superseded} order${p.superseded>1?'s':''} dated before your opening balance ${p.superseded>1?'are':'is'} already counted in it, so ${p.superseded>1?'they are':'it is'} struck through. Delete the opening balance to calculate purely from orders.`);
+    const list = p.orders.slice().sort((a,b)=>b.time-a.time).map(o=>{
+      const sideTxt = o.side==='open' ? '<span class="sideO">Opening</span>' : o.side==='buy' ? '<span class="sideB">Buy</span>' : '<span class="sideS">Sell</span>';
+      const w = fmtWhen(o.time);
+      return `<tr class="${o.superseded?'sup':''}"><td>${w.slice(0,10)}<br><span style="color:var(--muted)">${w.slice(11)}</span></td><td>${sideTxt}</td><td>${pfFmt(o.qty)}</td>
+        <td>@ ${pfFmt(o.price)}</td><td class="tot">${pfMoney(o.qty*o.price)}</td>
+        <td><button class="oDel ghost" data-id="${o.id}" aria-label="Delete this order">✕</button></td></tr>`;
+    }).join('');
+    const rz = p.realized;
+    return `<details class="coinRow${closed?' closed':''}" data-sym="${p.sym}"${openNow.has(p.sym)?' open':''}>
+      <summary><span class="c">${coin(p.sym)}</span>
+        <span class="q">${closed ? 'sold out' : pfFmt(p.qty)}</span>
+        ${closed ? '' : `<span class="m">avg ${pfFmt(p.avg)}</span>`}
+        ${Math.abs(rz)>1e-9 ? `<span class="${rz>=0?'up':'down'}">realised ${pfMoney(rz)}</span>` : ''}
+        <span class="m">${p.orders.length} order${p.orders.length>1?'s':''}</span><span class="chev">▸</span></summary>
+      ${warns.map(w=>`<div class="warnChip">${w}</div>`).join('')}
+      <table class="ordTbl"><tbody>${list}</tbody></table></details>`;
+  }).join('') || '<div class="holdHint">No orders yet — add one below or import screenshots.</div>';
+  $('holdList').querySelectorAll('.oDel').forEach(b=>b.addEventListener('click',(ev)=>{
+    ev.preventDefault();
+    const o = orders.find(x=>x.id===b.dataset.id); if(!o) return;
+    const what = o.side==='open' ? `the opening balance of ${pfFmt(o.qty)} ${coin(o.sym)}`
+      : `this ${o.side} of ${pfFmt(o.qty)} ${coin(o.sym)} @ ${pfFmt(o.price)}`;
+    if(!confirm(`Delete ${what}? Your holdings will be recalculated.`)) return;
+    orders = orders.filter(x=>x.id!==o.id); saveOrders(); pfRun(false);
   }));
 }
-function addHolding(){
-  const sym = normSym($('hSym').value), qty = +$('hQty').value, avg = +$('hAvg').value;
-  if(!sym || !(qty>0) || !(avg>0)){ $('hSym').focus(); return; }
-  const at = holdings.findIndex(h=>h.sym===sym);
-  if(at>=0){                                                  // same coin twice = average the two lots
-    const h=holdings[at], q=h.qty+qty;
-    holdings[at] = { sym, qty:q, avg:(h.qty*h.avg + qty*avg)/q };
-  } else holdings.push({ sym, qty, avg });
-  saveHoldings(holdings);
-  $('hSym').value=''; $('hQty').value=''; $('hAvg').value='';
+
+function addOrder(){
+  const msg = $('oMsg'); msg.className = 'ordMsg';
+  const sym = normSym($('oSym').value), side = $('oSide').value;
+  const qty = +$('oQty').value, price = +$('oPx').value;
+  const time = $('oTime').value ? new Date($('oTime').value).getTime() : Date.now();
+  if(!sym){ msg.className='ordMsg err'; msg.textContent='Enter a coin, e.g. INJ.'; $('oSym').focus(); return; }
+  if(!(qty>0)){ msg.className='ordMsg err'; msg.textContent='Quantity must be more than 0.'; $('oQty').focus(); return; }
+  if(!(price>0)){ msg.className='ordMsg err'; msg.textContent='Price must be more than 0.'; $('oPx').focus(); return; }
+  if(!isFinite(time)){ msg.className='ordMsg err'; msg.textContent='That date is not valid.'; return; }
+  orders.push({ id:oid(), sym, side, qty, price, time, src:'manual' });
+  saveOrders();
+  const p = ledger[sym];
+  msg.className = 'ordMsg ok';
+  msg.textContent = p.short>0
+    ? `Added — but you sell more ${coin(sym)} than your recorded buys, so it is flagged until the earlier buys are added.`
+    : `Added. ${coin(sym)}: ${p.qty>0 ? `${pfFmt(p.qty)} held at avg ${pfFmt(p.avg)}` : 'fully sold'}`
+      + `${Math.abs(p.realized)>1e-9 ? `, realised ${pfMoney(p.realized)}` : ''}.`;
+  $('oQty').value=''; $('oPx').value=''; $('oTime').value = toLocalInput(Date.now());
   pfRun(false);
 }
+
+// ---------- screenshot import: OCR ON THE DEVICE, then a mandatory review ----------
+// The screenshots never leave the phone: Tesseract runs in the browser. Only the OCR engine and its
+// English model are downloaded (~6 MB, once, then cached). Versions are PINNED so a CDN release can
+// never silently change what the reader extracts.
+const OCR = {
+  script: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+  corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
+  langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int',
+};
+let ocrLoading = null;
+function loadOcr(){
+  if(window.Tesseract) return Promise.resolve();
+  return ocrLoading || (ocrLoading = new Promise((ok,bad)=>{
+    const s=document.createElement('script'); s.src=OCR.script;
+    s.onload=ok; s.onerror=()=>{ ocrLoading=null; bad(new Error('could not download the text reader — check your connection')); };
+    document.head.appendChild(s);
+  }));
+}
+// Binance's app is dark: light text on near-black. OCR reads dark-on-light far better, so convert to
+// grey, flip dark images, and stretch contrast so thin grey labels survive.
+async function prepImage(file){
+  const bmp = await createImageBitmap(file);
+  const k = bmp.width < 900 ? 2 : 1;                 // small screenshots: upscale so digits stay legible
+  const cv = document.createElement('canvas'); cv.width = bmp.width*k; cv.height = bmp.height*k;
+  const ctx = cv.getContext('2d'); ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+  let sum = 0; const g = new Uint8ClampedArray(d.length/4);
+  for(let i=0,j=0;i<d.length;i+=4,j++){ g[j] = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; sum += g[j]; }
+  const dark = sum/g.length < 128;
+  const hist = new Array(256).fill(0); for(const v of g) hist[dark?255-v:v]++;
+  let lo=0, hi=255, acc=0; const n=g.length;
+  for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>n*0.01){ lo=v; break; } }
+  acc=0; for(let v=255;v>=0;v--){ acc+=hist[v]; if(acc>n*0.01){ hi=v; break; } }
+  const span = Math.max(1, hi-lo);
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    const v = Math.max(0, Math.min(255, ((dark?255-g[j]:g[j]) - lo) * 255 / span));
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(im, 0, 0);
+  return cv;
+}
+
+// --- parsing: deliberately tolerant, because layouts change between app versions. Anything it is
+//     unsure of is FLAGGED and left unticked; nothing reaches the ledger without the user's review.
+const USD_QUOTES = new Set(['USDT','USDC','FDUSD','BUSD','TUSD']);
+const ANY_QUOTES = ['USDT','USDC','FDUSD','BUSD','TUSD','BTC','ETH','BNB','EUR','TRY','BRL'];
+const KNOWN = new Set(('BTC ETH BNB SOL XRP ADA DOGE TRX TON AVAX SHIB DOT LINK BCH LTC NEAR POL MATIC UNI ICP APT '
+  + 'ETC XLM FIL HBAR ARB OP INJ SUI SEI TIA ATOM IMX RENDER RNDR STX GRT AAVE MKR RUNE FTM ALGO EGLD THETA SAND '
+  + 'MANA AXS FLOW XTZ CHZ APE CRV LDO PEPE WIF BONK FLOKI JUP PYTH ENA WLD ORDI ZEC XMR DASH NEO KAVA ONE ZIL '
+  + 'CFX GALA JASMY ROSE ENS COMP SNX 1INCH DYDX GMX BLUR PENDLE ETHFI TAO FET OCEAN AR TRB API3 BAND KSM CAKE '
+  + 'LUNA LUNC NOT DOGS TRUMP S W JTO STRK ZRO IOST').split(/\s+/));
+const NOT_COINS = new Set(['TOTAL','PRICE','AMOUNT','FILLED','FEE','FEES','AVG','AVERAGE','VALUE','ORDER','ORDERS',
+  'EXECUTED','TRADING','TRADE','BALANCE','EST','ESTIMATED','AVAILABLE','EQUITY','PNL','REALIZED','SPOT','FUNDING',
+  'MARGIN','PAIR','LIMIT','MARKET','BUY','SELL']);
+const RX = {
+  avg: /\bavg\.?\s*(?:filled\s*)?price\b|\baverage\s*(?:filled\s*)?price\b/i,
+  price: /\bprice\b/i,
+  filled: /\b(filled|executed)\b/i,
+  amount: /\bamount\b/i,
+  total: /\b(trading\s+)?total\b/i,
+};
+const STATUS_ONLY = /^(partially\s+)?(filled|canceled|cancelled|expired|rejected)$/i;
+const SIDE_ONLY = /^(?:(?:limit|market|stop[- ]?limit|stop[- ]?market|oco|take[- ]?profit)\s*[\/|]?\s*)?(buy|sell)\b[^0-9]*$/i;
+const DATE_RX = /(20\d{2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})[ T,]*(\d{1,2})\s*[:.;]\s*(\d{2})(?:\s*[:.;]\s*(\d{2}))?/;
+
+function findPair(line){
+  const L = line.toUpperCase();
+  // The pair LEADS its line in every Binance history layout. Anchoring there is what stops
+  // "Total 19.50 USDT" being read as a coin called "50". Spaces are NOT stripped: doing that glued
+  // "INJ/USDT Filled" into "INJ/USDTFILLED" and no pair matched at all.
+  const q = '(USDT|USDC|FDUSD|BUSD|TUSD|BTC|ETH|BNB|EUR|TRY|BRL)';
+  let m = L.match(new RegExp('^[^A-Z0-9]{0,3}([A-Z0-9]{2,12})\\s*[\\/|\\\\]\\s*' + q + '\\b'))
+       || L.match(/^[^A-Z0-9]{0,3}([A-Z0-9]{2,12}?)(USDT|USDC|FDUSD)\b/);
+  if(!m) return null;
+  let base = m[1];
+  if(!/[A-Z]/.test(base) || NOT_COINS.has(base)) return null;
+  // OCR inserts a stray I, J, L or 1 where the slash is: "ARBI/USDT", "ARBJ/USDT", "INJIUSDT".
+  if(!KNOWN.has(base) && /[IJL1]$/.test(base) && KNOWN.has(base.slice(0,-1))) base = base.slice(0,-1);
+  return { base, quote:m[2] };
+}
+function firstNum(s){
+  if(!s) return null;
+  s = s.replace(DATE_RX,' ').replace(/\d{1,2}:\d{2}(:\d{2})?/g,' ')
+       .replace(/(\d)[Oo]/g,(_,a)=>a+'0').replace(/[Oo](\d)/g,(_,a)=>'0'+a);
+  const m = s.match(/\d[\d,]*(?:\.\d+)?/);
+  if(!m) return null;
+  let t = m[0];
+  if(t.includes(',') && !t.includes('.')) t = /,\d{3}(\D|$)/.test(t+' ') ? t.replace(/,/g,'') : t.replace(',','.');
+  else t = t.replace(/,/g,'');
+  const v = parseFloat(t);
+  return isFinite(v) ? v : null;
+}
+function labeled(lines, rx){
+  for(let i=0;i<lines.length;i++){
+    const L = lines[i];
+    if(STATUS_ONLY.test(L)) continue;                // a status word on its own is not a label
+    const m = L.match(rx); if(!m) continue;
+    const rest = L.slice(m.index + m[0].length);
+    const v = firstNum(rest);
+    if(v!=null) return v;
+    // only look at the next line when the label stands alone — "Price  Market" must not steal
+    // the number belonging to the following field
+    if(!rest.replace(/[^A-Za-z0-9]/g,'') && i+1<lines.length){ const w = firstNum(lines[i+1]); if(w!=null) return w; }
+  }
+  return null;
+}
+const sideOf = (s)=>{ const m = (s||'').match(/\b(buy|sell)\b/i); return m ? m[1].toLowerCase() : null; };
+function timeOf(s){
+  const m = (s||'').match(DATE_RX); if(!m) return null;
+  const [y,mo,d,h,mi,se] = m.slice(1).map(x=>x==null?0:+x);
+  if(mo<1||mo>12||d<1||d>31||h>23||mi>59) return null;
+  const t = new Date(y, mo-1, d, h, mi, se||0).getTime();
+  return isFinite(t) ? t : null;
+}
+
+function parseOrdersText(text){
+  const lines = text.split(/\r?\n/).map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const anchors = [];
+  lines.forEach((l,i)=>{ const p = findPair(l); if(p) anchors.push({ i, ...p }); });
+  const out = [];
+  anchors.forEach((a,k)=>{
+    const end = k+1<anchors.length ? anchors[k+1].i : lines.length;
+    let body = lines.slice(a.i, end);
+    // a bare "Limit/Buy" line right before the next pair belongs to THAT order, not this one
+    if(k+1<anchors.length && body.length>1 && SIDE_ONLY.test(body[body.length-1])) body = body.slice(0,-1);
+    const above = a.i>0 ? lines[a.i-1] : '';
+    const blob = body.join('\n');
+    const filled = labeled(body, RX.filled);
+    if(/cancel/i.test(blob) && !(filled>0)){ out.push({ skip:'canceled' }); return; }
+    const side = sideOf(lines[a.i]) || (SIDE_ONLY.test(above) ? sideOf(above) : null) || sideOf(body.slice(1).join(' '));
+    const time = timeOf(blob) ?? timeOf(above);
+    let price = labeled(body, RX.avg) ?? labeled(body, RX.price);
+    let qty = filled ?? labeled(body, RX.amount);
+    const total = labeled(body, RX.total);
+    if(price==null && total!=null && qty) price = total/qty;
+    if(qty==null && total!=null && price) qty = total/price;
+    const warn = [];
+    // Total is a free cross-check: quantity × price must equal it. OCR misreads ("5 INJ" -> "51INJ")
+    // show up as a mismatch. Correct whichever field the misread is hiding in — the implied value is
+    // a digit-subset of what was read — and FLAG it, so the user confirms the fix.
+    if(qty>0 && price>0 && total>0 && Math.abs(qty*price/total - 1) > 0.02){
+      const dig = (x)=> String(+(+x).toPrecision(10)).replace('.','');
+      const iq = +(total/price).toPrecision(10), ip = +(total/qty).toPrecision(10);
+      if(dig(qty).includes(dig(iq)) || dig(iq).includes(dig(qty))){
+        warn.push(`quantity read as ${qty} but total ÷ price = ${iq} — corrected, please confirm`); qty = iq;
+      } else if(dig(price).includes(dig(ip)) || dig(ip).includes(dig(price))){
+        warn.push(`price read as ${price} but total ÷ quantity = ${ip} — corrected, please confirm`); price = ip;
+      } else warn.push(`quantity × price does not match the total (${total}) — check both`);
+    }
+    if(!side) warn.push('buy or sell not found');
+    if(time==null) warn.push('date not found');
+    if(!(qty>0)) warn.push('quantity not found');
+    if(!(price>0)) warn.push('price not found');
+    if(!USD_QUOTES.has(a.quote)) warn.push(`priced in ${a.quote}, not dollars — enter the USDT price`);
+    if(!KNOWN.has(a.base)) warn.push(`check the coin name (read as ${a.base})`);
+    out.push({ sym:a.base+'USDT', side, qty, price, time, quote:a.quote, warn, raw:blob });
+  });
+  return out;
+}
+
+const ordKey = (o)=> `${o.sym}|${o.side}|${(+o.qty).toPrecision(7)}|${(+o.price).toPrecision(7)}|${Math.round(o.time/60000)}`;
+const nearDup = (a,b)=> a.sym===b.sym && a.side===b.side && Math.abs(a.qty/b.qty-1)<0.005
+  && Math.abs(a.price/b.price-1)<0.005 && Math.abs(a.time-b.time) < 36*3600e3;
+let review = [];
+
+async function importShots(files){
+  const st = $('oImpStatus'); st.className='ordMsg';
+  if(!files.length) return;
+  try{
+    st.textContent = window.Tesseract ? 'Starting the text reader…' : 'Downloading the text reader (one time, about 6 MB)…';
+    await loadOcr();
+    const worker = await Tesseract.createWorker('eng', 1,
+      { workerPath:OCR.workerPath, corePath:OCR.corePath, langPath:OCR.langPath });
+    const found = []; let canceled = 0;
+    for(let i=0;i<files.length;i++){
+      st.textContent = `Reading screenshot ${i+1} of ${files.length}…`;
+      const cv = await prepImage(files[i]);
+      const { data } = await worker.recognize(cv);
+      for(const o of parseOrdersText(data.text)){
+        if(o.skip){ canceled++; continue; }
+        o.shot = i+1; found.push(o);
+      }
+    }
+    await worker.terminate();
+    // Overlapping screenshots repeat orders; earlier imports or hand entries may already hold them.
+    const seen = new Set();
+    for(const o of found){
+      o.include = !o.warn.length;
+      if(o.side && o.qty>0 && o.price>0 && o.time!=null){
+        const k = ordKey(o);
+        if(seen.has(k)){ o.dup = 'repeated in another screenshot'; o.include = false; }
+        else if(orders.some(x=>x.side!=='open' && ordKey(x)===k)){ o.dup = 'already in your orders'; o.include = false; }
+        else if(orders.some(x=>x.side!=='open' && nearDup(o,x))){ o.dup = 'looks like an order you already entered by hand'; o.include = false; }
+        seen.add(k);
+      }
+    }
+    review = found.sort((a,b)=>(a.time??Infinity)-(b.time??Infinity));   // oldest first, as replayed
+    if(!review.length){
+      st.className='ordMsg err';
+      st.textContent = `No orders recognised${canceled?` (${canceled} cancelled orders skipped)`:''}. Make sure the screenshot shows Binance order or trade history with the coin pair (e.g. INJ/USDT) visible.`;
+      $('oReview').innerHTML=''; return;
+    }
+    st.textContent = `Read ${files.length} screenshot${files.length>1?'s':''}${canceled?` · skipped ${canceled} cancelled order${canceled>1?'s':''}`:''}. Check each order below — nothing is added until you confirm.`;
+    renderReview();
+  }catch(e){
+    st.className='ordMsg err'; st.textContent = 'Could not read the screenshots: ' + e.message;
+  }
+}
+
+function renderReview(){
+  if(!review.length){ $('oReview').innerHTML=''; return; }
+  const items = review.map((o,i)=>{
+    const issues = o.warn.concat(o.dup ? [o.dup] : []);
+    return `<div class="rvCard${o.include?'':' off'}${o.warn.length?' bad':''}" data-i="${i}">
+      <div class="rvTop"><input type="checkbox" class="rvInc"${o.include?' checked':''} aria-label="Include this order" />
+        <b>${coin(o.sym)}</b> <span class="${o.side==='sell'?'sideS':o.side==='buy'?'sideB':''}">${o.side||'?'}</span>
+        <span class="shot">screenshot ${o.shot}</span></div>
+      <div class="rvGrid">
+        <label>Coin<input class="rvSym" value="${coin(o.sym)}" /></label>
+        <label>Side<select class="rvSide"><option value="buy"${o.side==='buy'?' selected':''}>Buy</option>
+          <option value="sell"${o.side==='sell'?' selected':''}>Sell</option></select></label>
+        <label>Quantity<input class="rvQty" type="number" step="any" value="${o.qty>0?o.qty:''}" /></label>
+        <label>Price (USDT)<input class="rvPx" type="number" step="any" value="${o.price>0?+o.price.toPrecision(10):''}" /></label>
+        <label class="wide">Date &amp; time<input class="rvTime" type="datetime-local" step="1" value="${o.time!=null?toLocalInput(o.time):''}" /></label>
+      </div>
+      ${issues.length ? `<div class="rvWarn">⚠ ${issues.join(' · ')}</div>` : ''}
+      <details class="rvRaw"><summary>What the reader saw</summary><pre>${o.raw.replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;')}</pre></details>
+    </div>`;
+  }).join('');
+  const inc = review.filter(o=>o.include);
+  const dated = review.filter(o=>o.time!=null).map(o=>o.time);
+  const span = dated.length ? ` from <b>${fmtWhen(Math.min(...dated)).slice(0,10)}</b> to <b>${fmtWhen(Math.max(...dated)).slice(0,10)}</b>` : '';
+  // coins that still carry a typed-in opening balance: these imported orders should REPLACE it
+  const opens = [...new Set(inc.map(o=>o.sym))].filter(sym=>orders.some(x=>x.sym===sym && x.side==='open'));
+  $('oReview').innerHTML = items + `<div class="rvSum">Found <b>${review.length}</b> order${review.length>1?'s':''}${span}.
+      <b>${inc.length}</b> ticked to add.</div>`
+    + opens.map(sym=>`<label class="rvSum" style="display:flex;flex-direction:row;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--txt)">
+        <input type="checkbox" class="rvRepl" data-sym="${sym}" checked style="width:18px;height:18px;margin-top:2px" />
+        <span>Replace your typed-in opening balance for <b>${coin(sym)}</b> with these orders
+        <span style="color:var(--muted)">(recommended — keeping both would count ${coin(sym)} twice)</span></span></label>`).join('')
+    + `<div class="alActions"><button id="rvApply">Add ${inc.length} order${inc.length===1?'':'s'}</button>
+       <button id="rvCancel" class="ghost">Discard</button></div>`;
+  $('oReview').querySelectorAll('.rvCard').forEach(card=>{
+    const o = review[+card.dataset.i];
+    card.querySelector('.rvInc').addEventListener('change', e=>{ o.include = e.target.checked; renderReview(); });
+    const sync = ()=>{
+      o.sym = normSym(card.querySelector('.rvSym').value) || o.sym;
+      o.side = card.querySelector('.rvSide').value;
+      o.qty = +card.querySelector('.rvQty').value; o.price = +card.querySelector('.rvPx').value;
+      const tv = card.querySelector('.rvTime').value; o.time = tv ? new Date(tv).getTime() : null;
+    };
+    card.querySelectorAll('input:not(.rvInc),select').forEach(el=>el.addEventListener('change', sync));
+  });
+  $('rvCancel').addEventListener('click', ()=>{ review=[]; renderReview(); $('oImpStatus').textContent=''; });
+  $('rvApply').addEventListener('click', applyReview);
+}
+
+function applyReview(){
+  const st = $('oImpStatus');
+  const take = review.filter(o=>o.include);
+  const bad = take.filter(o=>!(o.side && o.qty>0 && o.price>0 && o.time!=null && isFinite(o.time)));
+  if(bad.length){
+    st.className='ordMsg err';
+    st.textContent = `${bad.length} ticked order${bad.length>1?'s are':' is'} missing a side, quantity, price or date — fix ${bad.length>1?'them':'it'} or untick ${bad.length>1?'them':'it'}.`;
+    return;
+  }
+  const replace = [...document.querySelectorAll('#oReview .rvRepl')].filter(c=>c.checked).map(c=>c.dataset.sym);
+  orders = orders.filter(x=>!(x.side==='open' && replace.includes(x.sym)));
+  for(const o of take) orders.push({ id:oid(), sym:o.sym, side:o.side, qty:+o.qty, price:+o.price, time:o.time, src:'screenshot' });
+  saveOrders();
+  const n = take.length;
+  review = []; renderReview();
+  st.className='ordMsg ok';
+  st.textContent = `Added ${n} order${n===1?'':'s'}${replace.length?` and replaced the opening balance for ${replace.map(coin).join(', ')}`:''}. Holdings recalculated, oldest order first.`;
+  pfRun(false);
+}
+
+// backup / restore — the ledger now IS the portfolio history, and it lives in one browser
+function exportOrders(){
+  const blob = new Blob([JSON.stringify({ app:'ScreenerPro', version:1, exported:new Date().toISOString(), orders }, null, 2)],
+    { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `screenerpro-orders-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+async function restoreOrders(file){
+  const st = $('oImpStatus');
+  try{
+    const j = JSON.parse(await file.text());
+    const list = (Array.isArray(j) ? j : j.orders || []).filter(validOrder);
+    if(!list.length) throw new Error('no orders found in that file');
+    if(!confirm(`Replace your ${orders.length} current order${orders.length===1?'':'s'} with the ${list.length} in this backup?`)) return;
+    orders = list.map(o=>({ ...o, id:o.id||oid() })); saveOrders(); pfRun(false);
+    st.className='ordMsg ok'; st.textContent = `Restored ${list.length} orders.`;
+  }catch(e){ st.className='ordMsg err'; st.textContent = 'Restore failed: ' + e.message; }
+}
+
 // the backtest, demoted: it is the system's record, NOT the user's money
 function renderBacktest(){
   const rows = PF_CORE.map(s=>rowFor(s)).filter(Boolean);
@@ -1757,10 +2223,14 @@ function renderBacktest(){
     + `</tbody></table>`;
 }
 
-$('hAdd').addEventListener('click', addHolding);
-['hSym','hQty','hAvg'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter') addHolding(); }));
-$('pfAddFirst').addEventListener('click', ()=>{ $('pfEditor').open = true; $('hSym').focus();
-  $('pfEditor').scrollIntoView({behavior:'smooth', block:'center'}); });
+$('oAdd').addEventListener('click', addOrder);
+['oSym','oQty','oPx'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter') addOrder(); }));
+$('oTime').value = toLocalInput(Date.now());
+$('oFiles').addEventListener('change', e=>{ importShots([...e.target.files]); e.target.value=''; });
+$('oExport').addEventListener('click', exportOrders);
+$('oRestore').addEventListener('change', e=>{ if(e.target.files[0]) restoreOrders(e.target.files[0]); e.target.value=''; });
+$('pfAddFirst').addEventListener('click', ()=>{ $('pfEditor').open = true;
+  $('pfEditor').scrollIntoView({behavior:'smooth', block:'start'}); setTimeout(()=>$('oSym').focus(), 350); });
 $('pfTf').addEventListener('change', ()=>{ lsSet('pfTf', $('pfTf').value); pfRun(false); });
 $('pfGo').addEventListener('click', ()=>pfRun(true));
 $('pfTf').value = lsGet('pfTf','4h');
