@@ -98,7 +98,7 @@
       "strategy": "liqbrk"
     },
     {
-      "symbol": "RLCUSDT",
+      "symbol": "IRLCUSDT",
       "tf": "2h",
       "bars": 6500,
       "strategy": "liqbrk"
@@ -130,120 +130,6 @@
     {
       "symbol": "SEIUSDT",
       "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ARBUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "IOSTUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "STRKUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "LUMIAUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ALTUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "WUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZROUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZKUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "AXLUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "CTSIUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "INJUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "TIAUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "RLCUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SANDUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZECUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "PHAUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "APTUSDT",
-      "tf": "4h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SEIUSDT",
-      "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
     }
