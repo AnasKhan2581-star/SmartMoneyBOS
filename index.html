@@ -2322,7 +2322,7 @@ $('pfTf').value = lsGet('pfTf','4h');
 // the repo disagree the banner says so, because silently diverging would mean the user edits a
 // list the bot has never seen and wonders why nothing changed.
 const AL_FILE = 'signals/watchlist.json';
-let alLive = null, alDraft = null, alLoaded = false;
+let alLive = null, alDraft = null, alLoaded = false, alStale = 0, alLiveNote = '';
 
 // owner/repo from the Pages URL (<owner>.github.io/<repo>/), overridable for local dev
 function alRepo(){
@@ -2343,26 +2343,50 @@ const alFileText = ()=> JSON.stringify({
   watch: alDraft || []
 }, null, 2) + '\n';
 
+// Read the list the bot will actually use. The Contents API first: it reflects a commit the moment it
+// lands. raw.githubusercontent.com is only the fallback (e.g. the API's 60/hour anonymous limit) because
+// its CDN serves a file up to ~5 minutes stale and ignores cache-busting query strings — which made a
+// list you had just committed still show the old rows struck through, as if the commit had not worked.
 async function alFetchLive(){
   const [owner, repo] = alRepo().split('/');
-  const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${AL_FILE}?t=${Date.now()}`;
-  const r = await fetch(url);
-  if(!r.ok) throw new Error(`could not read ${AL_FILE} (HTTP ${r.status})`);
-  const j = await r.json();
+  const token = lsGet('smb.ghToken','');
+  let txt = null;
+  try{
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${AL_FILE}?ref=main`, { cache:'no-store',
+      headers: Object.assign({ Accept:'application/vnd.github.raw+json' }, token ? { Authorization:`Bearer ${token}` } : {}) });
+    if(r.ok){ txt = await r.text(); alLiveNote = ''; }
+  }catch(e){ /* fall through to raw */ }
+  if(txt == null){
+    const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/main/${AL_FILE}?t=${Date.now()}`, { cache:'no-store' });
+    if(!r.ok) throw new Error(`could not read ${AL_FILE} (HTTP ${r.status})`);
+    txt = await r.text();
+    alLiveNote = ' · may be up to 5 min old (GitHub cache)';
+  }
+  const j = JSON.parse(txt);
   if(!j || !Array.isArray(j.watch)) throw new Error('watchlist.json has no "watch" array');
   return j.watch;
 }
 
+// A draft remembers the live list it was started from (smb.alBase). If the repo has moved on since —
+// a commit from GitHub's editor, another device, or a change pushed for you — that draft is STALE:
+// applying it would silently undo those changes (Oct 2026: an old draft reverted 19 new 4h alerts).
+// Unedited stale drafts are dropped; edited ones raise a banner and Apply waits for a choice.
 async function alInit(){
-  if(alLoaded) return;
-  $('alStrat').innerHTML = CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
-  $('alToken').value = lsGet('smb.ghToken','') ? '••••••••••••' : '';
+  if(!alLoaded){
+    $('alStrat').innerHTML = CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
+    $('alToken').value = lsGet('smb.ghToken','') ? '••••••••••••' : '';
+  }
   try{
-    alLive = await alFetchLive();
-    alLoaded = true;                       // only latch on SUCCESS, so a flaky network retries
-    const saved = lsGet('smb.alDraft','');
+    alLive = await alFetchLive();          // re-read on EVERY visit, so a commit made elsewhere shows up
+    alLoaded = true;
+    const saved = lsGet('smb.alDraft',''), base = lsGet('smb.alBase','');
     alDraft = saved ? JSON.parse(saved) : alLive.slice();
-    $('alStatus').textContent = `${alLive.length} watched · read from the repo`;
+    alStale = 0;
+    if(saved && alNorm(alDraft) !== alNorm(alLive) && base !== alNorm(alLive)){
+      if(base && alNorm(alDraft) === base){ alDraft = alLive.slice(); lsSet('smb.alDraft',''); lsSet('smb.alBase',''); }
+      else alStale = alDiffCount(alDraft, alLive);
+    }
+    $('alStatus').textContent = `${alLive.length} watched · read from the repo${alLiveNote}`;
   }catch(e){
     alLive = null;
     alDraft = JSON.parse(lsGet('smb.alDraft','[]'));
@@ -2374,6 +2398,9 @@ async function alInit(){
   alRender();
 }
 
+const alKey = (x)=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`;
+const alDiffCount = (a, b)=>{ const A=new Set(a.map(alKey)), B=new Set(b.map(alKey));
+  return a.filter(x=>!B.has(alKey(x))).length + b.filter(x=>!A.has(alKey(x))).length; };
 function alRender(){
   const liveKeys = new Set((alLive||[]).map(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
   const draftKeys = new Set(alDraft.map(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
@@ -2396,8 +2423,19 @@ function alRender(){
 
   const dirty = alLive && alNorm(alDraft) !== alNorm(alLive);
   const el = $('alSync');
+  if(alLive && !dirty){ alStale = 0; lsSet('smb.alDraft',''); lsSet('smb.alBase',''); }   // nothing pending: keep no draft
   if(!alLive){ /* error text already set */ }
   else if(!dirty){ el.className='alSync ok'; el.textContent = '✔ In sync — the bot is watching exactly this.'; }
+  else if(alStale){
+    el.className='alSync err';
+    el.innerHTML = `<div><b>This draft is older than the bot's list.</b> The list on GitHub changed after you
+      started editing here (${alStale} row${alStale>1?'s':''} differ). Applying this draft would undo that change.
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="alUseLive">Use the bot's current list</button>
+        <button id="alKeepDraft" class="ghost">Keep my draft anyway</button></div></div>`;
+    $('alUseLive').onclick = ()=>{ alDraft = alLive.slice(); alStale = 0; lsSet('smb.alDraft',''); lsSet('smb.alBase',''); alRender(); };
+    $('alKeepDraft').onclick = ()=>{ alStale = 0; lsSet('smb.alBase', alNorm(alLive)); alRender(); };
+  }
   else {
     const added = alDraft.filter(x=>!liveKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`)).length;
     // A row can also change WITHOUT being added or removed — editing its bar count. Counting
@@ -2414,8 +2452,8 @@ function alRender(){
     el.innerHTML = `<b>Not applied yet.</b> ${bits.join(', ') || 'order changed'} — `
       + `press <b>Apply to the bot</b> or nothing changes.`;
   }
-  $('alApply').disabled = !dirty;
-  $('alApply').style.opacity = dirty ? '1' : '.5';
+  $('alApply').disabled = !dirty || !!alStale;            // a stale draft must be chosen, never applied blind
+  $('alApply').style.opacity = (dirty && !alStale) ? '1' : '.5';
   $('alJson').value = alFileText();
   const [owner, repo] = alRepo().split('/');
   $('alEdit').href = `https://github.com/${owner}/${repo}/edit/main/${AL_FILE}`;
@@ -2426,7 +2464,11 @@ function alRender(){
     strategies fire far too rarely on short timeframes to be useful as alerts — Cycle needs a 200-week MA — and
     any coin outside that four has never been backtested here.`;
 }
-function alSaveDraft(){ lsSet('smb.alDraft', JSON.stringify(alDraft)); alRender(); }
+function alSaveDraft(){
+  // the base is the live list this draft departs from — recorded once, at the first edit
+  if(alLive && !lsGet('smb.alBase','')) lsSet('smb.alBase', alNorm(alLive));
+  lsSet('smb.alDraft', JSON.stringify(alDraft)); alRender();
+}
 
 $('alAdd').addEventListener('click', ()=>{
   const sym = normSym($('alSym').value);
@@ -2443,7 +2485,7 @@ $('alAdd').addEventListener('click', ()=>{
 });
 $('alRevert').addEventListener('click', ()=>{
   if(!alLive) return;
-  alDraft = alLive.slice(); lsSet('smb.alDraft',''); alSaveDraft();
+  alDraft = alLive.slice(); alStale = 0; lsSet('smb.alDraft',''); lsSet('smb.alBase',''); alRender();
 });
 $('alCopy').addEventListener('click', async ()=>{
   try{ await navigator.clipboard.writeText(alFileText()); $('alCopy').textContent='Copied ✓';
@@ -2490,7 +2532,7 @@ $('alApply').addEventListener('click', async ()=>{
     const put = await fetch(api, { method:'PUT', headers:{...H,'Content-Type':'application/json'},
       body: JSON.stringify({ message:'alerts: update watchlist from the app', content:b64(alFileText()), sha, branch:'main' }) });
     if(!put.ok) throw new Error(`commit failed (${put.status}) ${(await put.text()).slice(0,120)}`);
-    lsSet('smb.alDraft','');
+    lsSet('smb.alDraft',''); lsSet('smb.alBase','');
     alLive = alDraft.slice();
     $('alStatus').textContent = 'applied · live at the next run';
     alRender();
