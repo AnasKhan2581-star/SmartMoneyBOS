@@ -9,6 +9,10 @@ There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the al
 **What you can receive** (liqbrk, since Oct 2026):
 - **BUY** — a new position. Includes the stop, the **take-half price (+3R)** and whether BTC's 50-day
   MA let it through (or the coin was a +50%/30-day leader).
+- **2h vs 4h on the same coin** — when a coin is watched on both, 2h BUYs are titled **(heads-up)** and
+  4h BUYs **(trade)**. Only 42% of 2h buys become a 4h buy within 24h, and 37% of 4h buys come with no 2h
+  warning, so 2h is a watch-this-coin note and 4h is the one to act on. A 4h BUY says whether a 2h buy
+  preceded it — that combination was the strongest (2h buys a 4h buy followed averaged +4.9% vs +1.7%).
 - **TAKE HALF** — price reached entry + 3R: sell half there; the other half stays on.
 - **SELL** — the position (or its remaining half) closed; the result counts both halves.
 - **Rules updated** — sent once per coin, only when a rules change flips that coin between long and

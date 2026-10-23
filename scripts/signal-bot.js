@@ -125,13 +125,27 @@ function gateLine(lb) {
   return g.btcOk ? `Market gate: BTC above its ${g.maDays}-day MA`
     : `Market gate: BTC below its ${g.maDays}-day MA — allowed as a 30-day leader (+${Math.round(g.leadPump * 100)}%)`;
 }
-function buyMessage(w, c, trade, advice, btcReg) {
+// 2h vs 4h on the same coin (measured Oct 2026, 32 coins, full history, shipped rules): a 2h buy
+// is followed by a 4h buy within 24h only 42% of the time, and 37% of 4h buys have no 2h buy before
+// them — so 2h is a heads-up and 4h is the trade. 2h buys that a 4h buy followed averaged +4.9%,
+// unconfirmed ones +1.7%: a 4h buy with a recent 2h buy is the strongest case.
+// `pair` = { other: true if this coin is also watched on the other TF, recent2h: 2h bought ≤ 24h ago }
+function pairLine(w, pair) {
+  if (!pair || !pair.other) return null;
+  if (w.tf === '2h') return 'Heads-up, not the trade: 42% of 2h buys turn into a 4h buy within 24h. Act on the 4h alert.';
+  if (w.tf === '4h') return pair.recent2h ? 'Confirmed by a 2h buy in the last 24h — the strongest setup (2h buys a 4h buy followed averaged +4.9%, vs +1.7% without).'
+    : 'No 2h buy before this one — still a valid 4h trade (37% of them come without warning).';
+  return null;
+}
+function buyMessage(w, c, trade, advice, btcReg, pair) {
   const lb = advice.lb || {};
   const coin = w.symbol.replace(/USDT$/, '');
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
+  const tag = pair && pair.other ? (w.tf === '2h' ? '  (heads-up)' : w.tf === '4h' ? '  (trade)' : '') : '';
   return {
-    title: `BUY ${coin} ${w.tf}`,
+    title: `BUY ${coin} ${w.tf}${tag}`,
     body: [
+      ...(pairLine(w, pair) ? [pairLine(w, pair), ''] : []),
       `${name} triggered at ${fmtPx(trade.entry)}`,
       `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
       ``,
@@ -288,7 +302,20 @@ async function notify(msg) {
     return c;
   };
 
-  for (const w of watch.watch) {
+  // 2h before 4h, so a 4h buy can see whether the same coin's 2h bought first (pairLine)
+  const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5 };
+  const items = watch.watch.slice().sort((a, b) => (TF_RANK[a.tf] ?? 9) - (TF_RANK[b.tf] ?? 9));
+  const pairOf = (w, entryTime) => {
+    const strat = w.strategy || 'liqbrk', otherTf = w.tf === '2h' ? '4h' : w.tf === '4h' ? '2h' : null;
+    if (!otherTf) return null;
+    const other = items.some((x) => x.symbol === w.symbol && x.tf === otherTf && (x.strategy || 'liqbrk') === strat);
+    const s2 = state[`${w.symbol}|2h|${strat}`];
+    // compare CLOSE times: a 2h and a 4h signal on the same closing moment count as "with", not "before"
+    const gap = s2 && s2.lastEntry && entryTime ? (entryTime + 4 * 3600) - (s2.lastEntry + 2 * 3600) : null;
+    return { other, recent2h: gap != null && gap >= 0 && gap <= 24 * 3600 };
+  };
+
+  for (const w of items) {
     const key = `${w.symbol}|${w.tf}|${w.strategy || 'liqbrk'}`;
     try {
       const bars = w.bars || 4500;
@@ -314,7 +341,8 @@ async function notify(msg) {
       const closed = res.trades.filter((t) => t.outcome !== 'open');
       const last = closed.length ? closed[closed.length - 1] : null;
       const cur = { inPosition: !!open, entryTime: open ? c[open.entryIdx].time : null,
-                    scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: RULES };
+                    scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: RULES,
+                    lastEntry: res.trades.length ? c[res.trades[res.trades.length - 1].entryIdx].time : null };
       const prev = state[key];
       const rulesChanged = prev && prev.rules !== RULES;
 
@@ -341,14 +369,14 @@ async function notify(msg) {
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
       } else if (!prev.inPosition && cur.inPosition) {
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
-        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
+        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
         if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
       } else if (prev.inPosition && cur.inPosition && prev.entryTime !== cur.entryTime) {
         // a close and a re-entry both landed between two runs — report both, in order
         if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
         if (last) { await notify(sellMessage(w, c, last)); alerts++; }
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
-        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf])); alerts++;
+        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
         if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
       } else if (prev.inPosition && cur.inPosition && !prev.scaled && cur.scaled) {
         await notify(halfMessage(w, c, open)); alerts++;
