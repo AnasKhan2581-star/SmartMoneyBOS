@@ -59,6 +59,15 @@ def load(coin, tf):
 
 if __name__ == "__main__":
     tf, coins = sys.argv[1], sys.argv[2:]
+    if coins[:1] == ["--file"]:                      # one coin per line, e.g. research/rotation/universe.txt
+        coins = [c.strip() for c in open(coins[1]) if c.strip()]
+
+    def safe(c):                                     # one bad symbol must not kill a 700-coin download
+        try:
+            return load(c, tf)
+        except Exception as e:                       # noqa: BLE001
+            return c, f"FAILED {e}"
+
     with ThreadPoolExecutor(6) as ex:
-        for coin, n in ex.map(lambda c: load(c, tf), coins):
-            print(f"{coin:7} {n:6} bars", flush=True)
+        for coin, n in ex.map(safe, coins):
+            print(f"{coin:7} {n} bars" if isinstance(n, int) else f"{coin:7} {n}", flush=True)
