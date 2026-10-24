@@ -659,6 +659,11 @@ next open, fees + slippage, settings chosen on 2023-24 and judged on 2025-26, ra
   settings made money** in either period — and still 0/108 with flattering fills (same-candle → target, zero
   slippage). The average burst is −0.2% one hour after entry and −0.5% after 24h, only 42% still above entry.
   Restricted to ≥ $50M/day coins: 3/108 then 1/108 profitable; the best in-sample setting (1.09×) did 0.59× unseen.
+- **PRE-burst setups on mid/small caps ($1M–$50M/day), held 14–18h** (research/daytrade/preburst_lab.py): squeeze
+  breakout, quiet accumulation (volume up, price flat), strength while BTC falls, higher-lows + 72h breakout, volume
+  waking after a quiet spell — each × 36 exit settings × BTC gate on/off: **0/36 profitable in every case, in both
+  periods.** Same pattern again: "volume wakes after quiet" doubles the odds of a +10% move within 16h (13% vs 6%) and
+  doubles the odds of a −10% move (7% vs 3%); the average 16h move is ≈ 0 before costs, so 0.6% round-trip costs decide.
 - What works instead is the same breakout idea WITH regime gate, stop and trail on a slower TF (`liqbrk` 4h).
   Do not retry without a genuinely new input (order book, funding, listings news) — not another threshold sweep.
 
