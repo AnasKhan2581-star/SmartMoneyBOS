@@ -250,3 +250,57 @@ for n in (1, 2, 4, 8, 12, 24):
     best_ = np.nanmax(H[:, :n], 1) / eo - 1
     worst_ = np.nanmin(L[:, :n], 1) / eo - 1
     say(row([n, pct(np.nanmean(r)), pp(np.nanmean(r > 0)), pct(np.nanmean(best_)), pct(np.nanmean(worst_))]))
+
+# ------------------------------------------------------------------ 7. robustness: optimistic fills, big coins only
+say("\n## 7. Is the conservative fill rule what sinks it? And do big coins behave better?\n")
+say("**Optimistic bound:** if one candle touches both the target and the stop, count it as the TARGET instead, and charge "
+    "no slippage at all (fee only). If the scanner still loses under these flattering assumptions, the result does not "
+    "depend on how fills were modelled.\n")
+
+
+def outcomes_opt(entry_open, H, L, Cc, T, S, N):
+    e = entry_open
+    tp, sl = e * (1 + T), e * (1 - S)
+    h, l, cc = H[:, :N], L[:, :N], Cc[:, :N]
+    hs, ht = l <= sl[:, None], h >= tp[:, None]
+    fs = np.where(hs.any(1), hs.argmax(1), N); ft = np.where(ht.any(1), ht.argmax(1), N)
+    valid = np.isfinite(cc); last_ok = np.where(valid.any(1), N - 1 - np.argmax(valid[:, ::-1], 1), 0)
+    tpx = cc[np.arange(len(e)), last_ok]
+    tp_first = ft <= fs
+    px = np.where((ft < N) & tp_first, tp, np.where(fs < N, sl, tpx))
+    hrs = np.where((ft < N) & tp_first, ft + 1, np.where(fs < N, fs + 1, last_ok + 1))
+    return px * (1 - FEE) / (e * (1 + FEE)) - 1, hrs
+
+
+say(head(["signal", "TP / SL / max hold", "trades taken", "win rate", "avg trade", "end value 2023 → now"]))
+opt_pos = 0
+for (rv_min, r1_min), v in cache_ev.items():
+    t, j, s, eo, H, L, Cc = v[:7]
+    for T, S, N in GRID_EXIT:
+        ret, hrs = outcomes_opt(eo, H, L, Cc, T, S, N)
+        x = stats(t, j, s, ret, hrs, T0, None)
+        opt_pos += x["eq"] > 1
+        if (T, S, N) in [(0.10, 0.08, 24), (0.20, 0.05, 24), (0.05, 0.03, 4)]:
+            say(row([f"{rv_min}× / +{r1_min * 100:.0f}%", f"+{T * 100:.0f}% / −{S * 100:.0f}% / {N}h", x["n"], pp(x["wr"]), pct(x["avg"]), f"{x['eq']:.2f}×"]))
+say(f"\nUnder the optimistic rules **{opt_pos} of 108** settings end above 1.0×.\n")
+
+say("**Big coins only** — the same scan restricted to coins averaging ≥ $50M a day over the prior week "
+    "(the BTC/ETH/SOL tier, where a volume burst is less likely to be one wallet pumping a thin book). Realistic fills again.\n")
+LIQ_ALL = LIQ.copy()
+LIQ &= dv168 * 24 >= 50e6
+big_res = []
+for rv_min, r1_min in GRID_SIG:
+    t, j, s = events(rv_min, r1_min)
+    eo, H, L, Cc = paths(t, j)
+    for T, S, N in GRID_EXIT:
+        ret, hrs = outcomes(eo, H, L, Cc, T, S, N, 0.001)
+        big_res.append(dict(rv=rv_min, r1=r1_min, T=T, S=S, N=N, ins=stats(t, j, s, ret, hrs, T0, SPLIT),
+                            oos=stats(t, j, s, ret, hrs, SPLIT, None)))
+LIQ = LIQ_ALL
+bb = max(big_res, key=lambda r: r["ins"]["cagr"] / max(0.05, -r["ins"]["dd"]))
+say(head(["", "2023-24", "2025-26 (unseen)"]))
+say(row(["settings that made money (of 108)", sum(r["ins"]["eq"] > 1 for r in big_res), sum(r["oos"]["eq"] > 1 for r in big_res)]))
+say(row([f"best 2023-24 setting ({bb['rv']}× / +{bb['r1'] * 100:.0f}%, +{bb['T'] * 100:.0f}% / −{bb['S'] * 100:.0f}% / {bb['N']}h): end value",
+         f"{bb['ins']['eq']:.2f}× (DD {pct(bb['ins']['dd'])})", f"{bb['oos']['eq']:.2f}× (DD {pct(bb['oos']['dd'])})"]))
+say(row(["…its trades / win rate / avg trade", f"{bb['ins']['n']} / {pp(bb['ins']['wr'])} / {pct(bb['ins']['avg'])}",
+         f"{bb['oos']['n']} / {pp(bb['oos']['wr'])} / {pct(bb['oos']['avg'])}"]))

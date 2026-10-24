@@ -644,6 +644,24 @@ Code: `research/fetch_klines.py` (full Binance history → `research/cache/`, gi
   Honest summary: on a list chosen in advance, the improved rules beat holding alts but not holding BTC in a
   BTC-led cycle; what they buy is lower drawdown and ~25–35% invested on average.
 
+## REJECTED (Oct 2026): predicting Binance's top gainers — rotation AND day-trading the volume bursts
+
+Two tests of "scan every coin, buy the ones about to run" (research/rotation/, research/daytrade/). Every Binance
+USDT coin incl. delisted ones (661 daily since 2019; 557 hourly since 2023), signals at a candle's close, fills at the
+next open, fees + slippage, settings chosen on 2023-24 and judged on 2025-26, random-coin baselines.
+- **The signals are real but directionless.** A volume spike / momentum / breakout top-10 contains ~2× more of
+  tomorrow's top-10 gainers than random (1.4–1.7 vs 0.7 of 10) — and just as many of the crashes: at ≥ 8× normal daily
+  volume the odds of a +30% day (3.4%) and a −20% day (3.3%) are equal and the average next day is −0.9%. The top
+  picks then UNDERPERFORM the average coin over the next 7 days in nearly every period.
+- **Rotation (hold the top 3 for 1/7/30 days):** loses in every variant; daily switching is destroyed by costs (even
+  random picks go to ~0). The equal-weight altcoin universe itself made 1.7× with −95% DD vs BTC 22× (2019→).
+- **Day-trading (hourly scan, top 3 bursts, take-profit 5/10/20%, stop 3/5/8%, time stop 4/12/24h):** **0 of 108
+  settings made money** in either period — and still 0/108 with flattering fills (same-candle → target, zero
+  slippage). The average burst is −0.2% one hour after entry and −0.5% after 24h, only 42% still above entry.
+  Restricted to ≥ $50M/day coins: 3/108 then 1/108 profitable; the best in-sample setting (1.09×) did 0.59× unseen.
+- What works instead is the same breakout idea WITH regime gate, stop and trail on a slower TF (`liqbrk` 4h).
+  Do not retry without a genuinely new input (order book, funding, listings news) — not another threshold sweep.
+
 ## `cycle` — the BTC halving playbook (July 2026)
 
 BTC-specific full-cycle machine built from the signals that repeated at every cycle turn
