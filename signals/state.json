@@ -39,7 +39,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1792854000,
+    "lastBar": 1792864800,
     "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
     "lastEntry": 1792490400,
     "noted": false
@@ -639,6 +639,222 @@
     "noted": true
   },
   "_meta": {
-    "lastRun": 1792861214
+    "lastRun": 1792869710
+  },
+  "1INCHUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1784635200,
+    "noted": false
+  },
+  "CFXUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1791633600,
+    "noted": false
+  },
+  "STXUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1791820800,
+    "noted": false
+  },
+  "XECUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789732800,
+    "noted": false
+  },
+  "ZILUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789862400,
+    "noted": false
+  },
+  "TUTUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1787414400,
+    "noted": false
+  },
+  "MASKUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1790928000,
+    "noted": false
+  },
+  "KNCUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1788753600,
+    "noted": false
+  },
+  "HBARUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1790582400,
+    "noted": false
+  },
+  "TAOUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789804800,
+    "noted": false
+  },
+  "NIGHTUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1792584000,
+    "noted": false
+  },
+  "ARPAUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1791604800,
+    "noted": false
+  },
+  "DASHUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789603200,
+    "noted": false
+  },
+  "BCHUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789689600,
+    "noted": false
+  },
+  "WOOUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1790539200,
+    "noted": false
+  },
+  "SYNUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1790856000,
+    "noted": false
+  },
+  "ONEUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1791014400,
+    "noted": false
+  },
+  "COTIUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1788580800,
+    "noted": false
+  },
+  "BICOUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789977600,
+    "noted": false
+  },
+  "BOMEUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1787198400,
+    "noted": false
+  },
+  "XLMUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789977600,
+    "noted": false
+  },
+  "BANKUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1789819200,
+    "noted": false
+  },
+  "ETCUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1790078400,
+    "noted": false
+  },
+  "JASMYUSDT|4h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1792843200,
+    "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
+    "lastEntry": 1787630400,
+    "noted": false
   }
 }
