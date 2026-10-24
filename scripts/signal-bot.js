@@ -69,6 +69,7 @@ const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision']
 const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
 // bump when the trading rules change, so stored positions are re-read under the new rules (note 4)
 const RULES = 'liqbrk-2026-10-btc50-lead50-scale3R';
+const RUN_EVERY_MS = 2 * 36e5;   // the workflow's schedule (5 past every even hour) — see .github/workflows/signals.yml
 
 // ---------- data ----------------------------------------------------------
 async function fetchKlines(symbol, interval, total) {
@@ -360,9 +361,17 @@ async function notify(msg) {
         if (prev.inPosition !== cur.inPosition) { await notify(rulesMessage(w, cur)); alerts++; }
       } else if (!prev || stale) {
         // First sighting: record, stay quiet. Announcing a position opened weeks ago is noise.
+        // EXCEPT a FRESH entry — one on the candle(s) that closed since the previous scheduled run
+        // (the bot runs every 2h). That is a live signal, not history: add a coin at 10:30, its breakout
+        // candle closes at 12:00, the first run at 12:05 must still say BUY.
         const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(0) : null;
+        const fresh = open && open.entryIdx >= c.length - Math.max(1, Math.ceil(RUN_EVERY_MS / (TF_MS[w.tf] || RUN_EVERY_MS)));
         console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
-          + ` (${cur.inPosition ? 'already long' : 'flat'})`);
+          + ` (${cur.inPosition ? (fresh ? 'entered on the latest candle — alerting' : 'already long') : 'flat'})`);
+        if (fresh) {
+          if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
+          await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
+        }
       } else if (prev.inPosition && !cur.inPosition) {
         // the half may have been taken AND the rest closed between two runs: say both
         if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }

@@ -15,6 +15,9 @@ There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the al
   preceded it — that combination was the strongest (2h buys a 4h buy followed averaged +4.9% vs +1.7%).
 - **TAKE HALF** — price reached entry + 3R: sell half there; the other half stays on.
 - **SELL** — the position (or its remaining half) closed; the result counts both halves.
+- **Newly added coins** start silently: a trade opened before you added the coin is not announced (you still get its
+  TAKE HALF / SELL). The one exception is a trade entered on the candle that closed since the bot's previous run —
+  that is a live signal, so it alerts as a normal BUY.
 - **Rules updated** — sent once per coin, only when a rules change flips that coin between long and
   flat. No trade happened; the bot just re-read the position under the new rules.
 
