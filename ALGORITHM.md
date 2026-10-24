@@ -644,6 +644,27 @@ Code: `research/fetch_klines.py` (full Binance history → `research/cache/`, gi
   Honest summary: on a list chosen in advance, the improved rules beat holding alts but not holding BTC in a
   BTC-led cycle; what they buy is lower drawdown and ~25–35% invested on average.
 
+## RESEARCH (Oct 2026): five alternative 4h swing strategies vs liqbrk — "version 2" (nothing shipped)
+
+research/v2/ (engine reproduces shipped liqbrk trade-for-trade on all 61 alert coins; honest fills; full 4h history).
+Ladder tested on 5 random alert coins with history before mid-2021 (CTSI, KNC, MASK, HBAR, XLM; seed 20261024),
+"most consistent" fixed in advance (coin×cycle cells not losing, PF w/o top 2%, window stability, max DD, worst coin):
+- S1 simple 20/10-candle channel breakout: PF w/o top 2% 0.60, median coin −88% — fees and false breakouts.
+- S2 + 50-day EMA filter and 2.5×ATR stop: 0.61, −78%.
+- **S3 volume momentum** (3-day-high breakout, volume ≥ 2×, close in top 30%, rising 20-day EMA, BTC > 50d MA; 3×ATR stop,
+  ⅓ at 2R, chandelier 3×ATR): 0.85, +22% — **most consistent of the five → "version 2"**.
+- S4 squeeze breakout (BB inside Keltner, fires up; ½ at 2.5R, exit below the 20-EMA): 0.63, −20%.
+- S5 "pro" multi-factor (risk-on regime, EMA stack, RS vs BTC, pullback-then-breakout, ADX, candle quality, tiered exits):
+  only 53 trades, WR 17%, 0.44 — more filters starved it of trades and left the bad ones. Over-filtering is not edge.
+- v1 (shipped liqbrk) on the same 5 coins beat all five: PF w/o top 2% 1.11, median DD −45%.
+- Version 2 on all 61 alert coins ≈ v1 overall (PF w/o top 2% 1.02 vs 0.98, 31 vs 29 coins profitable): better in the
+  2020-22 cycle (23/35 vs 12/35 coins not losing) and on coins listed before 2023 (1.07 vs 1.00), worse in 2023-26
+  (one pot, 10 slots from 2023: 1.5× vs 6.2×). Half-v1/half-v2 from 2020: same 7.4× with DD −44% vs −50%.
+  Caveat: v1's BTC-50d gate and leader rescue were chosen with data through 2026, so part of its 2023-26 lead is in-sample;
+  S3 was written from standard practice and never tuned. Verdict: **keep v1**; v2 is a candidate second signal for coins
+  with ≥ 2 years of history, not a replacement.
+- Both strategies are weakest on coins listed since 2023 (v2 PF w/o top 0.81, 9/26 profitable).
+
 ## REJECTED (Oct 2026): predicting Binance's top gainers — rotation AND day-trading the volume bursts
 
 Two tests of "scan every coin, buy the ones about to run" (research/rotation/, research/daytrade/). Every Binance
