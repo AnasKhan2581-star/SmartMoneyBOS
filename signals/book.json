@@ -1,0 +1,5 @@
+{
+  "_comment": "The trading book. slots = how many positions at once (each gets 1/slots of the book). start = when the journal began. No money here: the web page keeps your capital in your browser.",
+  "slots": 5,
+  "start": "2026-10-24"
+}

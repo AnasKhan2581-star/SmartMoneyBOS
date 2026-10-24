@@ -23,6 +23,13 @@
  *     error — an alert computed without the gate would be a trade the rules never take.
  *     It also SELLS HALF at +3R: that is its own alert ("TAKE HALF"), sent once per position.
  *
+ *  5. THE TRADING BOOK (Oct 2026): 5 slots, a journal, and your Taken / Skipped answers. A slot is held
+ *     by a position you marked Taken, or by one the bot alerted that you have not answered yet; Skipped
+ *     frees it, and every slot frees at the strategy's own SELL. When all slots are held a new signal
+ *     goes into signals/journal.json only — no alert. Competing signals in one run go to the stronger
+ *     volume spike first. No money is stored anywhere in the repo (it is public): the bot counts slots,
+ *     the web page turns them into dollars from a capital figure kept in the browser.
+ *
  *  4. A RULES CHANGE re-baselines. State carries the rules version; when it differs, the new
  *     rules' view is recorded, and if it disagrees with what the old rules said (long vs flat)
  *     you get one "rules updated" note instead of a fake BUY or SELL.
@@ -61,6 +68,9 @@ const SELFTEST = has('--selftest');
 const STRAT_NAME = { liqbrk:'Liquidity Breakout', cycle:'BTC Cycle', tsmom:'Trend Follow', donch:'Turtle' };
 
 const STATE_PATH = path.resolve(argOf('--state', path.join(ROOT, 'signals', 'state.json')));
+const BOOK_PATH = path.resolve(argOf('--book', path.join(ROOT, 'signals', 'book.json')));
+const JOURNAL_PATH = path.resolve(argOf('--journal', path.join(ROOT, 'signals', 'journal.json')));
+const DECISIONS_PATH = path.resolve(argOf('--decisions', path.join(ROOT, 'signals', 'decisions.json')));
 const WATCH_PATH = path.resolve(argOf('--watch', path.join(ROOT, 'signals', 'watchlist.json')));
 
 const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
@@ -141,7 +151,9 @@ function pairLine(w, pair) {
     : 'No 2h buy before this one — still a valid 4h trade (37% of them come without warning).';
   return null;
 }
-function buyMessage(w, c, trade, advice, btcReg, pair) {
+// "Slot 2 of 5 — put 20% of your capital in" — the book's sizing rule, said where it is acted on
+const slotText = (slot) => slot ? `Slot ${slot.slot} of ${slot.N} — put ${Math.round(100 / slot.N)}% of your capital in · tap Taken or Skipped in the app` : null;
+function buyMessage(w, c, trade, advice, btcReg, pair, slot) {
   const lb = advice.lb || {};
   const coin = w.symbol.replace(/USDT$/, '');
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
@@ -150,6 +162,7 @@ function buyMessage(w, c, trade, advice, btcReg, pair) {
     title: `BUY ${coin} ${w.tf}${tag}`,
     body: [
       ...(pairLine(w, pair) ? [pairLine(w, pair), ''] : []),
+      ...(slot ? [slotText(slot), ''] : []),
       `${name} triggered at ${fmtPx(trade.entry)}`,
       `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
       ``,
@@ -167,7 +180,7 @@ function buyMessage(w, c, trade, advice, btcReg, pair) {
     tag: 'buy',
   };
 }
-function sellMessage(w, c, trade) {
+function sellMessage(w, c, trade, slotLine) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.exitPrice / trade.entry - 1) * 100;
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
@@ -182,12 +195,14 @@ function sellMessage(w, c, trade) {
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
       trade.scale ? `First half sold at ${fmtPx(trade.scale.px)} on ${fmtDay(c[trade.scale.idx].time)}` : null,
       `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)${trade.scale ? ' — both halves' : ''}`,
+      slotLine ? `` : null,
+      slotLine || null,
     ].filter((x) => x !== null).join('\n'),
     tag: pc >= 0 ? 'win' : 'loss',
   };
 }
 
-function halfMessage(w, c, trade) {
+function halfMessage(w, c, trade, slotLine) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.scale.px / trade.entry - 1) * 100;
   return {
@@ -198,13 +213,14 @@ function halfMessage(w, c, trade) {
       ``,
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
       `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
+      ...(slotLine ? ['', slotLine] : []),
     ].join('\n'),
     tag: 'win',
   };
 }
 // A position the bot never announced (it was already open when the coin was added, or when the alert
 // was set up). Sent ONCE so no open trade is ever silent — framed as late, not as a fresh BUY.
-function openMessage(w, c, trade, advice) {
+function openMessage(w, c, trade, advice, slot) {
   const lb = (advice && advice.lb) || {};
   const coin = w.symbol.replace(/USDT$/, '');
   const now = c[c.length - 1].close, R = trade.entry - trade.stop, inR = R > 0 ? (now - trade.entry) / R : 0;
@@ -214,6 +230,7 @@ function openMessage(w, c, trade, advice) {
   return {
     title: `OPEN TRADE ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% (started before this alert)`,
     body: [
+      ...(slot ? [slotText(slot), ''] : []),
       `Liquidity Breakout has been long since ${fmtDay(c[trade.entryIdx].time)} (${ago} ago)`,
       `Entry ${fmtPx(trade.entry)} · now ${fmtPx(now)} (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)`,
       ``,
@@ -345,6 +362,9 @@ async function notify(msg) {
     return { other, recent2h: gap != null && gap >= 0 && gap <= 24 * 3600 };
   };
 
+  // Signals found while reading the coins. Nothing is sent from inside the loop: slots are handed out
+  // only after every coin has been read, so exits free their slots first and competing BUYs are ranked.
+  const queue = [], openNow = [];
   for (const w of items) {
     const key = `${w.symbol}|${w.tf}|${w.strategy || 'liqbrk'}`;
     try {
@@ -376,12 +396,18 @@ async function notify(msg) {
       const prev = state[key];
       const rulesChanged = prev && prev.rules !== RULES;
       // "fresh" = entered on a candle that closed after the previous persisted run, i.e. a signal no run
-      // has been able to report yet. `noted` = this exact position has been announced (BUY or OPEN TRADE).
+      // has been able to report yet. `noted` = this exact position has been journaled (BUY or OPEN TRADE).
       const lastRun = state._meta && state._meta.lastRun;
       const tfSec = (TF_MS[w.tf] || RUN_EVERY_MS) / 1000;
       const isFresh = (o) => !!o && (lastRun ? c[o.entryIdx].time + tfSec > lastRun
         : o.entryIdx >= c.length - Math.max(1, Math.ceil(RUN_EVERY_MS / (TF_MS[w.tf] || RUN_EVERY_MS))));
       let noted = !!(cur.inPosition && prev && prev.noted && prev.entryTime === cur.entryTime);
+      // relative volume of the signal candle — how competing BUYs are ranked for the last free slot
+      const strengthOf = (t) => { const i = t.entryIdx; let sum = 0, k = 0;
+        for (let j = Math.max(0, i - 5); j <= i; j++) { sum += c[j].volume || 0; k++; }
+        return sum > 0 ? (c[i].volume || 0) / (sum / k) : 1; };
+      const ctx = { w, c, key, tfSec, advice: res.advice };
+      const ev = (kind, trade, extra) => queue.push({ kind, trade, strength: trade ? strengthOf(trade) : 0, ...ctx, ...extra });
 
       // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
       // later, and its old state is still here — comparing against it would announce a trade that
@@ -394,47 +420,39 @@ async function notify(msg) {
       if (prev && !stale && rulesChanged) {
         // note 4: re-read under the new rules; speak only if long/flat actually changed
         console.log(`${key}: rules changed — re-baselined (${cur.inPosition ? 'long' : 'flat'} under the new rules)`);
-        if (prev.inPosition !== cur.inPosition) { await notify(rulesMessage(w, cur)); alerts++; if (cur.inPosition) noted = true; }
+        if (prev.inPosition !== cur.inPosition) { ev('rules', null, { cur }); if (cur.inPosition) noted = true; }
       } else if (!prev || stale) {
         // First sighting. History stays quiet (no SELL for a trade that closed before you watched),
-        // but an OPEN position is always announced: a FRESH entry as a normal BUY (add a coin at 10:30,
-        // its breakout closes at 12:00, the next run still says BUY), an older one once as OPEN TRADE.
+        // but an OPEN position is always journaled: a FRESH entry as a normal BUY (add a coin at 10:30,
+        // its breakout closes at 12:00, the next run still says BUY), an older one as OPEN TRADE.
         const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(0) : null;
         const fresh = isFresh(open);
         console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
-          + ` (${cur.inPosition ? (fresh ? 'fresh entry — BUY' : 'already long — OPEN TRADE note') : 'flat'})`);
-        if (fresh) {
-          if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
-          await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
-          noted = true;
-        } else if (open) {
-          await notify(openMessage(w, c, open, res.advice)); alerts++; noted = true;
-        }
+          + ` (${cur.inPosition ? (fresh ? 'fresh entry — BUY' : 'already long — OPEN TRADE') : 'flat'})`);
+        if (fresh) { ev('buy', open); noted = true; }
+        else if (open) { ev('open', open); noted = true; }
       } else if (prev.inPosition && !cur.inPosition) {
         // the half may have been taken AND the rest closed between two runs: say both
-        if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
-        if (last) { await notify(sellMessage(w, c, last)); alerts++; }
+        if (last && last.scale && !prev.scaled) ev('half', last);
+        if (last) ev('sell', last);
       } else if (!prev.inPosition && cur.inPosition) {
-        if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
-        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
-        if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
+        ev('buy', open); if (open.scale) ev('half', open);
         noted = true;
       } else if (prev.inPosition && cur.inPosition && prev.entryTime !== cur.entryTime) {
         // a close and a re-entry both landed between two runs — report both, in order
-        if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
-        if (last) { await notify(sellMessage(w, c, last)); alerts++; }
-        if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
-        await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
-        if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
+        if (last && last.scale && !prev.scaled) ev('half', last);
+        if (last) ev('sell', last);
+        ev('buy', open); if (open.scale) ev('half', open);
         noted = true;
       } else if (cur.inPosition && !noted) {
-        // a position recorded silently before OPEN TRADE notes existed — announce it once
-        await notify(openMessage(w, c, open, res.advice)); alerts++; noted = true;
+        // a position recorded silently before OPEN TRADE notes existed — journal it once
+        ev('open', open); noted = true;
       } else if (prev.inPosition && cur.inPosition && !prev.scaled && cur.scaled) {
-        await notify(halfMessage(w, c, open)); alerts++;
+        ev('half', open);
       } else {
         console.log(`${key}: no change (${cur.inPosition ? 'holding' : 'flat'})`);
       }
+      if (open) openNow.push({ ...ctx, trade: open });
       cur.noted = noted;
       if (!prev || stale || rulesChanged || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime
           || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar || !!prev.noted !== noted) {
@@ -445,6 +463,103 @@ async function notify(msg) {
       process.exitCode = 1;                       // a failed fetch must not look like "no signal"
     }
   }
+
+  // ---------- the trading book: slots, journal, your answers (note 5) ----------
+  const book = readJSON(BOOK_PATH, {});
+  const N = Math.max(1, Math.round(+book.slots || 5));
+  const journal = readJSON(JOURNAL_PATH, {});
+  const entries = Array.isArray(journal.entries) ? journal.entries : [];
+  const decisions = readJSON(DECISIONS_PATH, {}) || {};
+  const J = new Map(entries.map((e) => [e.id, e]));
+  let jChanged = false;
+  const answer = (e) => (decisions[e.id] && decisions[e.id].d) || null;
+  // held = Taken, or alerted and not answered yet (never over-allocates while you are away)
+  const holds = (e) => (e.status === 'open' || e.status === 'half') && (answer(e) === 'taken' || (e.alerted && !answer(e)));
+  const used = () => [...J.values()].filter(holds).length;
+  const idOf = (x) => `${x.w.symbol}|${x.w.tf}|${x.c[x.trade.entryIdx].time}`;
+  const newEntry = (x, late) => ({ id: idOf(x), symbol: x.w.symbol, tf: x.w.tf, strategy: x.w.strategy || 'liqbrk',
+    signalTime: x.c[x.trade.entryIdx].time + x.tfSec, entry: x.trade.entry, stop: x.trade.stop,
+    tp: x.trade.scaleTarget || x.trade.tp || null, status: 'open', scale: null, late: !!late, alerted: false, skip: null,
+    exit: null, exitRest: null, exitTime: null, ret: null, R: null, why: null, logged: Math.floor(Date.now() / 1000) });
+  const applyScale = (e, x) => {
+    const t = x.trade; if (!t.scale || e.scale) return false;
+    e.scale = { time: x.c[t.scale.idx].time + x.tfSec, px: t.scale.px }; if (e.status === 'open') e.status = 'half'; return true;
+  };
+  const applyClose = (e, x) => {
+    const t = x.trade; applyScale(e, x);
+    Object.assign(e, { status: 'closed', exit: t.exitPrice, exitRest: t.exitRest != null ? t.exitRest : t.exitPrice,
+      exitTime: x.c[t.exitIdx].time + x.tfSec, ret: t.exitPrice / t.entry * (1 - 0.001) / (1 + 0.001) - 1, R: t.rr, why: t.targetPool });
+  };
+  const inUse = () => `${used()} of ${N} slots in use`;
+
+  // 1) exits first — they free slots. You hear about a position only if it is in your book.
+  const lateHalves = [];
+  for (const x of queue.filter((q) => q.kind === 'sell' || q.kind === 'half')) {
+    let e = J.get(idOf(x));
+    if (!e) {
+      if (x.kind === 'half') { lateHalves.push(x); continue; }
+      e = newEntry(x, true); e.skip = 'opened before the journal'; J.set(e.id, e);
+    }
+    const wasHeld = holds(e);
+    if (x.kind === 'half' ? !applyScale(e, x) : (applyClose(e, x), false)) continue;
+    jChanged = true;
+    if (wasHeld) {
+      await notify(x.kind === 'half' ? halfMessage(x.w, x.c, x.trade, `Slot still held — ${inUse()}`)
+                                     : sellMessage(x.w, x.c, x.trade, `Slot freed — ${inUse()}`));
+      alerts++;
+    } else console.log(`${x.key}: ${x.kind.toUpperCase()} — journal only (${answer(e) === 'skipped' ? 'you skipped it' : 'not in your book'})`);
+  }
+  // 2) rules notes (rare, informational)
+  for (const x of queue.filter((q) => q.kind === 'rules')) { await notify(rulesMessage(x.w, x.cur)); alerts++; }
+  // 3) new positions, strongest volume spike first, while slots last
+  for (const x of queue.filter((q) => q.kind === 'buy' || q.kind === 'open').sort((a, b) => b.strength - a.strength)) {
+    const id = idOf(x);
+    if (J.has(id)) continue;                                  // already journaled (a re-run)
+    const e = newEntry(x, x.kind === 'open'); applyScale(e, x);
+    const t = x.trade, now = x.c[x.c.length - 1].close, R = t.entry - t.stop;
+    const nearEntry = x.kind === 'buy' || (R > 0 && (now - t.entry) / R <= 1);
+    const free = N - used();
+    J.set(id, e); jChanged = true;
+    if (free > 0 && nearEntry) {
+      e.alerted = true;
+      const slot = { slot: used(), N };
+      if (x.kind === 'buy') {
+        if (!(x.w.tf in regimeByTf)) regimeByTf[x.w.tf] = await btcRegime(x.w.tf);
+        await notify(buyMessage(x.w, x.c, t, x.advice, regimeByTf[x.w.tf], pairOf(x.w, x.c[t.entryIdx].time), slot));
+      } else await notify(openMessage(x.w, x.c, t, x.advice, slot));
+      alerts++;
+    } else {
+      e.skip = free <= 0 ? 'no free slot' : 'already past 1R when first seen';
+      console.log(`${x.key}: ${x.kind.toUpperCase()} — journal only (${e.skip}; ${inUse()})`);
+    }
+  }
+  // 4) a position bought AND half-sold between two runs: its TAKE HALF follows its BUY
+  for (const x of lateHalves) {
+    const e = J.get(idOf(x)); if (!e) continue;
+    applyScale(e, x); jChanged = true;
+    if (holds(e)) { await notify(halfMessage(x.w, x.c, x.trade, `Slot still held — ${inUse()}`)); alerts++; }
+  }
+  // 5) every open position has an entry (seeds the journal on its first run; journal only)
+  for (const x of openNow) {
+    if (J.has(idOf(x))) continue;
+    const e = newEntry(x, true); applyScale(e, x); e.skip = 'opened before the journal';
+    J.set(e.id, e); jChanged = true;
+  }
+  // 6) a coin removed from the watchlist can never SELL — release its slot instead of holding it forever
+  const listed = new Set(items.map((w) => `${w.symbol}|${w.tf}`));
+  for (const e of J.values()) {
+    if ((e.status === 'open' || e.status === 'half') && !listed.has(`${e.symbol}|${e.tf}`)) {
+      Object.assign(e, { status: 'dropped', why: 'removed from the watchlist', exitTime: Math.floor(Date.now() / 1000) });
+      jChanged = true;
+    }
+  }
+  if (jChanged && !DRY) {
+    const list = [...J.values()].sort((a, b) => a.signalTime - b.signalTime);
+    fs.mkdirSync(path.dirname(JOURNAL_PATH), { recursive: true });
+    fs.writeFileSync(JOURNAL_PATH, JSON.stringify({ _comment: 'Written by scripts/signal-bot.js — every signal, '
+      + 'taken or not. Your Taken/Skipped answers live in decisions.json. No money is stored here.', slots: N, entries: list }, null, 1) + '\n');
+    console.log(`journal written (${list.length} entries, ${inUse()})`);
+  } else if (jChanged) console.log(`(dry run) journal would change — ${inUse()}`);
 
   // remembered so the next run can tell a never-reported entry from an old one (isFresh). Only written
   // alongside a real change, so a run that saw nothing new does not commit just to bump a timestamp.

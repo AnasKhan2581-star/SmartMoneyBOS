@@ -80,6 +80,40 @@ works exactly the same; nothing is hardcoded in the script.
 { "symbol": "ARBUSDT", "tf": "2h", "bars": 4500, "strategy": "liqbrk" }
 ```
 
+## The trading book — 5 slots and a journal
+
+Your capital is treated as one book split into **5 equal slots**. A BUY alert means "put one
+slot in": 20% of the book's value at that moment. The rules (ALGORITHM.md, "The trading book"):
+
+- A slot is **held** by a trade you marked **Taken**, and also by one the bot alerted that you
+  have not answered yet, so a forgotten tap can never book the same money twice. **Skipped**
+  frees the slot. Every slot frees again at the strategy's own SELL.
+- **All 5 held → no alert.** The new signal is written to the journal only. When several
+  signals compete for the free slots in one run, the one with higher relative volume wins.
+- A position the bot first sees already open is alerted only if a slot is free **and** price is
+  still within 1R of the entry. Otherwise it goes in the journal only.
+- TAKE HALF and SELL alerts go only for trades that hold a slot. The rest are journal-only.
+- Money not in a slot stays as plain USDT, so nothing has to be sold when the next BUY comes.
+
+Three files, and **none of them holds any money**. Your capital figure lives only in your
+browser.
+
+| file | written by | holds |
+| --- | --- | --- |
+| `signals/book.json` | you | `slots` (5) and the date the journal started |
+| `signals/journal.json` | the bot, every run | every signal: entry, stop, +3R target, half, exit, result, and why it was or wasn't alerted |
+| `signals/decisions.json` | the web page | your answers: `{ "<id>": { "d": "taken" or "skipped", "at": "<time>" } }` |
+
+**Answering.** Open the Portfolio tab. Each alert you haven't answered shows a **Did you buy
+it?** card with **Taken** and **Skipped** buttons. Taken records the signal's own price, so one
+tap is enough. With a GitHub token saved in the Alerts tab, the tap commits
+`decisions.json` for you. Without a token, the page keeps the answer in this browser (marked
+`*`) and gives you the file's full text to paste into GitHub's editor. Until the bot reads your
+answer, an unanswered alert keeps holding its slot.
+
+A coin removed from the watchlist while its trade is open is marked **Removed from list**. The
+bot can no longer follow that trade, so if you hold the coin, selling it is up to you.
+
 ## Two things that make it trustworthy
 
 **The forming candle is dropped.** Binance returns the in-progress bar as the last element.
@@ -87,9 +121,11 @@ The webapp keeps it — you want live price on a chart. A bot must not: a breako
 mid-bar and false by the close would alert and then silently un-alert. Only bars whose
 `closeTime` has passed reach the engine, so an alert refers to a bar that is final.
 
-**State persists between runs** in `signals/state.json`, committed back by the workflow, so each
-flip is announced exactly once. On the **first** run for a new watch item the state is recorded
-*silently* — you are not told about a position that opened weeks ago. A fetch failure exits
+**State persists between runs** in `signals/state.json`, committed back by the workflow (with
+`signals/journal.json`), so each flip is announced exactly once. When the bot first meets a
+position that is already open, a buy on a candle that closed after the previous run is a normal
+BUY. An older one gets one `OPEN TRADE` note, and only when a slot is free and price is still
+within 1R. Trades that closed before you started watching stay quiet. A fetch failure exits
 non-zero rather than looking like "no signal".
 
 ## Running it yourself
@@ -102,7 +138,8 @@ node scripts/signal-bot.js --ping                    # test your channels, send 
 ```
 
 `--fixture` takes a JSON array of `{time,open,high,low,close,volume}` and is how the buy/sell
-transitions are tested without a live market.
+transitions are tested without a live market. `--state`, `--book`, `--journal` and `--decisions`
+point the bot at other copies of those files, so a test never touches the real ones.
 
 ## What it does NOT do
 

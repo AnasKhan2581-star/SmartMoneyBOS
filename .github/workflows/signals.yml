@@ -61,15 +61,23 @@ jobs:
       # fetch failure (which sets exitCode 1 on purpose) would skip the commit — and every alert
       # already sent that run would fire again two hours later, and keep firing until the fetch
       # recovered. The states that did compute are still correct and must be saved.
-      - name: Persist position state
+      # state.json + journal.json are the bot's; decisions.json is written by the web page (your Taken /
+      # Skipped taps) and can land on main while this job runs, so a plain push may be rejected as not
+      # fast-forward. Rebase onto the new main and retry — the files never overlap, so it cannot conflict.
+      - name: Persist position state and journal
         if: ${{ always() && !inputs.dry_run && !inputs.ping }}
         run: |
-          if [ -n "$(git status --porcelain signals/state.json)" ]; then
+          if [ -n "$(git status --porcelain signals/state.json signals/journal.json)" ]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add signals/state.json
+            git add signals/state.json signals/journal.json
             git commit -m "signals: position state $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
-            git push
+            for i in 1 2 3 4; do
+              git push && exit 0
+              sleep $((i * 3))
+              git pull --rebase origin main
+            done
+            echo "push failed after 4 attempts"; exit 1
           else
             echo "state unchanged"
           fi

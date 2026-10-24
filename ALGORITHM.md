@@ -313,6 +313,10 @@ Plateau, not a fitted cell — monotone in WR and expR from 0.0 → 1.0 ATR, and
 at the top (1.0 ATR: IS +0.197 / OOS +0.212). Win rate improved on **10/10 symbols**.
 
 ### Still NOT shipped: BTC market veto + concurrency cap
+> **Update Oct 2026:** both are now live in other forms. The BTC gate shipped as "BTC above its 50-day MA or a 30-day
+> leader" (top of this section), and the **book cap shipped in the signal bot as 5 slots** — see "The trading book"
+> below. `detector.js` itself stays single-symbol; the cap lives where the book does.
+
 Two further changes measured but **NOT shipped to `detector.js`**, because the app is
 single-symbol and has no book-level state:
 
@@ -687,6 +691,23 @@ next open, fees + slippage, settings chosen on 2023-24 and judged on 2025-26, ra
   doubles the odds of a −10% move (7% vs 3%); the average 16h move is ≈ 0 before costs, so 0.6% round-trip costs decide.
 - What works instead is the same breakout idea WITH regime gate, stop and trail on a slower TF (`liqbrk` 4h).
   Do not retry without a genuinely new input (order book, funding, listings news) — not another threshold sweep.
+
+## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
+
+Execution rules on top of liqbrk; they never change which trades the strategy takes, only which ones you are told to take.
+- **5 equal slots** (each trade = 20% of the book's value at entry). The research cap above (5 open positions) cut max
+  drawdown −51.8% → −39.6%; the v2 study's one-pot runs put 5 slots at about the same return as 10 with a deeper drop
+  (2020→: v1 13.5× / −66% at 5 slots vs 7.5× / −50% at 10) — the user chose 5 for bigger positions, knowing that.
+- **A slot is held** by a position you marked **Taken**, or by one the bot alerted that you have **not answered yet**
+  (it can never over-allocate while you are away). **Skipped** frees it. Every slot frees at the strategy's own SELL.
+- **When all 5 are held, a new signal is journaled only — no alert.** Competing signals in one run go to the higher
+  relative volume first (the ranking used in every portfolio study).
+- A position first seen already open (a coin added mid-trade) is alerted only if a slot is free AND price is still within
+  1R of the entry; otherwise journal only.
+- **Idle money stays as plain USDT** (user choice; no earn product, no BTC sleeve — BTC is weakest exactly when the system
+  sits in cash, because signals need BTC above its 50-day MA).
+- Taken = the signal's own price (one tap). The journal stores no money; the book's dollar values are computed in the
+  browser from a capital figure that never leaves it.
 
 ## `cycle` — the BTC halving playbook (July 2026)
 

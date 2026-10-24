@@ -280,6 +280,36 @@
   .pfNote{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:16px;padding:11px 12px;background:#12161d;border:1px solid var(--line);border-radius:10px}
   .pfCtl{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin-top:14px}
   .pfCtl label{font-size:11px}
+  /* ===== TRADING BOOK (Portfolio tab) ===== */
+  .bkCap{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;margin-top:10px}
+  .bkCap label{font-size:11px} .bkCap input{width:150px}
+  .bkCapNote{font-size:11px;color:var(--muted)}
+  .bkSlots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+  .bkSlot{border:1px solid var(--line);border-radius:10px;padding:7px 6px;min-height:58px;background:var(--panel);
+    font-size:11px;line-height:1.35;overflow:hidden;min-width:0}
+  .bkSlot b{display:block;font-size:12.5px}
+  .bkSlot.free{border-style:dashed;color:var(--muted);display:flex;align-items:center;justify-content:center;background:transparent}
+  .bkSlot.await{border-color:#4d3f17;background:#1b1810}
+  .bkSlot.taken{border-color:#1d5234;background:#101c15}
+  .bkAsk{margin-top:10px;padding:10px 12px;border:1px solid #4d3f17;background:#1b1810;border-radius:12px;font-size:12.5px;line-height:1.55}
+  .bkBtns{display:flex;gap:8px;margin-top:8px}
+  .bkBtns button{flex:1;padding:8px;font-weight:700}
+  .bkFilt{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .bkFilt button{padding:4px 10px;font-size:11.5px;border-radius:999px}
+  .bkFilt button.on{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  .bkWrap{overflow-x:auto;max-width:100%;margin-top:8px;-webkit-overflow-scrolling:touch}
+  .bkTable{width:100%;border-collapse:collapse;font-size:12px;min-width:600px}
+  .bkTable th{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px;font-weight:600;white-space:nowrap}
+  .bkTable td{padding:7px 6px;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bkTable th:first-child,.bkTable td:first-child{text-align:left}
+  .bkTable td button{padding:2px 7px;font-size:11px;font-weight:600}
+  .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:700;border:1px solid var(--line)}
+  .chip.taken{color:#56d364;border-color:#1d5234;background:#101c15}
+  .chip.await{color:#e3c34c;border-color:#4d3f17;background:#1b1810}
+  .chip.skip{color:var(--muted)}
+  .bkStats{font-size:12px;color:var(--muted);line-height:1.7;margin-top:10px}
+  .bkMsg{font-size:12px;margin-top:8px;line-height:1.5}
+  .bkMsg.ok{color:#56d364} .bkMsg.err{color:#f0877f}
   /* mobile bottom tab bar — the primary nav on a phone */
   #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:rgba(16,21,29,.96);
     backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
@@ -409,7 +439,41 @@
     <div class="cards" id="pfCards"></div>
   </div>
 
-  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the next trade, and what triggers it</span></div>
+  <div id="bookBox">
+    <div class="pfHead" style="margin-top:22px"><h2>Trading book</h2><span class="pfSub" id="bkAsOf">loading…</span></div>
+    <div class="bkCap">
+      <label>Trading capital (USDT)<input id="bkCap" type="number" step="any" inputmode="decimal" placeholder="e.g. 2000" /></label>
+      <span class="bkCapNote">kept in this browser only — the repo never sees it</span>
+    </div>
+    <div class="kpis">
+      <div class="tile"><div class="k">Book value</div><div class="v" id="bkVal">—</div><div class="s" id="bkValS">—</div></div>
+      <div class="tile"><div class="k">In trades</div><div class="v" id="bkIn">—</div><div class="s" id="bkInS">—</div></div>
+      <div class="tile"><div class="k">Idle USDT</div><div class="v" id="bkIdle">—</div><div class="s" id="bkIdleS">waiting for a signal</div></div>
+      <div class="tile"><div class="k">Next trade size</div><div class="v" id="bkNext">—</div><div class="s" id="bkNextS">—</div></div>
+    </div>
+    <div class="bkSlots" id="bkSlots"></div>
+    <div id="bkAskBox"></div>
+    <div class="cards" id="bkOpen"></div>
+    <div class="pfHead" style="margin-top:18px"><h2 style="font-size:16px">Journal</h2><span class="pfSub" id="bkJCount"></span></div>
+    <div class="bkFilt" id="bkFilt"></div>
+    <div class="bkWrap"><table class="bkTable"><thead><tr><th>Coin</th><th>Signal</th><th>You</th><th>Status</th>
+      <th>Entry</th><th>Exit / now</th><th>Result</th><th>R</th><th></th></tr></thead><tbody id="bkJournal"></tbody></table></div>
+    <div class="bkStats" id="bkStats"></div>
+    <div class="bkMsg" id="bkMsg"></div>
+    <details class="pfPanel" id="bkManual">
+      <summary>No GitHub token? Save your answers by hand</summary>
+      <div class="pfPanelBody">
+        <div class="holdHint" style="margin:0 0 9px">Your Taken / Skipped taps are kept in this browser until the bot can see
+          them. With a token saved (Alerts tab → One-tap apply) they are saved for you. Without one: copy this, open
+          <b>signals/decisions.json</b> on GitHub, replace everything with it and commit.</div>
+        <textarea id="bkDecJson" rows="6" readonly style="width:100%;font:11px ui-monospace,monospace"></textarea>
+        <div class="alActions"><button id="bkCopy">Copy answers</button><a id="bkEdit" class="ghost" target="_blank" rel="noopener"
+          style="text-align:center;padding:10px;border:1px solid var(--line);border-radius:8px">Open decisions.json on GitHub</a></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the 5 alert coins closest to a buy signal</span></div>
   <div class="cards" id="pfRadar"></div>
 
   <details class="pfPanel" id="pfEditor">
@@ -449,11 +513,6 @@
     </div>
   </details>
 
-  <details class="pfPanel" id="pfBacktest">
-    <summary>System track record — backtest, not your money</summary>
-    <div class="pfPanelBody" id="btSummary"></div>
-  </details>
-
   <div class="pfCtl">
     <label>TF<select id="pfTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="1d">1d</option></select></label>
     <button id="pfGo" class="ghost">↻ Refresh prices</button>
@@ -464,7 +523,7 @@
 <section id="alView">
   <div class="pfHead"><h2>Alert watchlist</h2><span class="pfSub" id="alStatus">—</span></div>
   <p class="pfSub" style="margin:8px 0 0;line-height:1.6">These are the coin + timeframe combinations the
-    signal bot watches. It runs on GitHub's servers every 2 hours with your browser closed, so this list
+    signal bot watches. It runs on GitHub's servers every 15 minutes with your browser closed, so this list
     lives in the repo — not in your phone. Edit it here, then press <b>Apply</b> to push the change.</p>
 
   <div class="alSync" id="alSync">Loading what the bot is watching…</div>
@@ -1577,14 +1636,14 @@ $('cmpGo').addEventListener('click',()=>runCompare(true));
 // collapsed panel and labelled, because an earlier version led with it and read as profit the
 // user had actually made.
 //
-// Coin coverage: holdings first, then PF_CORE (the three coins ALGORITHM.md's 9.1-year 4h panel
-// supports), then PF_RADAR as the bench. ETH/SOL/LINK carry the evidence; BTC is not on the
-// user's watchlist but is the most robust vehicle this strategy has, so it always loads.
-const PF_CORE  = ['ETHUSDT','SOLUSDT','LINKUSDT'];
+// Coin coverage: your holdings (deep history, for their action lines), BTC (deep — the regime tile
+// needs its 200-day MA), and every coin on the ALERT LIST (signals/watchlist.json, shallow — the
+// radar only needs today's conditions). PF_RADAR is the fallback bench when the list can't be read.
 const PF_RADAR = ['BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
 const PF_REGIME_SYM = 'BTCUSDT';          // BTC's own 200d MA is the gate validated out of sample
 const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
-const PF_RBARS = { '1h':2500, '2h':2500, '4h':2500,  '1d':1200 };
+// radar depth: the 149-candle MA, the 30-day leader check and a 1-day volume average all fit well inside
+const PF_RBARS = { '1h':1500, '2h':1500, '4h':1200,  '1d':600 };
 const pfCache = {};
 let pfRows = [], pfBusy = false;
 
@@ -1668,21 +1727,6 @@ const pfMoney = (x)=>{
 };
 const pfPc = (x)=> (x>=0?'+':'−')+Math.abs(x).toFixed(1)+'%';
 
-// per-coin backtest equity — kept only for the collapsed "system track record" panel
-function coinEquity(trades, c, cap0, alloc){
-  let eq = cap0, openPL = 0, cost = 0, w = 0, l = 0;
-  const last = c[c.length-1].close;
-  for(const t of trades.slice().sort((a,b)=>a.entryIdx-b.entryIdx)){
-    const f = (t.frac||1)*alloc;
-    if(t.outcome === 'open'){ cost = eq*f; openPL = cost*(((t.exitPrice!=null?t.exitPrice:last)/t.entry)*(1-0.001)/(1+0.001)-1); }
-    else if(t.exitPrice != null){
-      const pl = eq*f*((t.exitPrice/t.entry)*(1-0.001)/(1+0.001)-1);
-      eq += pl; if(eq < 0) eq = 0; if(pl >= 0) w++; else l++;
-    }
-  }
-  return { cash:eq-cost, cost, mkt:cost+openPL, openPL, w, l, value:eq+openPL };
-}
-
 // Sparkline: one series, so no legend — the card title names it. Thin 2px line, no grid/axis.
 function sparkline(c, markIdx, plPos){
   const N = Math.min(c.length, 120), from = c.length-N;
@@ -1765,14 +1809,17 @@ async function pfRun(force){
   pfBusy = true;
   const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000, rbars = PF_RBARS[tf] || 2500;
   if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
+  renderHoldEditor();                                          // usable while 60+ coins load (or Binance is down)
+  await bkLoad();                                               // book, journal, your answers, the alert list
+  renderBook();                                                // the book needs no candles to show its slots
   const heldSyms = holdings.map(h=>h.sym);
-  const deep = PF_CORE.concat(heldSyms);                       // holdings get real depth too
+  const deep = heldSyms.concat([PF_REGIME_SYM]);               // holdings and BTC get real depth
   const syms = [];
-  for(const x of heldSyms.concat(PF_CORE, PF_RADAR, [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
+  for(const x of heldSyms.concat(bkWatchSyms(), [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
   const out = []; let done = 0;
   const queue = syms.slice();
   $('pfAsOf').textContent = `loading ${tf}… 0/${syms.length}`;
-  await Promise.all([0,1,2,3].map(async ()=>{
+  await Promise.all([0,1,2,3,4,5].map(async ()=>{
     while(queue.length){
       const sym = queue.shift();
       try{
@@ -1786,7 +1833,9 @@ async function pfRun(force){
       $('pfAsOf').textContent = `loading ${tf}… ${++done}/${syms.length}`;
     }
   }));
-  pfRows = out; pfBusy = false;
+  pfRows = out;
+  await bkFetchPrices().catch(()=>{});                         // book positions on coins outside the alert list
+  pfBusy = false;
   renderPf();
 }
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
@@ -1877,15 +1926,20 @@ function renderPf(){
   $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough BTC history on this TF'
     : `BTC ${rg.vsMa>=0?'+':''}${rg.vsMa}% vs its 200d MA · ~${rg.heldDays}d in this state`;
 
-  // ---------- radar: coins you do NOT hold, ranked by how close a buy is ----------
+  // ---------- radar: the 5 ALERT-LIST coins closest to a buy ----------
+  // "About to" excludes what already happened: coins you hold, coins the strategy is already long,
+  // and coins with an open journal entry. Ranked by conditions met, then by how far price is from
+  // the breakout level.
   const heldSet = holdings.map(h=>h.sym);
-  const radar = pfRows.filter(r=>heldSet.indexOf(r.sym)<0)
+  const watch = bkWatchSyms();
+  const bookOpen = new Set(BK.entries.filter(e=>e.status==='open'||e.status==='half').map(e=>e.symbol));
+  const radar = pfRows.filter(r=>watch.indexOf(r.sym)>=0 && heldSet.indexOf(r.sym)<0 && !bookOpen.has(r.sym))
+    .filter(r=>!(r.res.trades||[]).some(t=>t.outcome==='open'))
     .map(r=>{ const ad=r.res.advice || {}, sigs=ad.signals||[];   // advice is null below the warm-up
       return { r, met:sigs.filter(x=>x.ok).length, tot:sigs.length||1,
-               gap:(ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999,
-               core: PF_CORE.indexOf(r.sym)>=0 }; })
+               gap:(ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999 }; })
     .sort((a,b)=> (b.met-a.met) || (a.gap-b.gap))
-    .slice(0, 6);
+    .slice(0, 5);
   $('pfRadar').innerHTML = radar.map((x,i)=>{
     const last = x.r.c[x.r.c.length-1].close;
     const act = actionFor(x.r, false);
@@ -1898,7 +1952,6 @@ function renderPf(){
     return `<div class="card" data-sym="${x.r.sym}">
       <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>
         <span class="badge ${act.cls}">${act.tag}</span>${crown}
-        ${x.core?'<span class="badge b-core">Core</span>':''}
         <span class="dots">${Array.from({length:x.tot},(_,k)=>`<i class="${k<x.met?'on':''}"></i>`).join('')}</span>
         <span class="px"><b>${pfFmt(last)}</b><s>${x.met}/${x.tot} conditions</s></span></div>
       <div class="actLine ${act.cls}">${act.line}</div>
@@ -1908,9 +1961,13 @@ function renderPf(){
   $('pfCards').querySelectorAll('.card[data-sym]').forEach(bindCard);
   $('pfRadar').querySelectorAll('.card[data-sym]').forEach(bindCard);
   renderHoldEditor();
-  renderBacktest();
+  renderBook();
   $('pfAsOf').textContent = new Date().toLocaleString()+' · '+$('pfTf').value+' bars';
-  $('pfNote').innerHTML = `<b>What this is.</b> Prices and your profit are real, computed from the holdings you
+  $('pfNote').innerHTML = `<b>Trading book.</b> The signal bot gives the book <b>${BK.slots} slots</b> (each
+    ${Math.round(100/BK.slots)}% of the book). A BUY alert reserves a slot until you tap <b>Taken</b> or <b>Skipped</b>;
+    when every slot is in use, new signals are written to the journal only — no alert. Money left over stays as plain
+    USDT. Your capital figure and the dollar amounts never leave this browser; the repo only stores Taken/Skipped.
+    <br><br><b>Holdings above.</b> Prices and your profit are real, computed from the holdings you
     entered and live Binance prices. The <b>action on each card is advice from the Liquidity Breakout system</b>,
     not an order — nothing is ever bought or sold for you, and the app has no exchange connection.
     <b>Regime matters more than the coin:</b> pooled over 10 symbols, entries taken while BTC was above its
@@ -1920,6 +1977,243 @@ function renderPf(){
     and the conditions shown are live readings, not a validated edge. The 149-MA filter is also still unmeasured.
     See ALGORITHM.md.`;
 }
+
+// ============================ TRADING BOOK (inside the Portfolio tab) ============================
+// The bot (scripts/signal-bot.js) keeps signals/journal.json: every signal, whether it got one of the
+// book's slots (and an alert) or was journaled only. YOUR answers — Taken / Skipped — live in
+// signals/decisions.json, written from here with the GitHub token saved in the Alerts tab (or pasted
+// by hand: the tokenless route must always work). The repo is public, so no money is ever written
+// there: dollars are computed below from a capital figure that stays in this browser (smb.bookCapital).
+// Slot rule (ALGORITHM.md "The trading book"): a slot is held by a Taken position or by an alerted one
+// you have not answered yet; Skipped frees it; every slot frees at the strategy's own SELL.
+const BK = { slots: 5, start: null, entries: [], decisions: {}, watch: [], loadedAt: 0, err: '', px: {} };
+let bkFilter = 'all';
+const BK_FEE = 0.001;
+const bkLocal = ()=>{ try{ return JSON.parse(lsGet('smb.bookLocal','{}')) || {}; }catch(e){ return {}; } };
+const bkSaveLocal = (o)=> lsSet('smb.bookLocal', JSON.stringify(o));
+
+// Read a JSON file from the repo: Contents API first (current the moment a commit lands), raw CDN as a
+// fallback that may be ~5 minutes old. A missing file is not an error — the bot creates it on its first run.
+async function ghReadJSON(file){
+  const [owner, repo] = alRepo().split('/');
+  const token = lsGet('smb.ghToken','');
+  try{
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file}?ref=main`, { cache:'no-store',
+      headers: Object.assign({ Accept:'application/vnd.github.raw+json' }, token ? { Authorization:`Bearer ${token}` } : {}) });
+    if(r.status === 404) return { json:null };
+    if(r.ok) return { json: JSON.parse(await r.text()) };
+  }catch(e){ /* fall through to raw */ }
+  const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/main/${file}?t=${Date.now()}`, { cache:'no-store' });
+  if(r.status === 404) return { json:null };
+  if(!r.ok) throw new Error(`could not read ${file} (HTTP ${r.status})`);
+  return { json: JSON.parse(await r.text()), stale:true };
+}
+async function bkLoad(){
+  try{
+    const [b, j, d, w] = await Promise.all(['signals/book.json','signals/journal.json','signals/decisions.json','signals/watchlist.json']
+      .map(f=>ghReadJSON(f).catch(()=>({ json:null }))));
+    BK.slots = Math.max(1, Math.round(+((b.json||{}).slots) || 5));
+    BK.start = (b.json||{}).start || null;
+    BK.entries = Array.isArray((j.json||{}).entries) ? j.json.entries.filter(e=>e && e.id && e.symbol) : [];
+    BK.decisions = (d.json && typeof d.json === 'object' && !Array.isArray(d.json)) ? d.json : {};
+    BK.watch = Array.isArray((w.json||{}).watch) ? w.json.watch : [];
+    BK.loadedAt = Date.now(); BK.err = (j.stale||d.stale) ? 'read from the GitHub cache — may be a few minutes old' : '';
+    // a local answer the repo now carries is confirmed — drop it from the local layer
+    const loc = bkLocal(); let ch = false;
+    for(const id of Object.keys(loc)) if(BK.decisions[id] && BK.decisions[id].d === loc[id].d){ delete loc[id]; ch = true; }
+    if(ch) bkSaveLocal(loc);
+  }catch(e){ BK.err = 'could not read the journal: ' + e.message; }
+}
+const bkWatchSyms = ()=>{ const out = [];
+  for(const x of (BK.watch.length ? BK.watch.map(w=>w.symbol) : PF_RADAR)) if(out.indexOf(x)<0) out.push(x);
+  return out; };
+// your answer for an entry: this browser's unsaved tap first, then what the repo holds
+const bkAnswer = (e)=>{ const l = bkLocal()[e.id]; if(l) return l.d; const d = BK.decisions[e.id]; return d ? d.d : null; };
+const bkIsOpen = (e)=> e.status === 'open' || e.status === 'half';
+const bkHolds = (e)=> bkIsOpen(e) && (bkAnswer(e) === 'taken' || (e.alerted && !bkAnswer(e)));
+const bkPrice = (sym)=>{ const r = rowFor(sym); return r ? r.c[r.c.length-1].close : (BK.px[sym] || null); };
+async function bkFetchPrices(){
+  const need = [...new Set(BK.entries.filter(bkIsOpen).map(e=>e.symbol))].filter(s=>!rowFor(s));
+  if(!need.length) return;
+  for(const base of ENDPOINTS){
+    try{
+      const r = await fetch(`${base}/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(need))}`);
+      if(!r.ok) continue;
+      for(const x of await r.json()) BK.px[x.symbol] = +x.price;
+      return;
+    }catch(e){ /* next endpoint */ }
+  }
+}
+// Replay YOUR book: each Taken position gets (book value at cost) ÷ slots when it opens; the half sold at
+// +3R comes back as cash at its fill; the rest at the exit. Fees 0.1%/side, same as every backtest here.
+function bkReplay(cap){
+  const N = BK.slots, taken = BK.entries.filter(e=>bkAnswer(e) === 'taken');
+  const ev = [];
+  for(const e of taken){
+    ev.push({ t:e.signalTime, k:0, e });
+    if(e.scale) ev.push({ t:e.scale.time, k:1, e });
+    if(!bkIsOpen(e)) ev.push({ t:e.exitTime || Infinity, k:2, e });
+  }
+  ev.sort((a,b)=> a.t-b.t || a.k-b.k);
+  const net = (px, entry)=> px*(1-BK_FEE)/(entry*(1+BK_FEE));
+  let cash = cap, realized = 0; const pos = new Map();
+  for(const x of ev){
+    const p = pos.get(x.e.id);
+    if(x.k === 0){
+      const atCost = [...pos.values()].reduce((a,q)=>a+q.alloc*q.w,0);
+      const alloc = Math.max(0, Math.min(cash, (cash+atCost)/N));
+      cash -= alloc; pos.set(x.e.id, { alloc, w:1, e:x.e });
+    } else if(x.k === 1 && p){
+      const got = p.alloc*0.5*net(x.e.scale.px, x.e.entry); cash += got; realized += got - p.alloc*0.5; p.w = 0.5;
+    } else if(x.k === 2 && p){
+      const px = x.e.exitRest != null ? x.e.exitRest : x.e.exit;
+      const got = (x.e.status === 'dropped' || px == null) ? p.alloc*p.w : p.alloc*p.w*net(px, x.e.entry);
+      cash += got; realized += got - p.alloc*p.w; pos.delete(x.e.id);
+    }
+  }
+  let inTrades = 0; const open = [];
+  for(const p of pos.values()){
+    const now = bkPrice(p.e.symbol);
+    const value = p.alloc*p.w*(now ? now/p.e.entry : 1);
+    inTrades += value; open.push({ ...p, now, value });
+  }
+  return { cash, inTrades, value: cash + inTrades, realized, open };
+}
+const bkPct = (x)=> x==null||!isFinite(x) ? '—' : `<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</span>`;
+const bkWhen = (sec)=> sec ? fmtWhen(sec*1000) : '—';
+const bkStatus = (e)=> e.status==='closed' ? 'Closed' : e.status==='dropped' ? 'Removed from list'
+  : e.status==='half' ? 'Half sold' : e.skip==='no free slot' ? 'Open · no free slot' : e.late ? 'Open · started earlier' : 'Open';
+function bkYouChip(e){
+  const a = bkAnswer(e), pend = !!bkLocal()[e.id];
+  if(a === 'taken') return `<span class="chip taken">Taken${pend?' *':''}</span>`;
+  if(a === 'skipped') return `<span class="chip skip">Skipped${pend?' *':''}</span>`;
+  if(e.alerted) return '<span class="chip await">Answer?</span>';
+  return '<span class="chip skip">—</span>';
+}
+// current or final result of one entry, on the strategy's own prices (the half at +3R included)
+function bkResult(e){
+  if(e.status === 'closed') return e.ret;
+  const now = bkPrice(e.symbol); if(!now || !bkIsOpen(e)) return null;
+  const gross = e.scale ? 0.5*e.scale.px + 0.5*now : now;
+  return gross*(1-BK_FEE)/(e.entry*(1+BK_FEE)) - 1;
+}
+function renderBook(){
+  if(!$('bookBox')) return;
+  const N = BK.slots, cap = +lsGet('smb.bookCapital','') || 0;
+  if(document.activeElement !== $('bkCap')) $('bkCap').value = cap || '';
+  const held = BK.entries.filter(bkHolds).sort((a,b)=>a.signalTime-b.signalTime);
+  const R = cap > 0 ? bkReplay(cap) : null;
+  $('bkAsOf').textContent = BK.err ? BK.err : (BK.loadedAt ? `${N} slots · journal since ${BK.start || '—'} · read ${new Date(BK.loadedAt).toLocaleTimeString()}` : 'loading…');
+  // tiles
+  if(R){
+    const pl = R.value - cap;
+    $('bkVal').textContent = pfMoney(R.value);
+    $('bkValS').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)} · ${pfPc(pl/cap*100)}</span> since you started`;
+    $('bkIn').textContent = pfMoney(R.inTrades);
+    $('bkIdle').textContent = pfMoney(R.cash);
+    $('bkIdleS').textContent = held.length >= N ? 'every slot is in use' : 'plain USDT, waiting for a signal';
+    $('bkNext').textContent = pfMoney(R.value / N);
+  } else {
+    $('bkVal').textContent = '—'; $('bkValS').textContent = 'enter your capital above';
+    $('bkIn').textContent = '—'; $('bkIdle').textContent = '—'; $('bkNext').textContent = `${Math.round(100/N)}%`;
+  }
+  $('bkInS').textContent = `${held.length} of ${N} slots in use`;
+  $('bkNextS').textContent = held.length >= N ? 'no free slot — new signals are journaled only' : `${Math.round(100/N)}% of the book per trade`;
+  // slot strip
+  const slotHtml = [];
+  for(let k = 0; k < N; k++){
+    const e = held[k];
+    if(!e){ slotHtml.push('<div class="bkSlot free">free</div>'); continue; }
+    const a = bkAnswer(e) === 'taken';
+    slotHtml.push(`<div class="bkSlot ${a?'taken':'await'}"><b>${coin(e.symbol)}</b>${e.tf} · ${a?'taken':'answer?'}<br>${bkPct(bkResult(e))}</div>`);
+  }
+  $('bkSlots').innerHTML = slotHtml.join('');
+  // waiting for your answer: alerted, not answered — open or already closed
+  const ask = BK.entries.filter(e=>e.alerted && !bkAnswer(e)).sort((a,b)=>b.signalTime-a.signalTime);
+  $('bkAskBox').innerHTML = ask.map(e=>`<div class="bkAsk"><b>${coin(e.symbol)} ${e.tf}</b> · ${e.late?'OPEN TRADE':'BUY'} at <b>${pfFmt(e.entry)}</b>
+      · ${bkWhen(e.signalTime)}<br>Stop ${pfFmt(e.stop)}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}
+      <div style="color:var(--muted)">Did you buy it? This slot stays reserved until you answer.</div>
+      <div class="bkBtns"><button data-bk="taken" data-id="${e.id}">Taken</button><button class="ghost" data-bk="skipped" data-id="${e.id}">Skipped</button></div></div>`).join('');
+  // your open positions
+  $('bkOpen').innerHTML = (R ? R.open : BK.entries.filter(e=>bkIsOpen(e) && bkAnswer(e)==='taken').map(e=>({ e, now:bkPrice(e.symbol), value:null })))
+    .map(p=>{ const e = p.e, r = rowFor(e.symbol), lb = r && r.res.advice ? (r.res.advice.lb||{}) : {};
+      const res = bkResult(e);
+      return `<div class="card" data-sym="${e.symbol}"><div class="cardTop"><span class="sym">${coin(e.symbol)}</span>
+        <span class="badge a-hold">IN YOUR BOOK · ${e.tf}</span><span class="px"><b>${p.now?pfFmt(p.now):'—'}</b><s>${bkPct(res).replace(/<[^>]+>/g,'')}</s></span></div>
+        <div class="rowK"><span>Bought</span><b>${pfFmt(e.entry)} · ${bkWhen(e.signalTime)}</b></div>
+        ${p.value!=null?`<div class="rowK"><span>Worth now</span><b>${pfMoney(p.value)}</b></div>`:''}
+        <div class="rowK"><span>Stop</span><b style="color:#f85149">${pfFmt(e.stop)}</b></div>
+        <div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>
+        ${lb.trailLow && $('pfTf').value===e.tf ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
+        </div>`; }).join('');
+  // journal
+  const F = { all:()=>true, mine:e=>bkAnswer(e)==='taken', ask:e=>e.alerted && !bkAnswer(e), skip:e=>bkAnswer(e)==='skipped',
+              noslot:e=>!e.alerted && !bkAnswer(e) };
+  const LBL = { all:'All', mine:'Mine', ask:'Waiting', skip:'Skipped', noslot:'Not alerted' };
+  $('bkFilt').innerHTML = Object.keys(F).map(k=>`<button class="ghost ${bkFilter===k?'on':''}" data-f="${k}">${LBL[k]} (${BK.entries.filter(F[k]).length})</button>`).join('');
+  const list = BK.entries.filter(F[bkFilter]).sort((a,b)=>b.signalTime-a.signalTime);
+  $('bkJCount').textContent = `${BK.entries.length} signal${BK.entries.length===1?'':'s'} logged`;
+  $('bkJournal').innerHTML = list.map(e=>{ const a = bkAnswer(e), res = bkResult(e), now = bkIsOpen(e) ? bkPrice(e.symbol) : null;
+    return `<tr><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td><td>${bkStatus(e)}</td>
+      <td>${pfFmt(e.entry)}</td><td>${e.status==='closed'?pfFmt(e.exitRest!=null?e.exitRest:e.exit):now?pfFmt(now):'—'}</td>
+      <td>${bkPct(res)}</td><td>${e.status==='closed'&&e.R!=null?(e.R>=0?'+':'')+(+e.R).toFixed(1):'—'}</td>
+      <td>${a?'':`<button data-bk="taken" data-id="${e.id}">Took it</button> <button class="ghost" data-bk="skipped" data-id="${e.id}">Skip</button>`}</td></tr>`; }).join('')
+    || `<tr><td colspan="9" style="color:var(--muted);padding:12px;text-align:left">${BK.loadedAt ? 'No signals yet — the bot logs every one here from now on.' : 'Loading…'}</td></tr>`;
+  // stats: yours vs everything the strategy signalled
+  const closed = BK.entries.filter(e=>e.status==='closed' && e.ret!=null);
+  const st = (xs)=> xs.length ? `${xs.length} closed · win rate ${Math.round(xs.filter(e=>e.ret>0).length/xs.length*100)}% · average ${(xs.reduce((a,e)=>a+e.ret,0)/xs.length*100).toFixed(1)}%` : 'none closed yet';
+  const mine = closed.filter(e=>bkAnswer(e)==='taken'), missed = closed.filter(e=>bkAnswer(e)!=='taken');
+  $('bkStats').innerHTML = `<b>Your trades:</b> ${st(mine)}${R?` · realised ${pfMoney(R.realized)}`:''}<br>`
+    + `<b>Every signal:</b> ${st(closed)}<br><b>Ones you didn't take:</b> ${st(missed)}`;
+  // tokenless route: the full answers file, ready to paste
+  const merged = Object.assign({}, BK.decisions);
+  for(const [id, v] of Object.entries(bkLocal())) merged[id] = { d:v.d, at:v.at };
+  $('bkDecJson').value = JSON.stringify(merged, null, 1);
+  const [owner, repo] = alRepo().split('/');
+  $('bkEdit').href = `https://github.com/${owner}/${repo}/edit/main/signals/decisions.json`;
+  $('bookBox').querySelectorAll('button[data-bk]').forEach(b=>b.onclick = ()=>bkDecide(b.dataset.id, b.dataset.bk));
+  $('bkFilt').querySelectorAll('button[data-f]').forEach(b=>b.onclick = ()=>{ bkFilter = b.dataset.f; renderBook(); });
+  $('bkOpen').querySelectorAll('.card[data-sym]').forEach(bindCard);
+}
+const bkB64dec = (s)=> new TextDecoder().decode(Uint8Array.from(atob(String(s).replace(/\s/g,'')), ch=>ch.charCodeAt(0)));
+// Save an answer: kept locally at once (the slot strip updates immediately), then committed to
+// signals/decisions.json — merged with whatever the file holds now, so answers from another device
+// are never overwritten. Without a token it stays local and the hand-paste panel opens.
+async function bkDecide(id, d){
+  const loc = bkLocal(); loc[id] = { d, at: new Date().toISOString() }; bkSaveLocal(loc);
+  renderBook();
+  const token = lsGet('smb.ghToken','');
+  const msg = $('bkMsg');
+  if(!token){
+    $('bkManual').open = true;
+    msg.className = 'bkMsg'; msg.innerHTML = 'Saved in this browser. The bot can\'t see it yet — save a GitHub token in the Alerts tab, or paste the answers file below.';
+    return;
+  }
+  const [owner, repo] = alRepo().split('/');
+  const api = `https://api.github.com/repos/${owner}/${repo}/contents/signals/decisions.json`;
+  const H = { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json' };
+  msg.className = 'bkMsg'; msg.textContent = 'saving to GitHub…';
+  try{
+    const g = await fetch(`${api}?ref=main&t=${Date.now()}`, { headers:H, cache:'no-store' });
+    let sha, cur = {};
+    if(g.ok){ const j = await g.json(); sha = j.sha; try{ cur = JSON.parse(bkB64dec(j.content)) || {}; }catch(e){ cur = {}; } }
+    else if(g.status !== 404) throw new Error(g.status===401 ? 'token rejected (401)' : `GitHub said ${g.status}`);
+    const merged = Object.assign({}, cur);
+    for(const [k, v] of Object.entries(bkLocal())) merged[k] = { d:v.d, at:v.at };
+    const body = { message:'book: your Taken/Skipped answers from the app', content:b64(JSON.stringify(merged, null, 1)+'\n'), branch:'main' };
+    if(sha) body.sha = sha;
+    const put = await fetch(api, { method:'PUT', headers:{ ...H, 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+    if(!put.ok) throw new Error(`save failed (${put.status}) ${(await put.text()).slice(0,100)}`);
+    BK.decisions = merged; bkSaveLocal({});
+    msg.className = 'bkMsg ok'; msg.textContent = 'Saved — the bot counts your slots from this on its next run.';
+  }catch(e){
+    msg.className = 'bkMsg err'; msg.textContent = e.message + ' — kept in this browser; you can also paste it by hand below.';
+  }
+  renderBook();
+}
+$('bkCap').addEventListener('change', ()=>{ const v = +$('bkCap').value; lsSet('smb.bookCapital', v > 0 ? String(v) : ''); renderBook(); });
+$('bkCopy').addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText($('bkDecJson').value); $('bkCopy').textContent='Copied ✓';
+  setTimeout(()=>$('bkCopy').textContent='Copy answers',1500); }catch(e){ $('bkDecJson').select(); } });
 
 // ---------- Holdings & orders panel ----------
 const toLocalInput = (ms)=>{ const d=new Date(ms), z=(n)=>String(n).padStart(2,'0');
@@ -2280,21 +2574,6 @@ async function restoreOrders(file){
     orders = list.map(o=>({ ...o, id:o.id||oid() })); saveOrders(); pfRun(false);
     st.className='ordMsg ok'; st.textContent = `Restored ${list.length} orders.`;
   }catch(e){ st.className='ordMsg err'; st.textContent = 'Restore failed: ' + e.message; }
-}
-
-// the backtest, demoted: it is the system's record, NOT the user's money
-function renderBacktest(){
-  const rows = PF_CORE.map(s=>rowFor(s)).filter(Boolean);
-  if(!rows.length){ $('btSummary').innerHTML = ''; return; }
-  $('btSummary').innerHTML = `<p class="holdHint" style="margin:0 0 9px">If $1,000 had been split equally across
-    ETH, SOL and LINK and every Liquidity Breakout signal taken on the loaded window, at 0.1%/side fees.
-    <b>This is a simulation of the strategy, not your portfolio.</b></p>`
-    + `<table class="holdTable"><thead><tr><th>Coin</th><th>Closed trades</th><th>Win rate</th><th>Simulated value</th></tr></thead><tbody>`
-    + rows.map(r=>{ const e=coinEquity(r.res.trades, r.c, 1000/rows.length, 1);
-        return `<tr><td><b>${r.sym.replace('USDT','')}</b></td><td>${e.w+e.l}</td>
-          <td>${(e.w+e.l)?Math.round(e.w/(e.w+e.l)*100)+'%':'—'}</td>
-          <td class="${e.value>=1000/rows.length?'up':'down'}">${pfMoney(e.value)}</td></tr>`; }).join('')
-    + `</tbody></table>`;
 }
 
 $('oAdd').addEventListener('click', addOrder);
