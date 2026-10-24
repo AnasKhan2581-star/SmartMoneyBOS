@@ -246,6 +246,186 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "AVAUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "GTCUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ARKUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "COMPUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ERAUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PROMUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "EPICUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "INITUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "CVXUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "REZUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "LAUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "LSKUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "AMPUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "NILUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PARTIUSDT",
+      "tf": "2h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "AVAUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "GTCUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ARKUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "COMPUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ERAUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PROMUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "EPICUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "INITUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "CVXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "REZUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "LAUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "LSKUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "AMPUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "NILUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PARTIUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
     }
   ]
 }
