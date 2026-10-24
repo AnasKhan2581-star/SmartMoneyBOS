@@ -15,9 +15,10 @@ There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the al
   preceded it — that combination was the strongest (2h buys a 4h buy followed averaged +4.9% vs +1.7%).
 - **TAKE HALF** — price reached entry + 3R: sell half there; the other half stays on.
 - **SELL** — the position (or its remaining half) closed; the result counts both halves.
-- **Newly added coins** start silently: a trade opened before you added the coin is not announced (you still get its
-  TAKE HALF / SELL). The one exception is a trade entered on the candle that closed since the bot's previous run —
-  that is a live signal, so it alerts as a normal BUY.
+- **OPEN TRADE** — sent once for a position the bot never announced: the coin was added while liqbrk was already in
+  a trade. It shows the entry, how long ago, the stop, take-half and trail levels, and whether price is still within
+  1R of the entry (joining is then close to the system's own trade) or well past it. A trade entered on a candle that
+  closed after the bot's previous run is not "old" — it comes as a normal BUY.
 - **Rules updated** — sent once per coin, only when a rules change flips that coin between long and
   flat. No trade happened; the bot just re-read the position under the new rules.
 
@@ -112,3 +113,21 @@ drawdown on full ZEC history, losing for ~2.5 years through 2022–24), the `lbM
 filter is **still unmeasured**, and **ARB has never been backtested in this repo** — it is on the
 default watchlist because it was asked for, not because it is evidenced. The evidenced symbols
 are ETH, SOL, LINK and BTC.
+
+## Punctual alerts (optional)
+
+The workflow is scheduled every 15 minutes, but GitHub runs scheduled jobs late or skips them when its runners are
+busy (on this repo a 2-hourly schedule once fired only every 5–6 hours). If you want alerts within a few minutes of
+every candle close, let a free outside scheduler start the workflow:
+
+1. GitHub → Settings → Developer settings → Fine-grained tokens → new token, **only this repository**, permission
+   **Actions: Read and write**. Copy it.
+2. On cron-job.org (free), create a job that runs at **minute 2 of every hour** with:
+   - URL `https://api.github.com/repos/<you>/SmartMoneyBOS/actions/workflows/signals.yml/dispatches`
+   - Method `POST`, headers `Authorization: Bearer <token>` and `Accept: application/vnd.github+json`
+   - Body `{"ref":"main"}`
+3. Keep the 15-minute schedule as a backup. Runs never overlap (the workflow's concurrency group queues them) and a
+   run with nothing new commits nothing, so extra starts are harmless.
+
+The token lives only in cron-job.org — never put it in the repo or the web page.
+

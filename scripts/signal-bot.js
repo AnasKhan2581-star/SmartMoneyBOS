@@ -69,7 +69,10 @@ const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision']
 const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
 // bump when the trading rules change, so stored positions are re-read under the new rules (note 4)
 const RULES = 'liqbrk-2026-10-btc50-lead50-scale3R';
-const RUN_EVERY_MS = 2 * 36e5;   // the workflow's schedule (5 past every even hour) — see .github/workflows/signals.yml
+// Fallback only, for a state file with no _meta.lastRun yet. The real "fresh" test uses the time of the
+// previous persisted run, because GitHub's scheduler runs late and irregularly (measured Oct 2026: a
+// 2-hourly cron actually fired every 5-6 hours), so "the latest N candles" is not a safe proxy.
+const RUN_EVERY_MS = 2 * 36e5;
 
 // ---------- data ----------------------------------------------------------
 async function fetchKlines(symbol, interval, total) {
@@ -197,6 +200,32 @@ function halfMessage(w, c, trade) {
       `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
     ].join('\n'),
     tag: 'win',
+  };
+}
+// A position the bot never announced (it was already open when the coin was added, or when the alert
+// was set up). Sent ONCE so no open trade is ever silent — framed as late, not as a fresh BUY.
+function openMessage(w, c, trade, advice) {
+  const lb = (advice && advice.lb) || {};
+  const coin = w.symbol.replace(/USDT$/, '');
+  const now = c[c.length - 1].close, R = trade.entry - trade.stop, inR = R > 0 ? (now - trade.entry) / R : 0;
+  const hrs = (c[c.length - 1].time - c[trade.entryIdx].time) / 3600;
+  const ago = hrs >= 48 ? `${Math.round(hrs / 24)} days` : `${Math.round(hrs)} hours`;
+  const pc = (now / trade.entry - 1) * 100;
+  return {
+    title: `OPEN TRADE ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% (started before this alert)`,
+    body: [
+      `Liquidity Breakout has been long since ${fmtDay(c[trade.entryIdx].time)} (${ago} ago)`,
+      `Entry ${fmtPx(trade.entry)} · now ${fmtPx(now)} (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)`,
+      ``,
+      `Stop          ${fmtPx(trade.stop)}`,
+      trade.scale ? `Half already sold at ${fmtPx(trade.scale.px)}` : trade.tp ? `Take half     at ${fmtPx(trade.tp)} (+3R)` : null,
+      lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
+      ``,
+      inR <= 1 ? 'Still within 1R of the entry — joining now is close to the system\'s own trade.'
+               : 'Already well past the entry — joining now takes more risk than the system did; usually better to wait for the next BUY.',
+      'You will get TAKE HALF / SELL for this position as normal.',
+    ].filter((x) => x !== null).join('\n'),
+    tag: 'buy',
   };
 }
 function rulesMessage(w, cur) {
@@ -346,6 +375,13 @@ async function notify(msg) {
                     lastEntry: res.trades.length ? c[res.trades[res.trades.length - 1].entryIdx].time : null };
       const prev = state[key];
       const rulesChanged = prev && prev.rules !== RULES;
+      // "fresh" = entered on a candle that closed after the previous persisted run, i.e. a signal no run
+      // has been able to report yet. `noted` = this exact position has been announced (BUY or OPEN TRADE).
+      const lastRun = state._meta && state._meta.lastRun;
+      const tfSec = (TF_MS[w.tf] || RUN_EVERY_MS) / 1000;
+      const isFresh = (o) => !!o && (lastRun ? c[o.entryIdx].time + tfSec > lastRun
+        : o.entryIdx >= c.length - Math.max(1, Math.ceil(RUN_EVERY_MS / (TF_MS[w.tf] || RUN_EVERY_MS))));
+      let noted = !!(cur.inPosition && prev && prev.noted && prev.entryTime === cur.entryTime);
 
       // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
       // later, and its old state is still here — comparing against it would announce a trade that
@@ -358,19 +394,21 @@ async function notify(msg) {
       if (prev && !stale && rulesChanged) {
         // note 4: re-read under the new rules; speak only if long/flat actually changed
         console.log(`${key}: rules changed — re-baselined (${cur.inPosition ? 'long' : 'flat'} under the new rules)`);
-        if (prev.inPosition !== cur.inPosition) { await notify(rulesMessage(w, cur)); alerts++; }
+        if (prev.inPosition !== cur.inPosition) { await notify(rulesMessage(w, cur)); alerts++; if (cur.inPosition) noted = true; }
       } else if (!prev || stale) {
-        // First sighting: record, stay quiet. Announcing a position opened weeks ago is noise.
-        // EXCEPT a FRESH entry — one on the candle(s) that closed since the previous scheduled run
-        // (the bot runs every 2h). That is a live signal, not history: add a coin at 10:30, its breakout
-        // candle closes at 12:00, the first run at 12:05 must still say BUY.
+        // First sighting. History stays quiet (no SELL for a trade that closed before you watched),
+        // but an OPEN position is always announced: a FRESH entry as a normal BUY (add a coin at 10:30,
+        // its breakout closes at 12:00, the next run still says BUY), an older one once as OPEN TRADE.
         const gapDays = stale ? ((cur.lastBar - prev.lastBar) / 86400).toFixed(0) : null;
-        const fresh = open && open.entryIdx >= c.length - Math.max(1, Math.ceil(RUN_EVERY_MS / (TF_MS[w.tf] || RUN_EVERY_MS)));
+        const fresh = isFresh(open);
         console.log(`${key}: ${stale ? `stale by ${gapDays}d — re-baselined` : 'first run — baseline recorded'}`
-          + ` (${cur.inPosition ? (fresh ? 'entered on the latest candle — alerting' : 'already long') : 'flat'})`);
+          + ` (${cur.inPosition ? (fresh ? 'fresh entry — BUY' : 'already long — OPEN TRADE note') : 'flat'})`);
         if (fresh) {
           if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
           await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
+          noted = true;
+        } else if (open) {
+          await notify(openMessage(w, c, open, res.advice)); alerts++; noted = true;
         }
       } else if (prev.inPosition && !cur.inPosition) {
         // the half may have been taken AND the rest closed between two runs: say both
@@ -380,6 +418,7 @@ async function notify(msg) {
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
         await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
         if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
+        noted = true;
       } else if (prev.inPosition && cur.inPosition && prev.entryTime !== cur.entryTime) {
         // a close and a re-entry both landed between two runs — report both, in order
         if (last && last.scale && !prev.scaled) { await notify(halfMessage(w, c, last)); alerts++; }
@@ -387,13 +426,18 @@ async function notify(msg) {
         if (!(w.tf in regimeByTf)) regimeByTf[w.tf] = await btcRegime(w.tf);
         await notify(buyMessage(w, c, open, res.advice, regimeByTf[w.tf], pairOf(w, c[open.entryIdx].time))); alerts++;
         if (open.scale) { await notify(halfMessage(w, c, open)); alerts++; }
+        noted = true;
+      } else if (cur.inPosition && !noted) {
+        // a position recorded silently before OPEN TRADE notes existed — announce it once
+        await notify(openMessage(w, c, open, res.advice)); alerts++; noted = true;
       } else if (prev.inPosition && cur.inPosition && !prev.scaled && cur.scaled) {
         await notify(halfMessage(w, c, open)); alerts++;
       } else {
         console.log(`${key}: no change (${cur.inPosition ? 'holding' : 'flat'})`);
       }
+      cur.noted = noted;
       if (!prev || stale || rulesChanged || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime
-          || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar) {
+          || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar || !!prev.noted !== noted) {
         state[key] = cur; changed = true;
       }
     } catch (e) {
@@ -402,6 +446,9 @@ async function notify(msg) {
     }
   }
 
+  // remembered so the next run can tell a never-reported entry from an old one (isFresh). Only written
+  // alongside a real change, so a run that saw nothing new does not commit just to bump a timestamp.
+  if (changed) state._meta = { lastRun: Math.floor(Date.now() / 1000) };
   if (changed && !DRY) {
     fs.mkdirSync(path.dirname(STATE_PATH), { recursive: true });
     fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + '\n');
