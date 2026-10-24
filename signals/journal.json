@@ -1,0 +1,50 @@
+{
+ "_comment": "Written by scripts/signal-bot.js — every signal, taken or not. Your Taken/Skipped answers live in decisions.json. No money is stored here.",
+ "slots": 5,
+ "entries": [
+  {
+   "id": "INITUSDT|4h|1791820800",
+   "symbol": "INITUSDT",
+   "tf": "4h",
+   "strategy": "liqbrk",
+   "signalTime": 1791835200,
+   "entry": 0.12803,
+   "stop": 0.11024903072510801,
+   "tp": 0.18137290782467597,
+   "status": "open",
+   "scale": null,
+   "late": true,
+   "alerted": false,
+   "skip": "opened before the journal",
+   "exit": null,
+   "exitRest": null,
+   "exitTime": null,
+   "ret": null,
+   "R": null,
+   "why": null,
+   "logged": 1792873087
+  },
+  {
+   "id": "PARTIUSDT|4h|1792540800",
+   "symbol": "PARTIUSDT",
+   "tf": "4h",
+   "strategy": "liqbrk",
+   "signalTime": 1792555200,
+   "entry": 0.0344,
+   "stop": 0.02833947845578142,
+   "tp": 0.05258156463265574,
+   "status": "open",
+   "scale": null,
+   "late": true,
+   "alerted": false,
+   "skip": "opened before the journal",
+   "exit": null,
+   "exitRest": null,
+   "exitTime": null,
+   "ret": null,
+   "R": null,
+   "why": null,
+   "logged": 1792873087
+  }
+ ]
+}
