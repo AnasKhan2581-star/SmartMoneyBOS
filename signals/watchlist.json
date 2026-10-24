@@ -2,12 +2,6 @@
   "_comment": "What the signal bot watches. Edited from the app's Alerts tab, or by hand here.",
   "watch": [
     {
-      "symbol": "ARBUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
       "symbol": "ETHUSDT",
       "tf": "4h",
       "bars": 4500,
@@ -32,108 +26,6 @@
       "strategy": "liqbrk"
     },
     {
-      "symbol": "STRKUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "LUMIAUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ALTUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "WUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZROUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZKUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "AXLUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "CTSIUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "INJUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "TIAUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "RLCUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SANDUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ZECUSDT",
-      "tf": "2h",
-      "bars": 6500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "PHAUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "APTUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "SEIUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
       "symbol": "ARBUSDT",
       "tf": "4h",
       "bars": 4500,
@@ -249,96 +141,6 @@
     },
     {
       "symbol": "AVAUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "GTCUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ARKUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "COMPUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "ERAUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "PROMUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "EPICUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "INITUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "CVXUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "REZUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "LAUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "LSKUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "AMPUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "NILUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "PARTIUSDT",
-      "tf": "2h",
-      "bars": 4500,
-      "strategy": "liqbrk"
-    },
-    {
-      "symbol": "AVAUSDT",
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
@@ -423,6 +225,150 @@
     },
     {
       "symbol": "PARTIUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "1INCHUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "CFXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "STXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "XECUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ZILUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "TUTUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "MASKUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "KNCUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "HBARUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "TAOUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ARPAUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "DASHUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "BCHUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "WOOUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "SYNUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ONEUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "COTIUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "BICOUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "BOMEUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "XLMUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "BANKUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ETCUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "JASMYUSDT",
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
