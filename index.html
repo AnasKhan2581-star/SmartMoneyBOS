@@ -615,26 +615,27 @@
 <section id="compareView">
   <h2>Compare All Strategies</h2>
   <div class="sub">Your symbol list · full history, all-in, 0.1% fees/side · click a column to sort, a row to open it on the chart.<br>
-    Read in this order: <b>Trades</b> (under 30 and nothing else counts) → <b>Stable</b> (low % = one lucky window) → <b>vs B&amp;H</b> (negative = holding the coin beat trading it) → <b>Net P/L</b>. <span id="cmpStatus"></span></div>
+    Read in this order: <b>Trades</b> (under 20 — 12 on 1h and below — nothing else counts) → <b>Stable</b> (low % = one lucky window) → <b>vs B&amp;H</b> (negative = holding the coin beat trading it) → <b>Net P/L</b>. <span id="cmpStatus"></span></div>
   <div id="cmpCtl">
     <label style="flex:1 1 320px;min-width:240px">Symbols
       <input id="cmpSyms" type="text" spellcheck="false"
              title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
     </label>
     <button id="cmpSymsReset" class="ghost" title="restore the default watchlist">Reset list</button>
-    <button id="cmpTop100" class="ghost" title="Fill the list with the 100 largest coins by market cap that trade on Binance spot">Top 100</button>
+    <button id="cmpTop100" class="ghost" title="Fill the list with the 100 largest coins by market cap that trade on Binance spot — ranked fresh on every click">Top 100</button>
+    <button id="cmpGainers" class="ghost" title="Fill the list with Binance's 50 biggest gainers of the last 24 hours (USDT spot pairs) — fetched fresh on every click">Top 50 gainers</button>
     <label>Strategy
       <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
     <label>Timeframe
-      <select id="cmpTf"><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d" selected>1d</option><option value="1w">1w</option></select>
+      <select id="cmpTf"><option value="15m">15m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="1d">1d</option><option value="1w">1w</option></select>
     </label>
     <label title="Fetch the most recent N bars per symbol, or everything between two dates.">Fetch
       <select id="cmpRangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select>
     </label>
     <label id="cmpBarsWrap" title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
       <span style="display:inline-flex;align-items:baseline;gap:6px">
-        <input id="cmpBars" class="num" type="number" value="4500" min="300" max="60000" step="500" />
+        <input id="cmpBars" class="num" type="number" value="19096" min="300" max="60000" step="500" />
         <span id="cmpSpan" class="spanhint"></span>
       </span>
     </label>
@@ -654,7 +655,7 @@
   <div id="cmpWrap"><table id="cmpTable">
     <thead><tr>
       <th data-k="coin" data-label="Coin / Strategy">Coin / Strategy</th><th>Vol</th>
-      <th data-k="n" data-label="Trades" title="CLOSED trades over the whole history — under 30 and none of the other columns mean anything. On 1h only the intraday systems get a real sample: Cycle needs a 200-week MA and Trend/Turtle need months per trade, so they show 0–2 here.">Trades</th>
+      <th data-k="n" data-label="Trades" title="CLOSED trades over the whole history — under 20 (12 on 1h and below) and none of the other columns mean anything. On 1h only the intraday systems get a real sample: Cycle needs a 200-week MA and Trend/Turtle need months per trade, so they show 0–2 here.">Trades</th>
       <th data-k="net" data-label="Net P/L" title="total return over the whole window shown in Yrs, all-in, 0.1% fees per side. Rows with different Yrs are NOT directly comparable — check that column.">Net P/L</th>
       <th data-k="edge" data-label="vs B&amp;H" title="how much richer you ended than simply buying and holding the same coin over the same window. +25% means the strategy finished 25% ahead of holding; negative means holding beat it and trading cost you money.">vs B&amp;H</th>
       <th data-k="pf" data-label="PF" title="profit factor — gross profit divided by gross loss across closed trades. Below 1.0 the system loses money. Above ~1.3 is where an edge starts being worth the effort.">PF</th>
@@ -662,7 +663,8 @@
       <th data-k="wr" data-label="Win rate">Win rate</th>
       <th data-k="expo" data-label="In mkt" title="share of all bars with capital actually deployed. Low exposure with positive Net P/L means the money was idle and safe most of the time — the same return for far less market risk than buy & hold.">In mkt</th>
       <th data-k="pos" data-label="Stable" title="share of sliding windows that were profitable, and the return range across them. 100% = profitable wherever you start; ~50% = the result depends entirely on your window.">Stable</th>
-      <th data-k="yrs" data-label="Yrs" title="history actually covered, which depends on the Bars setting AND on when the pair listed. 4h/2h reach Binance's 2017 start (~9.1y) for BTC and ETH but only 2020 for SOL and 2019 for LINK, and most 1h history begins 2022. Cross-TF and cross-symbol numbers therefore grade different periods — check this column before comparing two rows.">Yrs</th><th>✓</th>
+      <th data-k="yrs" data-label="Yrs" title="history actually covered, which depends on the Bars setting AND on when the pair listed. 4h/2h reach Binance's 2017 start (~9.1y) for BTC and ETH but only 2020 for SOL and 2019 for LINK, and most 1h history begins 2022. Cross-TF and cross-symbol numbers therefore grade different periods — check this column before comparing two rows.">Yrs</th>
+      <th data-k="ok" data-label="✓" title="passes the whole investment test: profitable, beats holding, PF ≥ 1.3, win rate ≥ 30%, drawdown ≤ 60%, enough trades and (with Window sweep) ≥ 70% of windows profitable. Click to put every ticked row first — ticked rows are then ordered by vs B&amp;H.">✓</th>
     </tr></thead>
     <tbody id="cmpBody"><tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr></tbody>
   </table></div>
@@ -1247,7 +1249,9 @@ const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtl
 // 2017-08-17 to now (~9.1 years = two BTC halving cycles), which is the point: a 4.6-year
 // 4h window is bull-only and flatters every trend system in it.
 // 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
-const CMP_BARS={ '1h':10000, '2h':20000, '4h':20000, '1d':4500, '1w':600 };
+// Oct 2026 (user's settings): Compare opens on Liq Breakout · 4h · 19,096 bars (≈8.7 years). 15m starts at
+// a year (35,040 bars, 36 pages a coin) — a 15m pull of a whole list is the heaviest thing this tab does.
+const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w':600 };
 // cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
 // box slices the tail off what we already hold instead of refetching, and a symbol whose
 // history is genuinely shorter than `asked` is not refetched forever.
@@ -1289,7 +1293,7 @@ function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(60000,Math.roun
 // that people read "650 bars" without noticing it is 27 days.
 function cmpSpan(){
   const tf=$('cmpTf').value, n=cmpBars();
-  const hrs={'1h':1,'2h':2,'4h':4,'1d':24,'1w':168}[tf]||24;
+  const hrs={'15m':0.25,'1h':1,'2h':2,'4h':4,'1d':24,'1w':168}[tf]||24;
   const d=n*hrs/24;
   const txt = d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
   const el=$('cmpSpan');
@@ -1305,8 +1309,8 @@ cmpSpan();
 const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
 $('cmpSyms').value=cmpSymsText(CMP_SYMS);
 // strategy filter is generated, so removing a strategy can never leave a dead option behind
-$('cmpStrat').innerHTML='<option value="all" selected>All strategies</option>'
-  + CMP_STRATS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+$('cmpStrat').innerHTML='<option value="all">All strategies</option>'
+  + CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
 // Per-bar strategy return path -> net profit, edge over buy & hold, PF, exposure, DD, sweep.
 // Columns are chosen for "is this worth my money", not "which backtest looks prettiest":
 // CAGR/6M/1Y were dropped Oct 2026 — CAGR annualises a number whose window length varies by
@@ -1489,14 +1493,17 @@ function renderCmp(){
   const tf=$('cmpTf').value, all=cmpRowsTf[cmpRowKey()]||[];
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
-  const {k,d}=cmpSort;
-  view.sort((a,b)=> k==='coin' ? d*a.sym.localeCompare(b.sym) : d*((a.e[k]||0)-(b.e[k]||0)));
+  const {k,d}=cmpSort, sweepOn=$('cmpSweep').checked;
+  // ✓ sorts ticked rows first (or last), each group ordered by vs B&H — the next thing to read
+  const okv=(r)=>okRow(r.e, sweepOn)?1:0;
+  view.sort((a,b)=> k==='coin' ? d*a.sym.localeCompare(b.sym)
+    : k==='ok' ? (d*(okv(a)-okv(b)) || (b.e.edge||0)-(a.e.edge||0))
+    : d*((a.e[k]||0)-(b.e[k]||0)));
   document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>{
     th.textContent=th.dataset.label+(th.dataset.k===k?(d<0?' ↓':' ↑'):'');
   });
   const pc=(x)=>`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</span>`;
   const vp=(v)=> v<0.45?'<span class="volpill" style="background:#1d3b2a;color:#7ee787">LOW VOL</span>':v<0.8?'<span class="volpill" style="background:#3b331d;color:#e3c34c">MED VOL</span>':'<span class="volpill" style="background:#3b1d1d;color:#f85149">HIGH VOL</span>';
-  const sweepOn=$('cmpSweep').checked;
   // stability cell: share of windows profitable, with the spread underneath
   const sg=(x)=>(x>=0?'+':'−')+Math.abs(x*100).toFixed(0)+'%';   // explicit sign: "−15%", never "-0"
   const sc=(e)=>{
@@ -2920,7 +2927,10 @@ $('cmpSymsReset').addEventListener('click',()=>{
 // It never passes volume off as market cap.
 const TOP_KEY='smb.top100';
 const NOT_COIN_SYM=/USD/;                        // USDT USDC FDUSD USDE PYUSD USD1 … all stables
-const NOT_COIN_SET=new Set(['WBTC','WETH','WBETH','BETH','STETH','WSTETH','BNSOL','PAXG','XAUT','EURI','EUR','TUSD','DAI','FRAX']);
+const NOT_COIN_SET=new Set(['WBTC','WETH','WBETH','BETH','STETH','WSTETH','BNSOL','PAXG','XAUT','EURI','EUR','AEUR','TUSD','DAI','FRAX']);
+// leveraged tokens (BTCUP, ETHDOWN, …) are the name of a listed coin plus UP/DOWN/BULL/BEAR — a bare
+// suffix test would also throw out real coins like JUP
+const isLevToken=(b, live)=>{ const m=/^(.{2,}?)(UP|DOWN|BULL|BEAR)$/.exec(b); return !!m && live.has(m[1]+'USDT'); };
 const NOT_COIN_NAME=/wrapped|staked|restaked|bridged|liquid staking|\bgold\b/i;
 let cmpListNote='';
 async function binanceJSON(path){
@@ -2954,7 +2964,7 @@ async function buildTop100(){
     return { syms:out, source:'market cap', at:Date.now() };
   }catch(e){
     const out=[...live.entries()]
-      .filter(([sym])=>{ const b=sym.slice(0,-4); return fits(b) && !/(UP|DOWN|BULL|BEAR)$/.test(b); })
+      .filter(([sym])=>{ const b=sym.slice(0,-4); return fits(b) && !isLevToken(b, live); })
       .sort((a,b)=>b[1]-a[1]).slice(0,100).map(([sym])=>sym);
     return { syms:out, source:'24h Binance volume', fallback:'CoinGecko unavailable ('+e.message+')', at:Date.now() };
   }
@@ -2975,21 +2985,70 @@ $('cmpTop100').addEventListener('click', async ()=>{
   const btn=$('cmpTop100'); btn.disabled=true;
   $('cmpStatus').textContent='finding the top 100 coins…';
   try{
-    let t=null; try{ t=JSON.parse(localStorage.getItem(TOP_KEY)||'null'); }catch(e){}
-    // market-cap lists are good for a day; a volume fallback is retried after an hour
-    const fresh = t && Array.isArray(t.syms) && t.syms.length && (Date.now()-t.at) < (t.fallback ? 36e5 : 864e5);
-    if(!fresh){ t=await buildTop100(); try{ localStorage.setItem(TOP_KEY, JSON.stringify(t)); }catch(e){} }
+    // ranked FRESH on every click. The last good list is kept only for when Binance can't be reached,
+    // and then the confirm and the status line say how old it is.
+    let t, stale='';
+    try{ t=await buildTop100(); try{ localStorage.setItem(TOP_KEY, JSON.stringify(t)); }catch(e){} }
+    catch(err){
+      try{ t=JSON.parse(localStorage.getItem(TOP_KEY)||'null'); }catch(e){ t=null; }
+      if(!t || !Array.isArray(t.syms) || !t.syms.length) throw err;
+      stale=`could not refresh (${err.message}) — this is the list from ${new Date(t.at).toLocaleString()}`;
+    }
     const est=cmpEstimate(t.syms.length);
     const ok=confirm(`Compare the top ${t.syms.length} coins by ${t.source}?`
       + (t.fallback ? `\n\n${t.fallback}, so this list is ranked by trading volume instead.` : '')
+      + (stale ? `\n\n${stale}.` : '')
       + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
-      + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Keep this tab open until it finishes.`);
+      + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Keep this tab open until it finishes.`
+      + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
     if(!ok){ $('cmpStatus').textContent=''; return; }
-    cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''} · ranked ${new Date(t.at).toLocaleDateString()}`;
+    cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''}${stale?' — '+stale:''} · ranked ${new Date(t.at).toLocaleString()}`;
     const same = t.syms.join()===CMP_SYMS.join();
     $('cmpSyms').value=cmpSymsText(t.syms);
     if(same) runCompare(false); else applyCmpSyms();
   }catch(e){ $('cmpStatus').textContent='could not build the top-100 list: '+e.message; }
+  finally{ btn.disabled=false; }
+});
+// ---- Top 50 gainers -----------------------------------------------------------
+// Binance's own 24h ranking: USDT spot pairs by % change over the last 24 hours, fetched fresh on every
+// click (it changes by the minute). Same exclusions as Top 100 (stablecoins, wrapped/staked copies,
+// leveraged tokens), plus a $1M 24h-volume floor so a near-dead pair that jumped on a handful of trades
+// can't take a row. New listings stay in; the ones too young to test are skipped and named in the status.
+const GAIN_MIN_VOL=1e6;
+async function buildGainers(n){
+  const tick=await binanceJSON('/api/v3/ticker/24hr?type=MINI');
+  const live=new Set(tick.filter(t=>+t.quoteVolume>0).map(t=>t.symbol));
+  const rows=[];
+  for(const t of tick){
+    if(!/USDT$/.test(t.symbol)) continue;
+    const b=t.symbol.slice(0,-4), open=+t.openPrice, last=+t.lastPrice;
+    if(!(open>0 && last>0 && +t.quoteVolume>=GAIN_MIN_VOL)) continue;
+    if(NOT_COIN_SYM.test(b) || NOT_COIN_SET.has(b) || isLevToken(b, live) || normSym(b)!==t.symbol) continue;
+    rows.push({ sym:t.symbol, chg:last/open-1 });
+  }
+  rows.sort((a,b)=>b.chg-a.chg);
+  const top=rows.slice(0,n);
+  return { syms:top.map(r=>r.sym), chg:top.map(r=>r.chg), at:Date.now() };
+}
+$('cmpGainers').addEventListener('click', async ()=>{
+  const btn=$('cmpGainers'); btn.disabled=true;
+  $('cmpStatus').textContent='fetching Binance\'s top gainers…';
+  try{
+    const g=await buildGainers(50);
+    if(!g.syms.length) throw new Error('no USDT pair passed the filters');
+    const pct=(x)=>(x>=0?'+':'')+(x*100).toFixed(1)+'%', est=cmpEstimate(g.syms.length);
+    const ok=confirm(`Compare Binance's top ${g.syms.length} gainers of the last 24 hours?`
+      + `\n\n${g.syms.slice(0,5).map((s,i)=>s.replace(/USDT$/,'')+' '+pct(g.chg[i])).join(' · ')} … down to ${pct(g.chg[g.chg.length-1])}`
+      + ` (USDT pairs with ≥ $1M traded in 24h).`
+      + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
+      + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Brand-new listings with too little history are skipped and named.`
+      + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
+    if(!ok){ $('cmpStatus').textContent=''; return; }
+    cmpListNote=`top ${g.syms.length} Binance gainers, 24h change at ${new Date(g.at).toLocaleString()} (≥ $1M volume)`;
+    const same=g.syms.join()===CMP_SYMS.join();
+    $('cmpSyms').value=cmpSymsText(g.syms);
+    if(same) runCompare(false); else applyCmpSyms();
+  }catch(e){ $('cmpStatus').textContent='could not fetch the gainers: '+e.message; }
   finally{ btn.disabled=false; }
 });
 function showView(v){
