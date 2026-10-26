@@ -77,8 +77,10 @@ const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8'))
 
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
-// bump when the trading rules change, so stored positions are re-read under the new rules (note 4)
-const RULES = 'liqbrk-2026-10-btc50-lead50-scale3R';
+// bump a strategy's entry when ITS trading rules change, so stored positions are re-read under the new rules
+// (note 4). Per strategy, so a change to one never makes every alert of another re-baseline.
+const RULES = { liqbrk: 'liqbrk-2026-10-btc50-lead50-scale3R', cycle: 'cycle-2026-10-daily-btcled-half1.85' };
+const rulesOf = (strat) => RULES[strat] || strat;
 // Fallback only, for a state file with no _meta.lastRun yet. The real "fresh" test uses the time of the
 // previous persisted run, because GitHub's scheduler runs late and irregularly (measured Oct 2026: a
 // 2-hourly cron actually fired every 5-6 hours), so "the latest N candles" is not a safe proxy.
@@ -151,6 +153,28 @@ function pairLine(w, pair) {
     : 'No 2h buy before this one — still a valid 4h trade (37% of them come without warning).';
   return null;
 }
+// liqbrk sells its half at +3R and trails the rest; the cycle sells its half in the SELL ZONE (a close at
+// 1.85 × the 200-day MA, a level that moves with the MA) and holds the rest to the Pi-Cycle top or a
+// 5-day break of the 40-week MA. The messages must say the rule of the strategy that actually fired.
+const isCycle = (w) => (w.strategy || 'liqbrk') === 'cycle';
+const halfWhy = (w) => isCycle(w) ? 'sell zone: 1.85 × the 200-day MA' : '+3R';
+const restRule = (w) => isCycle(w) ? 'it rides to the Pi-Cycle top or 5 days under the 40-week MA'
+  : 'stop as before, trail = close below the 1-day low';
+const WHY = { STOP: 'stop hit', TRAIL: 'trailed out below the 1-day low', 'PI-TOP': 'Pi-Cycle top',
+  'BTC-BEAR': 'BTC lost its 40-week MA (its bear signal)' };
+// what a cycle entry still has to do: the tranche program, the exit line, BTC's state for alts
+function cycleLines(trade, advice) {
+  const cy = advice && advice.cycle; if (!cy) return [];
+  const p = cy.plan || {}, out = [];
+  if (cy.mode === 'ACCUM') {
+    out.push(`Accumulation: buy ${Math.round(trade.frac * 100)}% of the slot now, the rest when price reclaims the`,
+      `40-week MA ≈ ${fmtPx(p.reserveTrig)} (no separate alert for that tranche)`,
+      `Stop          ${fmtPx(trade.stop)} (0.65 × the 200-week MA)`);
+  } else out.push(`Exit          5 days under the 40-week line ≈ ${fmtPx(0.97 * p.trendLine)}`);
+  if (cy.btc && !cy.btc.self) out.push(cy.btc.missing ? 'BTC daily data missing — NOT gated on BTC\'s cycle'
+    : `BTC: ${cy.btc.bull ? 'above' : 'below'} its 40-week MA${cy.btc.zone2 ? ', in its buy zone' : ''}`);
+  return out;
+}
 // "Slot 2 of 5 — put 20% of your capital in" — the book's sizing rule, said where it is acted on
 const slotText = (slot) => slot ? `Slot ${slot.slot} of ${slot.N} — put ${Math.round(100 / slot.N)}% of your capital in · tap Taken or Skipped in the app` : null;
 function buyMessage(w, c, trade, advice, btcReg, pair, slot) {
@@ -166,8 +190,8 @@ function buyMessage(w, c, trade, advice, btcReg, pair, slot) {
       `${name} triggered at ${fmtPx(trade.entry)}`,
       `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
       ``,
-      `Initial stop  ${fmtPx(trade.stop)}`,
-      trade.tp ? `Take half     at ${fmtPx(trade.tp)} (+${lb.scaleR || 3}R) — separate alert when hit` : null,
+      ...(isCycle(w) ? cycleLines(trade, advice) : [`Initial stop  ${fmtPx(trade.stop)}`]),
+      trade.tp ? `Take half     at ${isCycle(w) ? '≈ ' : ''}${fmtPx(trade.tp)} (${isCycle(w) ? halfWhy(w) : `+${lb.scaleR || 3}R`}) — separate alert when hit` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       lb.breakHigh ? `Took the pool above ${fmtPx(lb.breakHigh)} on ${lb.relVol}x volume` : null,
       gateLine(lb),
@@ -184,7 +208,8 @@ function sellMessage(w, c, trade, slotLine) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.exitPrice / trade.entry - 1) * 100;
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
-  const why = trade.targetPool === 'STOP' ? 'stop hit' : trade.targetPool === 'TRAIL' ? 'trailed out below the 1-day low' : String(trade.targetPool || '').toLowerCase();
+  const why = WHY[trade.targetPool] || (trade.targetPool === 'TREND' && isCycle(w) ? '5 days under the 40-week MA'
+    : String(trade.targetPool || '').toLowerCase());
   const rest = trade.exitRest != null ? trade.exitRest : trade.exitPrice;
   return {
     title: `SELL ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`,
@@ -208,11 +233,11 @@ function halfMessage(w, c, trade, slotLine) {
   return {
     title: `TAKE HALF ${coin} ${w.tf}  +${pc.toFixed(1)}%`,
     body: [
-      `Sell half at ${fmtPx(trade.scale.px)} (+3R target reached)`,
+      `Sell half at ${fmtPx(trade.scale.px)} (${halfWhy(w)} reached)`,
       `Bar ${fmtDay(c[trade.scale.idx].time)}`,
       ``,
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
-      `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
+      isCycle(w) ? `The other half stays on: ${restRule(w)}` : `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
       ...(slotLine ? ['', slotLine] : []),
     ].join('\n'),
     tag: 'win',
@@ -231,11 +256,11 @@ function openMessage(w, c, trade, advice, slot) {
     title: `OPEN TRADE ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% (started before this alert)`,
     body: [
       ...(slot ? [slotText(slot), ''] : []),
-      `Liquidity Breakout has been long since ${fmtDay(c[trade.entryIdx].time)} (${ago} ago)`,
+      `${STRAT_NAME[w.strategy || 'liqbrk'] || w.strategy} has been long since ${fmtDay(c[trade.entryIdx].time)} (${ago} ago)`,
       `Entry ${fmtPx(trade.entry)} · now ${fmtPx(now)} (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)`,
       ``,
-      `Stop          ${fmtPx(trade.stop)}`,
-      trade.scale ? `Half already sold at ${fmtPx(trade.scale.px)}` : trade.tp ? `Take half     at ${fmtPx(trade.tp)} (+3R)` : null,
+      ...(isCycle(w) ? cycleLines(trade, advice) : [`Stop          ${fmtPx(trade.stop)}`]),
+      trade.scale ? `Half already sold at ${fmtPx(trade.scale.px)}` : trade.tp ? `Take half     at ${isCycle(w) ? '≈ ' : ''}${fmtPx(trade.tp)} (${halfWhy(w)})` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       ``,
       inR <= 1 ? 'Still within 1R of the entry — joining now is close to the system\'s own trade.'
@@ -250,8 +275,9 @@ function rulesMessage(w, cur) {
   return {
     title: `Rules updated — ${coin} ${w.tf}`,
     body: [
-      'liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)',
-      'and sells half at +3R.',
+      ...(isCycle(w) ? ['BTC Cycle was rebuilt (Oct 2026): a daily system, alts follow BTC\'s cycle,',
+        'and half is sold in the sell zone (1.85 × the 200-day MA).']
+        : ['liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)', 'and sells half at +3R.']),
       '',
       cur.inPosition ? `Under the new rules this coin is LONG since ${fmtDay(cur.entryTime)}.`
         : 'Under the new rules this coin is FLAT — the old rules had it long.',
@@ -349,6 +375,14 @@ async function notify(msg) {
     return c;
   };
 
+  // BTC DAILY, all history, for the cycle's BTC-led rules on alts (BTC's buy zone needs its 200-week MA)
+  let btcDaily = null;
+  const btcDailyFor = async () => {
+    if (SELFTEST || FIXTURE) return null;      // offline modes: the gate is open and the result says so
+    if (!btcDaily) btcDaily = await fetchKlines('BTCUSDT', '1d', 4000);   // throws -> caller skips the item
+    return btcDaily;
+  };
+
   // 2h before 4h, so a 4h buy can see whether the same coin's 2h bought first (pairLine)
   const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5 };
   const items = watch.watch.slice().sort((a, b) => (TF_RANK[a.tf] ?? 9) - (TF_RANK[b.tf] ?? 9));
@@ -369,18 +403,28 @@ async function notify(msg) {
     const key = `${w.symbol}|${w.tf}|${w.strategy || 'liqbrk'}`;
     try {
       const bars = w.bars || 4500;
-      const c = FIXTURE ? readJSON(path.resolve(FIXTURE), [])
+      let c = FIXTURE ? readJSON(path.resolve(FIXTURE), [])
               : SELFTEST ? syntheticKlines(w.symbol, bars, w.__drift != null ? w.__drift : 0.0015)
               : await fetchKlines(w.symbol, w.tf, bars);
+      const strat = w.strategy || 'liqbrk';
+      // the cycle is a DAILY system (detector.js aggregates intraday bars to days): act on finished days only,
+      // the same rule as dropping the forming candle — here the candle that can still change is the day
+      if (strat === 'cycle' && (TF_MS[w.tf] || 864e5) < 864e5 && c.length) {
+        const end = c[c.length - 1].time + TF_MS[w.tf] / 1000, today = Math.floor(end / 86400) * 86400;
+        if (end !== today) c = c.filter((x) => x.time < today);
+      }
       if (c.length < 300) { console.log(`${key}: only ${c.length} closed bars — skipped`); continue; }
 
-      const strat = w.strategy || 'liqbrk';
-      let btc = null;
+      let btc = null, btcD;
       if (strat === 'liqbrk') {
         try { btc = w.symbol === 'BTCUSDT' ? c : await btcFor(w.tf, bars); }
         catch (e) { throw new Error(`BTC fetch failed (${e.message}) — skipped, the market gate cannot be checked`); }
       }
-      const res = SMC.detectAll(c, { strategy: strat, longOnly: true, useLiq: false, btc });
+      if (strat === 'cycle') {
+        try { btcD = w.symbol === 'BTCUSDT' ? 'self' : await btcDailyFor(); }
+        catch (e) { throw new Error(`BTC daily fetch failed (${e.message}) — skipped, the cycle's BTC rules cannot be checked`); }
+      }
+      const res = SMC.detectAll(c, { strategy: strat, longOnly: true, useLiq: false, btc, btcD });
       if (!res.advice) {                      // runQuant bailed: fewer bars than the warm-up needs
         console.error(`${key}: ${c.length} bars is below the strategy's warm-up — this watch can `
           + `NEVER fire. Raise "bars" in the watchlist.`);
@@ -391,10 +435,10 @@ async function notify(msg) {
       const closed = res.trades.filter((t) => t.outcome !== 'open');
       const last = closed.length ? closed[closed.length - 1] : null;
       const cur = { inPosition: !!open, entryTime: open ? c[open.entryIdx].time : null,
-                    scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: RULES,
+                    scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: rulesOf(strat),
                     lastEntry: res.trades.length ? c[res.trades[res.trades.length - 1].entryIdx].time : null };
       const prev = state[key];
-      const rulesChanged = prev && prev.rules !== RULES;
+      const rulesChanged = prev && prev.rules !== rulesOf(strat);
       // "fresh" = entered on a candle that closed after the previous persisted run, i.e. a signal no run
       // has been able to report yet. `noted` = this exact position has been journaled (BUY or OPEN TRADE).
       const lastRun = state._meta && state._meta.lastRun;

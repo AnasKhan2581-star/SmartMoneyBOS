@@ -754,6 +754,24 @@ async function btcFor(tf, c, sym){
   catch(err){ if(btcCache[tf] === e) delete btcCache[tf]; return null; }
 }
 
+// BTC DAILY candles, all history, for the cycle playbook's BTC-led rules on alts (Oct 2026): BTC's own buy
+// zone needs its 200-week MA, so liqbrk's 51-day series is far too short. ~4 pages, shared, refreshed every
+// 5 minutes. On BTC itself the engine gets 'self' — gating BTC on BTC would only re-read its own data.
+let btcDaily = null;
+async function btcDailyFor(sym){
+  if(sym === 'BTCUSDT') return 'self';
+  let e = btcDaily;
+  if(!e || Date.now() - e.at > 5*60e3) e = btcDaily = { at: Date.now(), p: fetchKlines('BTCUSDT', '1d', { from: Date.UTC(2017,7,1) }) };
+  try{ return await e.p; }
+  catch(err){ if(btcDaily === e) btcDaily = null; return null; }
+}
+let btcDSeries = null, btcDSym = null, candlesSym = null;   // the cycle's BTC daily, for the symbol on screen
+async function ensureBtcD(fresh){
+  if($('strategy').value !== 'cycle' || !candlesSym) return;
+  if(!fresh && btcDSym === candlesSym && btcDSeries) return;
+  btcDSeries = await btcDailyFor(candlesSym); btcDSym = candlesSym;
+}
+
 function ensureChart(){
   if(chart) return;
   // the charting lib is a CDN script — if it is blocked or offline, say so instead of
@@ -893,12 +911,20 @@ function render(result){
   const L=LightweightCharts.LineStyle;
   const pl=(price,color,style,title)=>priceLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));
   const openT = trades.find(t=>t.outcome==='open');
-  if(openT){ pl(openT.entry,'#e2b93d',L.Dashed,'Entry'); pl(openT.stop,'#f85149',L.Dotted,'SL'); if(openT.tp) pl(openT.tp,'#3fb950',L.Dotted,'TP'); }
+  const cyAd = result.advice && result.advice.cycle;
+  if(openT){
+    pl(openT.entry,'#e2b93d',L.Dashed,'Entry');
+    if(cyAd && cyAd.mode==='TREND') pl(0.97*cyAd.plan.trendLine,'#f85149',L.Dotted,'40w exit');
+    else pl(openT.stop,'#f85149',L.Dotted,'SL');
+    if(openT.tp) pl(openT.tp,'#3fb950',L.Dotted, cyAd ? 'Sell ½' : 'TP');
+  }
 
   sizeOverlay(); drawOverlay(); backtest(); advisor(result);
   const sm = result.summary;
   const inMkt = openT ? 'IN THE MARKET' : 'in cash';
-  $('status').innerHTML = `${c.length} bars • ${sm.trades} holds • ${sm.wins}W/${sm.losses}L • <b class="${openT?'bull':'bear'}">${inMkt}</b>`;
+  $('status').innerHTML = `${c.length} bars • ${sm.trades} holds • ${sm.wins}W/${sm.losses}L • <b class="${openT?'bull':'bear'}">${inMkt}</b>`
+    + (result.advice && result.advice.cycle && result.advice.cycle.btc && result.advice.cycle.btc.missing
+      ? ' • <span style="color:#f85149">BTC daily unavailable — this alt is NOT gated on BTC\'s cycle</span>' : '');
 }
 
 function sizeOverlay(){
@@ -1013,10 +1039,11 @@ function drawOverlay(){
     // right-edge labels: today's zones
     const last=(arr)=>{ for(let i=n-1;i>=0;i--) if(arr[i]&&!isNaN(arr[i])) return arr[i]; return null; };
     const zv=last(cl.zLo), mv=last(cl.ma200);
+    const fz=(x)=> x>=1000 ? Math.round(x).toLocaleString() : x>=1 ? x.toFixed(2) : x.toPrecision(3);   // ADA once read "BUY A 0–1"
     ctx.save(); ctx.font='10px system-ui';
-    if(zv){ const y=Y(zv*1.05); if(y!=null){ ctx.fillStyle='#7ee787'; ctx.fillText('BUY A '+Math.round(zv).toLocaleString()+'–'+Math.round(zv*1.1).toLocaleString(),rightX-150,y); }
-      const y2=Y(zv*0.86); if(y2!=null){ ctx.fillStyle='#2ea043'; ctx.fillText('BUY B (deep) '+Math.round(zv*0.72).toLocaleString()+'–'+Math.round(zv).toLocaleString(),rightX-150,y2); } }
-    if(mv){ const y=Y(mv*2.1); if(y!=null){ ctx.fillStyle='#f85149'; ctx.fillText('SELL ZONE '+Math.round(mv*1.85).toLocaleString()+'–'+Math.round(mv*2.4).toLocaleString(),rightX-150,y); } }
+    if(zv){ const y=Y(zv*1.05); if(y!=null){ ctx.fillStyle='#7ee787'; ctx.fillText('BUY A '+fz(zv)+'–'+fz(zv*1.1),rightX-150,y); }
+      const y2=Y(zv*0.86); if(y2!=null){ ctx.fillStyle='#2ea043'; ctx.fillText('BUY B (deep) '+fz(zv*0.72)+'–'+fz(zv),rightX-150,y2); } }
+    if(mv){ const y=Y(mv*2.1); if(y!=null){ ctx.fillStyle='#f85149'; ctx.fillText('SELL ½ ZONE '+fz(mv*1.85)+'–'+fz(mv*2.4),rightX-150,y); } }
     ctx.restore();
   }
 
@@ -1091,8 +1118,10 @@ async function run(){
       $('status').textContent = `fetching ${sym} ${tf} · ${got} bars…`;
     });
     if(!candles.length){ $('status').textContent = byDate ? 'no bars in that date range' : 'no data'; return; }
+    candlesSym = sym;
     $('status').textContent = `fetching BTC ${tf} for the market gate…`;
     btcSeries = await btcFor(tf, candles, sym);
+    if($('strategy').value === 'cycle'){ $('status').textContent = 'fetching BTC 1d for the cycle playbook…'; await ensureBtcD(true); }
     recalc();
     // Say what was actually fetched — a requested start before the pair listed is clamped
     // silently by the API, and the user should see that rather than assume full coverage.
@@ -1122,12 +1151,13 @@ function recalc(){
   const liq=$('liq').value;
   const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
     useLiq:liq!=='off', liqTargets:liq==='trade',
-    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0), btc: btcSeries };
+    lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0), btc: btcSeries,
+    btcD: btcDSym === candlesSym ? btcDSeries : null };
   render(SMC.detectAll(candles, params));
 }
 // what the selected system does, in one breath
 const STRAT_INFO = {
-  cycle: '<b>BTC Cycle (halving playbook)</b> — signals that repeated at every cycle turn since 2015 (2013 documented): BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout. Accumulation is TWO tranches: half in zone A (200w→×1.1), half on the deep-zone recovery (0.72–1.0×200w — every real bottom pierces the 200w), entry = tranche average, stop 0.65×200w (under the deepest pierce on record). SELL on the Pi-Cycle cross (2017 & Apr-2021 tops to the day) or a persistent 40-week break. BTC-specific.',
+  cycle: '<b>BTC Cycle (halving playbook)</b> — a <b>daily</b> system on every chart (4h shows exactly the trades 1d shows). BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout, while price is still above the deep-zone floor (0.72×200w). Accumulation is staged: 40% in zone A (200w→×1.1), 40% on a deep-zone recovery day (0.72–1.0×200w), the rest when price reclaims the 40-week MA; stop 0.65×200w. Or a trend entry after 5 days above the 40-week MA. <b>Half is sold in the red SELL ZONE</b> (first close ≥1.85× the 200-day MA, never below the entry); the rest exits on the Pi-Cycle top or 5 days under the 40-week MA. <b>Alts follow BTC\'s cycle:</b> they only buy while BTC is above its 40-week MA or in its own buy zone, and a trend hold is sold when BTC loses its 40-week MA. Rebuilt Oct 2026 — the old version showed impossible profits on alts (ADA 4h: 49 of 60 trades sold above the candle). 209 coins, full history: median drawdown −67% vs −98% holding; on the median alt it still loses a little (−7% vs −85% holding). See ALGORITHM.md.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
   liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
@@ -1137,7 +1167,9 @@ const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value]
 function advisor(result){
   const ad=result.advice, el=$('advisor');
   if(!ad){ el.textContent='—'; return; }
-  const fmtP=(x)=> x>=100? Math.round(x).toLocaleString() : x.toFixed(2);
+  const fmtP=(x)=> x>=100? Math.round(x).toLocaleString() : x>=1 ? x.toFixed(2) : x.toPrecision(3);
+  // the cycle sells its half in the SELL ZONE and, once trending, exits on the 40-week line — not a stop order
+  const cyA = ad.cycle, halfWhy = cyA ? 'sell zone' : '+3R', cyTrend = cyA && cyA.mode==='TREND';
 
   // ---- PLAIN ENGLISH FIRST: are we in, with how much, from where, up or down ----
   const open = result.trades.filter(t=>t.outcome==='open').slice(-1)[0];
@@ -1156,8 +1188,9 @@ function advisor(result){
       + bigNum(`${deployed.toFixed(0)}% of your money is in the market`, '#3fb950')
       + `<div style="margin-top:5px">Bought at <b>${fmtP(open.entry)}</b> · ${when} <span style="color:var(--muted)">(${heldTxt} ago)</span></div>`
       + `<div>Now <b>${fmtP(now)}</b> → <b class="${pl>=0?'up':'down'}">${pl>=0?'+':''}${pl.toFixed(1)}%</b> on this position</div>`
-      + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (+3R) — riding the other half</div>` : '')
-      + `<div style="color:var(--muted)">Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (+3R)`:''}</div>`
+      + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (${halfWhy}) — riding the other half</div>` : '')
+      + `<div style="color:var(--muted)">${cyTrend ? `Exit: 5 days under the 40-week line ≈ <b style="color:#f85149">${fmtP(0.97*cyA.plan.trendLine)}</b>`
+          : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`
       + `</div>`
     : `<div style="padding:2px 0 8px">`
       + bigNum('0% in the market — all cash', '#f85149')
@@ -1188,8 +1221,13 @@ function advisor(result){
         + `<div><span style="color:#2ea043">${p.alloc[1]}%</span> Buy B (deep) · ${fpp(p.bLo)}–${fpp(p.bHi)}</div>`
         + `<div><span style="color:#58a6ff">${p.alloc[2]}%</span> reserve → deploys on 40-week reclaim ≈ ${fpp(p.reserveTrig)}</div>`
         + `<div style="color:var(--muted)">Bullish case: B never fills → B + reserve BOTH deploy at the reclaim</div>`
-        + `<div style="margin-top:2px"><span style="color:#f85149">SL ${fpp(p.sl)}</span> (all tranches) · <span style="color:#3fb950">TP zone ${fpp(p.tpLo)}–${fpp(p.tpHi)}</span> or Pi-Cycle/trend exit</div>`
+        + `<div style="margin-top:2px"><span style="color:#f85149">SL ${fpp(p.sl)}</span> (all tranches) · <span style="color:#3fb950">sell ½ at ${fpp(p.tpLo)}</span> (SELL ZONE, ${p.scaleAt||1.85}× 200-day)${p.scaled?' — done':''} · rest on Pi-Cycle or 5 days under the 40-week line</div>`
         + `</div>`:'')
+      + (cy.btc && !cy.btc.self ? (cy.btc.missing
+          ? `<div style="color:#f85149;margin-top:4px">BTC daily unavailable — this alt is NOT gated on BTC's cycle</div>`
+          : `<div style="margin-top:4px">BTC's cycle (alts follow it): ${cy.btc.bull?'<span style="color:#7ee787">above its 40-week MA</span>':'<span style="color:#f85149">below its 40-week MA</span>'}`
+            + `${cy.btc.zone2?' · <span style="color:#7ee787">in its buy zone</span>':''}${cy.btc.riskOff?' · <span style="color:#f85149">bear signal — trend holds are sold</span>':''}`
+            + ` → ${cy.btc.bull||cy.btc.zone2?'entries allowed':'<span style="color:#f85149">no new entries</span>'}</div>`) : '')
       + `</div>`;
   }
   // everything below is the technical read — collapsed by default so the panel stays readable
@@ -1376,7 +1414,7 @@ async function runCompare(force){
   if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   cmpBusy=true;
   $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
-  const rows=[], bad=[], short=[];
+  const rows=[], bad=[], short=[]; let noBtcD=false;
   // BIG LISTS (Top 100): 3 coins in flight, so network overlaps compute — fetchKlines already backs
   // off on 429/418, and 3 x ~5 req/s stays far inside Binance's 6000-weight/min budget. Up to 12
   // coins keeps the old one-at-a-time behaviour exactly. Big lists also drop each coin's raw
@@ -1409,6 +1447,8 @@ async function runCompare(force){
       if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); if(!keepCandles) delete cmpCache[ckey]; return; }
       const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
       const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
+      const btcD = await btcDailyFor(sym);                // cycle's BTC-led rules on alts; 'self' on BTC
+      if(!btcD) noBtcD = true;
       const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
       // a start date earlier than the listing is clamped by the API — say so rather than
       // letting a short row look like a like-for-like comparison
@@ -1416,12 +1456,12 @@ async function runCompare(force){
         short.push(`${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`);
       }
       for(const [st,label] of CMP_STRATS){
-        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc});
+        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
         const e=pathStats(res.trades,c);
         // the 10k reference run — skipped only when it would be the identical window
         let d=e;
         if(!sameWin && ref.length>=250){
-          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc});
+          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
           d=pathStats(rr.trades,ref);
         }
         rows.push({sym,st,label,e,d,sameWin});
@@ -1441,6 +1481,7 @@ async function runCompare(force){
     cmpListNote,
     bad.length ? 'skipped: '+bad.join(', ') : '',
     short.length ? 'listed later, clamped to earliest: '+short.join(', ') : '',
+    noBtcD ? 'BTC daily unavailable — BTC Cycle rows for alts are NOT gated on BTC\'s cycle' : '',
   ].filter(Boolean).join(' · ');
   renderCmp();
 }
@@ -2973,7 +3014,7 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>show
 
 $('run').addEventListener('click', run);
 $('recalc').addEventListener('click', recalc);
-$('strategy').addEventListener('change', ()=>{ stratInfo(); recalc(); });
+$('strategy').addEventListener('change', async ()=>{ stratInfo(); await ensureBtcD(); recalc(); });
 $('liq').addEventListener('change', recalc);
 $('sym').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
 $('tf').addEventListener('change', run);

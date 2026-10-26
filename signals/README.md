@@ -80,6 +80,11 @@ works exactly the same; nothing is hardcoded in the script.
 { "symbol": "ARBUSDT", "tf": "2h", "bars": 4500, "strategy": "liqbrk" }
 ```
 
+`strategy` can be any system in the app's dropdown. `cycle` (BTC Cycle) is a daily system: on an
+intraday watch it acts on **finished UTC days only**, and on alts it follows BTC's cycle (it fetches
+BTC's daily history for that). Its alerts state its own rules: half sold in the sell zone, exit after
+5 days under the 40-week MA.
+
 ## The trading book — 5 slots and a journal
 
 Your capital is treated as one book split into **5 equal slots**. A BUY alert means "put one

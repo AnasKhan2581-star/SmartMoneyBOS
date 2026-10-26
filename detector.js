@@ -31,6 +31,8 @@
                      //        'liqbrk' = buy-side liquidity continuation (intraday-first)
                      // smc: 'regime' | 'fvg' | 'momo' | 'scalp' (kept for reference/experiments)
     cyclePersist: 5, // cycle: days beyond the 40w band before a trend entry/exit confirms
+    cycleScale: 1.85, // cycle: sell HALF at the first close ≥ n × the 200-day MA (the chart's SELL ZONE), only
+                     // at or above the entry. 0 = off. 209 coins: drawdown better on 188, worse on 1 (ALGORITHM.md).
     volTarget: 0.3,  // advisor sizing suggestion: annualized vol target / realized vol, capped at 1
     persist: 3,      // tsmom: entry signal must hold this many consecutive days (whipsaw filter)
     tsmomMa: 200,    // tsmom: long-term trend filter, close > SMA(n)
@@ -266,6 +268,156 @@
     return { outcome: 'open', exitIdx: c.length - 1 };
   }
 
+  // ---- CYCLE: the BTC halving playbook (rebuilt Oct 2026) --------------------
+  // research/cycle/RESULTS_cycle_2026-10.md, ALGORITHM.md. What changed and why:
+  //  • a DAILY system on every chart: sub-daily candles are aggregated to UTC days, the playbook runs on
+  //    those and the trades land on the chart's own bars — so 4h and 1d show the same trades. ("5 days under
+  //    the 40w" used to be counted in bars: one 4h close back above reset it, and BTC 4h rode March 2020 for −49%.)
+  //  • only fills that could happen: the stop is checked on the day's low BEFORE any same-day tranche buy,
+  //    fills at the open when the day opens through it, and zone entries need price ≥ 0.72 × 200w (zone B's
+  //    floor) so the stop is always under the price. The old code bought ADA at 0.3 × 200w with the stop
+  //    ABOVE the price and "sold" at that stop next bar — 49 of 60 ADA 4h trades were impossible ($1k → $724M).
+  //  • alts follow BTC's cycle (params.btcD = BTC daily candles; 'self' on BTC, where it is a no-op): zone
+  //    entries need BTC in its buy zone or above its 40-week MA, trend entries need BTC above it, and a trend
+  //    position exits when BTC has closed cyclePersist days under 0.97 × its 40-week MA.
+  //  • half is sold at the first close ≥ cycleScale × the 200-day MA (the chart's SELL ZONE), in profit.
+  function dailyBars(c) {
+    const out = [];
+    for (let i = 0; i < c.length; i++) {
+      const day = Math.floor(c[i].time / 86400) * 86400, d = out[out.length - 1];
+      if (!d || d.time !== day) out.push({ time: day, open: c[i].open, high: c[i].high, low: c[i].low, close: c[i].close, first: i, last: i });
+      else { if (c[i].high > d.high) d.high = c[i].high; if (c[i].low < d.low) d.low = c[i].low; d.close = c[i].close; d.last = i; }
+    }
+    return out;
+  }
+  // the playbook's signals on one series (day-denominated, so weekly bars work too)
+  function cycleSignals(d, persistDays) {
+    const n = d.length, dt = n > 1 ? Math.max(60, d[1].time - d[0].time) : 86400, bpd = 86400 / dt;
+    const S = (days) => Math.max(2, Math.round(days * bpd));
+    const closes = d.map((x) => x.close);
+    const sma = (len) => {
+      const out = new Array(n).fill(NaN); let s = 0;
+      for (let i = 0; i < n; i++) { s += closes[i]; if (i >= len) s -= closes[i - len]; if (i >= len - 1) out[i] = s / len; }
+      return out;
+    };
+    const maL = sma(S(200)), ma111 = sma(S(111)), ma350 = sma(S(350)), ma280 = sma(S(280)), ma1400 = sma(S(1400));
+    const step = Math.max(1, S(7)), wRSI = new Array(n).fill(NaN);
+    let g = 0, ls = 0, k = 0, lastR = NaN;
+    for (let i = step; i < n; i += step) {
+      const ch = closes[i] - closes[i - step];
+      g = (g * 13 + Math.max(ch, 0)) / 14; ls = (ls * 13 + Math.max(-ch, 0)) / 14; k++;
+      if (k >= 14) lastR = 100 - 100 / (1 + (ls > 0 ? g / ls : 100));
+      for (let j = i; j < Math.min(i + step, n); j++) wRSI[j] = lastR;
+    }
+    // sweep-reclaim of the prior ~4-month low (excluding the last 10 days), and the prior 20-day high
+    const swp = new Array(n).fill(false), h20 = new Array(n).fill(Infinity);
+    const wA = S(120), wB = S(10), w20 = S(20);
+    for (let i = wA + wB; i < n; i++) {
+      let prior = Infinity;
+      for (let j = i - wA; j < i - wB; j++) if (d[j].low < prior) prior = d[j].low;
+      if (d[i].low < prior && d[i].close > prior) swp[i] = true;
+    }
+    for (let i = 1; i < n; i++) { let h = 0; for (let j = Math.max(0, i - w20); j < i; j++) if (d[j].high > h) h = d[j].high; h20[i] = h; }
+    return { n, dt, closes, maL, ma111, ma350, ma280, ma1400, wRSI, swp, h20, warm: S(200), persist: Math.max(1, S(persistDays)),
+      zone: (i) => ((closes[i] < 1.1 * ma1400[i]) ? 1 : 0) + ((closes[i] / maL[i] < 0.8) ? 1 : 0) + ((wRSI[i] < 35) ? 1 : 0),
+      pi: (i) => i > 0 && ma111[i] > 2 * ma350[i] && ma111[i - 1] <= 2 * ma350[i - 1] };
+  }
+  function runCycle(c, p) {
+    const n = c.length, dt0 = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+    const days = dt0 < 86400 ? dailyBars(c)
+      : c.map((x, i) => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close, first: i, last: i }));
+    const Z = cycleSignals(days, p.cyclePersist);
+    const { closes: px, maL, ma280, ma1400, swp, h20, warm, persist, zone, pi } = Z;
+    // BTC's own cycle state, read at the last BTC candle CLOSED by each day's close (nothing leaks forward)
+    let B = null;
+    const btcSelf = p.btcD === 'self', src = Array.isArray(p.btcD) && p.btcD.length > 1 ? p.btcD : null;
+    if (src) {
+      const bd = (src[1].time - src[0].time) < 86400 ? dailyBars(src) : src, BZ = cycleSignals(bd, p.cyclePersist);
+      B = { bull: [], zone2: [], riskOff: [] };
+      let dn = 0;
+      const dnAt = bd.map((x, j) => (dn = x.close < 0.97 * BZ.ma280[j] ? dn + 1 : 0));
+      for (let k = 0, j = -1; k < days.length; k++) {
+        while (j + 1 < bd.length && bd[j + 1].time + BZ.dt <= days[k].time + Z.dt) j++;
+        B.bull[k] = j >= 0 && bd[j].close > BZ.ma280[j];
+        B.zone2[k] = j >= 0 && BZ.zone(j) >= 2;
+        B.riskOff[k] = j >= 0 && dnAt[j] >= BZ.persist;
+      }
+    }
+    const scaleAt = p.cycleScale > 0 ? p.cycleScale : 0;
+    const progStop = (k) => (isFinite(ma1400[k]) ? 0.65 * ma1400[k] : px[k] * 0.72);   // no 200w yet → fixed −28%
+    const out = [];
+    let pos = null, up = 0, dn = 0, cool = false, mode = null;
+    const fill = (k, w) => { pos.fills.push({ k, w, px: px[k] }); pos.inv += w / px[k]; pos.frac += w; pos.entry = pos.frac / pos.inv; };
+    const close = (k, exitPx, why) => { out.push(Object.assign(pos, { exitK: k, exitPx, why })); pos = null; mode = null; };
+    for (let k = warm; k < days.length; k++) {
+      const x = px[k];
+      up = x > ma280[k] * 1.02 ? up + 1 : 0; dn = x < ma280[k] * 0.97 ? dn + 1 : 0;
+      if (cool && x < ma280[k]) cool = false;                       // the top has played out → normal rules
+      const zoneB = x < 0.97 * ma1400[k], underB = x < 0.72 * ma1400[k];
+      if (pos) {
+        if (pi(k)) { close(k, x, 'PI-TOP'); cool = true; continue; }
+        if (mode === 'ACCUM') {
+          // ZONE A = 200w → ×1.1, ZONE B = 0.72–1.0 × 200w: every real bottom PIERCES the 200w, so the program is
+          // 40% at A, 40% on a zone-B recovery day, the rest on the 40-week reclaim (bullish completion: whatever
+          // has not filled deploys there). Entry = equal-dollar (harmonic) average; stop 0.65 × 200w.
+          if (days[k].low <= pos.stop) { close(k, Math.min(days[k].open, pos.stop), 'STOP'); continue; }
+          if (!pos.t2 && zoneB && !underB && (swp[k] || x > px[k - 1])) {
+            fill(k, 0.4); pos.t2 = true;
+            const s = progStop(k); if (s < x) pos.stop = s;
+          }
+          if (x > ma280[k]) { if (pos.frac < 1) fill(k, 1 - pos.frac); mode = 'TREND'; }
+        } else if (scaleAt && !pos.scale && x >= scaleAt * maL[k] && x >= pos.entry) pos.scale = { k, px: x, w: 0.5 };
+        else if (dn >= persist) close(k, x, 'TREND');
+        else if (B && B.riskOff[k]) close(k, x, 'BTC-BEAR');
+      } else if (zone(k) >= 2 && (swp[k] || x > h20[k]) && (!B || B.bull[k] || B.zone2[k])) {
+        // BUY ZONE = ≥2 of {price < 1.1 × 200w, Mayer < 0.8, weekly RSI < 35} + a sweep-reclaim or 20-day breakout
+        const stop = progStop(k);
+        if ((isFinite(ma1400[k]) && underB) || stop >= x) continue;   // under zone B: outside the playbook, wait
+        pos = { fills: [], inv: 0, frac: 0, entry: x, stop, k0: k, t2: zoneB, scale: null };
+        fill(k, zoneB ? 0.8 : 0.4);                                    // straight into the deep zone = A + B at once
+        mode = 'ACCUM';
+      } else if (!cool && up >= persist && (!B || B.bull[k])) {
+        pos = { fills: [], inv: 0, frac: 0, entry: x, stop: ma280[k] * 0.97, k0: k, scale: null };
+        fill(k, 1);
+        mode = 'TREND';
+      }
+    }
+    // back onto the chart's bars: a fill or close lands on the bar that closes its day; a stop on the bar that touched it
+    const K = days.length - 1;
+    const rec = (t, open) => {
+      let exitIdx = open ? n - 1 : days[t.exitK].last, rest = open ? c[n - 1].close : t.exitPx;
+      if (!open && t.why === 'STOP') {
+        for (let j = days[t.exitK].first; j <= days[t.exitK].last; j++) if (c[j].low <= t.stop) { exitIdx = j; rest = Math.min(c[j].open, t.stop); break; }
+      }
+      const scale = t.scale ? { idx: days[t.scale.k].last, px: t.scale.px, w: t.scale.w } : null;
+      const exit = scale ? scale.w * scale.px + (1 - scale.w) * rest : rest;
+      const risk0 = t.entry - t.stop, rMult = risk0 > 0 ? (exit - t.entry) / risk0 : exit / t.entry - 1;
+      const live = scaleAt ? scaleAt * maL[K] : null;
+      return { dir: 'long', poiIdx: days[t.k0].last, fvgIdx: -1, zoneLow: t.stop, zoneTop: t.entry, sweepIdx: -1,
+        targetPool: open ? 'OPEN' : t.why, entry: t.entry, stop: t.stop, target: exit, exitPrice: exit,
+        tp: open ? (scale ? null : live) : null, entryIdx: days[t.k0].last, exitIdx,
+        outcome: open ? 'open' : (rMult >= 0 ? 'win' : 'loss'), frac: t.frac, rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4),
+        scale, exitRest: rest, fills: t.fills.map((f) => ({ idx: days[f.k].last, w: f.w, px: f.px })),
+        ...(open ? { remain: scale ? 1 - scale.w : 1, scaleTarget: live } : {}) };
+    };
+    const trades = out.map((t) => rec(t, false));
+    if (pos) trades.push(rec(pos, true));
+    // drawing lines on the chart's own bars, and the advisor read at the last (possibly forming) day
+    const lines = { zLo: new Array(n).fill(NaN), trend: new Array(n).fill(NaN), ma200: new Array(n).fill(NaN) };
+    days.forEach((d, k) => { for (let i = d.first; i <= d.last; i++) { lines.zLo[i] = ma1400[k]; lines.trend[i] = ma280[k]; lines.ma200[i] = maL[k]; } });
+    const x = px[K];
+    const adv = { mayer: +(x / maL[K]).toFixed(2), d200w: +((x / ma1400[K] - 1) * 100).toFixed(1),
+      wRSI: +(Z.wRSI[K] || 0).toFixed(0), zone: zone(K), piRatio: +(Z.ma111[K] / (2 * Z.ma350[K])).toFixed(2),
+      mode, cooldown: cool,
+      // the live deployment schedule (institutional ladder), all prices as of the last close
+      plan: { aLo: ma1400[K], aHi: 1.1 * ma1400[K], bLo: 0.72 * ma1400[K], bHi: ma1400[K],
+        reserveTrig: ma280[K] * 1.02, sl: 0.65 * ma1400[K], tpLo: scaleAt ? scaleAt * maL[K] : 1.85 * maL[K], tpHi: 2.4 * maL[K],
+        alloc: [40, 40, 20], fracNow: pos ? pos.frac : 0, avgNow: pos ? pos.entry : null, scaled: !!(pos && pos.scale),
+        trendLine: ma280[K], scaleAt },
+      btc: btcSelf ? { self: true } : B ? { bull: B.bull[K], zone2: B.zone2[K], riskOff: B.riskOff[K] } : { missing: true } };
+    return { trades, lines, adv };
+  }
+
   // ---- quant investment strategies (no SMC structure involved) --------------
   // The three systems the big systematic firms actually run, long-only spot, daily bars:
   //  tsmom   — time-series momentum / CTA trend (AQR, Man AHL): long while close > SMA(200)
@@ -413,77 +565,14 @@
         rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4), scale: pos.scale || null, exitRest });
       pos = null;
     };
-    // CYCLE (BTC halving playbook) precomputes — validated 2018→2026: +3535% vs B&H +767%,
-    // maxDD 59%, 7 positions. BUY ZONE = ≥2 of {price<1.1×200w MA, Mayer<0.8, weekly RSI<35}
-    // + confirmation (sweep-reclaim of a major low, or a 20d-high breakout). SELL = Pi-Cycle
-    // cross (111d MA crossing 2×350d MA — sold 2017-12-17 and 2021-04-12 to the day) or a
-    // persistent 40-week MA break. Zone entries hold WITHOUT the trend stop (accumulation).
-    let cy = null;
-    if (p.strategy === 'cycle') {
-      const ma111 = sma(S(111)), ma350 = sma(S(350)), ma280 = sma(S(280)), ma1400 = sma(S(1400));
-      const step = Math.max(1, S(7)), wRSI = new Array(n).fill(NaN);
-      let g = 0, ls = 0, k = 0, lastR = NaN;
-      for (let i = step; i < n; i += step) {
-        const ch = closes[i] - closes[i - step];
-        g = (g * 13 + Math.max(ch, 0)) / 14; ls = (ls * 13 + Math.max(-ch, 0)) / 14; k++;
-        if (k >= 14) lastR = 100 - 100 / (1 + (ls > 0 ? g / ls : 100));
-        for (let j = i; j < Math.min(i + step, n); j++) wRSI[j] = lastR;
-      }
-      const swp = new Array(n).fill(false), h20 = new Array(n).fill(Infinity);
-      const wA = S(120), wB = S(10), w20 = S(20);
-      for (let i = wA + wB; i < n; i++) {
-        let prior = Infinity;
-        for (let j = i - wA; j < i - wB; j++) if (c[j].low < prior) prior = c[j].low;
-        if (c[i].low < prior && c[i].close > prior) swp[i] = true;
-      }
-      for (let i = 1; i < n; i++) { let h = 0; for (let j = Math.max(0, i - w20); j < i; j++) if (c[j].high > h) h = c[j].high; h20[i] = h; }
-      cy = { ma111, ma350, ma280, ma1400, wRSI, swp, h20,
-        zone: (i) => ((closes[i] < 1.1 * ma1400[i]) ? 1 : 0) + ((closes[i] / maL[i] < 0.8) ? 1 : 0) + ((wRSI[i] < 35) ? 1 : 0),
-        pi: (i) => i > 0 && ma111[i] > 2 * ma350[i] && ma111[i - 1] <= 2 * ma350[i - 1] };
-    }
-    let cyUp = 0, cyDn = 0, cyCool = false, cyMode = null;
-    const cyPersist = Math.max(1, S(p.cyclePersist));
+    // CYCLE runs on its own daily machine (runCycle above) — its trades join the list as-is
+    const cy = p.strategy === 'cycle' ? runCycle(c, p) : null;
+    if (cy) for (const t of cy.trades) trades.push(t);
 
     const persistN = Math.max(1, S(p.persist));                   // persistence is day-denominated too
-    for (let i = warm; i < n; i++) {
+    for (let i = cy ? n : warm; i < n; i++) {
       const px = closes[i];
-      if (p.strategy === 'cycle') {
-        const above = px > cy.ma280[i] * 1.02, below = px < cy.ma280[i] * 0.97;
-        cyUp = above ? cyUp + 1 : 0; cyDn = below ? cyDn + 1 : 0;
-        if (cyCool && px < cy.ma280[i]) cyCool = false;            // top has played out → normal rules
-        // ZONE A = 200w MA → ×1.1 (classic). ZONE B = 0.72–1.0 ×200w MA: every real bottom
-        // PIERCES the 200w (2020 −30%, 2022 −31%, 2026 −8%), so accumulation is TWO tranches —
-        // half in zone A, half on the zone-B recovery, entry = the tranche average (harmonic:
-        // equal dollars), stop below zone B at 0.65×200w (under the deepest pierce on record).
-        // DEPLOYMENT PROGRAM (institutional ladder): 40% at zone A, 40% at zone B, 20% reserve
-        // on trend confirmation. BULLISH COMPLETION: if B never fills and price reclaims the
-        // 40-week MA, every unfilled tranche deploys at that confirmation — the program never
-        // gets left behind. Entry = equal-dollar (harmonic) weighted average of fills.
-        const zoneB = px < 0.97 * cy.ma1400[i];
-        const fill = (w, price) => { pos.invSum += w / price; pos.fracSum += w; pos.entry = pos.fracSum / pos.invSum; pos.frac = pos.fracSum; };
-        if (pos) {
-          if (cy.pi(i)) { close(i, px, 'PI-TOP'); cyCool = true; cyMode = null; }
-          else if (cyMode === 'ACCUM') {
-            if (!pos.t2 && zoneB && (cy.swp[i] || px > closes[i - 1])) {        // tranche 2: deep-zone recovery day
-              fill(0.4, px); pos.t2 = true; pos.stop = isFinite(cy.ma1400[i]) ? 0.65 * cy.ma1400[i] : px * 0.72;
-            }
-            if (c[i].low <= pos.stop) { close(i, pos.stop, 'STOP'); cyMode = null; }
-            else if (px > cy.ma280[i]) {
-              if (pos.fracSum < 1) fill(1 - pos.fracSum, px);                   // bullish completion: deploy the rest
-              cyMode = 'TREND';
-            }
-          }
-          else if (cyDn >= cyPersist) { close(i, px, 'TREND'); cyMode = null; }
-        } else if (cy.zone(i) >= 2 && (cy.swp[i] || px > cy.h20[i])) {
-          // stop fallback: early in a dataset the 200w MA doesn't exist yet → fixed −28% program stop
-          pos = { invSum: 0, fracSum: 0, entry: px, stop: isFinite(cy.ma1400[i]) ? 0.65 * cy.ma1400[i] : px * 0.72,
-            entryIdx: i, tp: 1.85 * maL[i], t2: zoneB };
-          fill(zoneB ? 0.8 : 0.4, px);                                          // straight into the deep zone = A+B at once
-          cyMode = 'ACCUM';
-        } else if (!cyCool && cyUp >= cyPersist) {
-          pos = { entry: px, stop: cy.ma280[i] * 0.97, entryIdx: i, tp: 1.85 * maL[i], frac: 1 }; cyMode = 'TREND';
-        }
-      } else if (p.strategy === 'tsmom') {
+      if (p.strategy === 'tsmom') {
         const on = px > maL[i] && i >= lookLen && px > closes[i - lookLen];
         sigRun = on ? sigRun + 1 : 0;
         if (!pos && sigRun >= persistN && magnetOK(i, px)) pos = { entry: px, stop: px - p.qStop * sf * a[i], entryIdx: i };
@@ -585,17 +674,7 @@
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,
     };
     let cycleLines = null;
-    if (cy) {
-      advice.cycle = { mayer: +(px / maL[i]).toFixed(2), d200w: +((px / cy.ma1400[i] - 1) * 100).toFixed(1),
-        wRSI: +(cy.wRSI[i] || 0).toFixed(0), zone: cy.zone(i), piRatio: +(cy.ma111[i] / (2 * cy.ma350[i])).toFixed(2),
-        mode: cyMode, cooldown: cyCool,
-        // the live deployment schedule (institutional ladder), all prices as-of the last close
-        plan: { aLo: cy.ma1400[i], aHi: 1.1 * cy.ma1400[i], bLo: 0.72 * cy.ma1400[i], bHi: cy.ma1400[i],
-          reserveTrig: cy.ma280[i] * 1.02, sl: 0.65 * cy.ma1400[i], tpLo: 1.85 * maL[i], tpHi: 2.4 * maL[i],
-          alloc: [40, 40, 20], fracNow: pos ? (pos.fracSum != null ? pos.fracSum : pos.frac || 1) : 0,
-          avgNow: pos ? pos.entry : null } };
-      cycleLines = { zLo: cy.ma1400, trend: cy.ma280, ma200: maL };   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
-    }
+    if (cy) { advice.cycle = cy.adv; cycleLines = cy.lines; }   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
     return { trades, advice, cycleLines };
   }
 
@@ -916,8 +995,15 @@
 
   // Gross value multiple of a trade at bar j given that bar's close: after a scale-out the banked
   // half is fixed at its fill and only the remainder floats. Every equity path uses this.
+  // A cycle program fills in tranches: before the later ones fill, that money is still cash, so only the
+  // tranches bought by bar j float (scaled so that frac·(m − 1) is the program's real P/L).
   function markMult(t, j, close) {
     if (t.scale && j >= t.scale.idx) return (t.scale.w * t.scale.px + (1 - t.scale.w) * close) / t.entry;
+    if (t.fills && t.fills.length > 1 && j < t.fills[t.fills.length - 1].idx) {
+      let g = 0;
+      for (const f of t.fills) if (f.idx <= j) g += f.w * (close / f.px - 1);
+      return 1 + g / (t.frac || 1);
+    }
     return close / t.entry;
   }
 

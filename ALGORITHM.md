@@ -709,7 +709,64 @@ Execution rules on top of liqbrk; they never change which trades the strategy ta
 - Taken = the signal's own price (one tap). The journal stores no money; the book's dollar values are computed in the
   browser from a capital figure that never leaves it.
 
-## `cycle` — the BTC halving playbook (July 2026)
+## `cycle` — the BTC halving playbook (July 2026; rebuilt Oct 2026)
+
+### Oct 2026 — a fill bug was faking the results; rebuilt and SHIPPED (user request)
+
+Full study: `research/cycle/RESULTS_cycle_2026-10.md` (lab `research/cycle/cycle_lab.js` reproduces the old
+engine trade-for-trade on 12 coins × 1d/4h before changing anything; report `cycle_report.js`).
+
+**The bug.** A zone entry set its stop at 0.65 × the 200-week MA. On an alt already far below its 200-week
+MA (ADA at 0.3×), that stop sat ABOVE the price; the next candle's low was "under the stop", so the position
+closed AT the stop, a price above the whole candle. That booked +10% to +110% that never happened, and the
+strategy then re-entered and repeated it. ADA 4h, all history: 60 trades, 49 of them impossible, $1,000 → $724M. On 209 coins the old
+engine's median result was +7.5 million %. Also wrong: the stop was checked after a same-day tranche buy (the
+low comes first), a gap through the stop filled at the stop, and on 4h "5 days under the 40w" was counted as
+30 consecutive 4h closes, so one close back above reset it. In March 2020, BTC 1d exited at −9% while BTC 4h rode
+the crash for −49%.
+
+**The rules now** (each step had to help more coins than it hurt, cut drawdown more often than add to it,
+and hold in both halves of every coin's window; 209 coins, 1d, full history, 51 delisted):
+1. **A daily system on every chart.** Sub-daily candles are aggregated to UTC days; the playbook runs on
+   those and the trades are drawn on the chart's own bars. 4h and 1d now give identical trade dates (12/12).
+2. **Possible fills only.** The stop is checked on the day's low before any tranche buy. A day that opens
+   through it fills at the open. A zone entry (and tranche 2) needs price ≥ 0.72 × 200w, the documented
+   floor of zone B, so the stop is always under the price. Net better on 47 coins, worse on 16.
+3. **Alts follow BTC's cycle** (BTC daily series in `params.btcD`; `'self'` on BTC itself, where it is a
+   no-op). A zone entry needs BTC in its own buy zone (score ≥ 2) or above its 40-week MA. A trend entry needs
+   BTC above its 40-week MA. A trend position also exits when BTC has closed 5 days under 0.97 × its 40-week
+   MA. Without a BTC series the gate is OPEN and the result says so (`advice.cycle.btc.missing`). Net better
+   125 / worse 28, drawdown better 93 / worse 9.
+4. **Sell half in the SELL ZONE** (`cycleScale` 1.85): at the first close ≥ 1.85 × the 200-day MA, the lower
+   edge of the red zone the chart has always drawn, and only at or above the entry price. The rest rides
+   Pi-Cycle / the 40-week exit. Drawdown better on **188 of 209 coins, worse on 1**; net better 157 / worse 43.
+   The cost: it caps the longest runs (BTC 2020–21: half at $22.8k, rest at the $59.9k Pi-Cycle top).
+
+| 209 coins, 1d | median net | median max DD | profitable | beat B&H |
+|---|---|---|---|---|
+| old engine (fake fills) | +7,510,276% | −77% | 188 | 193 |
+| fills fixed, rules unchanged | −48% | −83% | 63 | 167 |
+| **shipped (all four)** | **−7%** | **−67%** | **99** | **187** |
+
+Per coin, shipped (1d, full history, vs buy & hold over the same window): BTC +3053% (B&H +609%) DD −53% ·
+ETH +1089% (+181%) −48% · BNB +2451% (+5584%) −58% · XRP +337% (+192%) −64% · ADA +974% (+194%) −56% ·
+DOGE +1254% (+3222%) −68% · SOL +571% (+680%) −62% · LINK +106% (+371%) −84% · LTC −69% (−28%) −89%.
+
+**Rejected** (vs fills-fixed): entering below the floor with a −28% stop (73/117), a hard trend exit at
+0.9 × 40w (107/96), no re-entry after a stop until the 40w reclaim (63/95), 20-week exit after Mayer ≥ 2
+(81/103), a 40% trailing exit (73/133 vs BTC-led), alts trend-only with no accumulation (86/105), selling the
+half at 2.4× instead of 1.85× (same direction, half the benefit).
+
+**App and bot.** The app fetches BTC's daily history once (`btcDailyFor`) for the Chart and Compare tabs.
+The signal bot does the same for `cycle` alerts, acts on finished UTC days only (the bot never alerts on a
+candle that can still change, and here that candle is the day), and versions its rules per strategy, so this
+rebuild re-baselines cycle alerts without touching liqbrk ones.
+
+**What it still is:** a long-only cycle system with a −67% median drawdown (buy & hold −98%). On the median
+alt it still loses (−7%), just far less than holding (−85%). It is a BTC playbook that alts can borrow, not an
+alt picker.
+
+### July 2026 — the original design (superseded where the block above says so)
 
 BTC-specific full-cycle machine built from the signals that repeated at every cycle turn
 in-data (2015→2026; 2013 supported by documented history only — no keyless source reaches it):
