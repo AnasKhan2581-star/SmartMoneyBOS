@@ -621,7 +621,7 @@
       <input id="cmpSyms" type="text" spellcheck="false"
              title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
     </label>
-    <button id="cmpSymsReset" class="ghost" title="restore the default watchlist">Reset list</button>
+    <button id="cmpSymsReset" class="ghost" title="restore your default list (103 coins)">Reset list</button>
     <button id="cmpTop100" class="ghost" title="Fill the list with the 100 largest coins by market cap that trade on Binance spot — ranked fresh on every click">Top 100</button>
     <button id="cmpGainers" class="ghost" title="Fill the list with Binance's 50 biggest gainers of the last 24 hours (USDT spot pairs) — fetched fresh on every click">Top 50 gainers</button>
     <label>Strategy
@@ -1241,7 +1241,19 @@ function advisor(result){
 }
 let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut while you read it
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
-const CMP_DEFAULT=['ETHUSDT','SOLUSDT','LINKUSDT','BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
+// The user's own list (Oct 2026), in their order — what a fresh browser starts with and what "Reset list"
+// brings back. XMR (data ends 2024-02-20) and LIT (Litentry, ends 2025-02-10) are delisted on Binance:
+// their rows grade history up to the delisting, and the Yrs column shows it.
+const CMP_DEFAULT=[
+  'BTC', 'ETH', 'BNB', 'XRP', 'SOL', 'TRX', 'ZEC', 'EPIC', '1INCH', 'HYPE', 'DOGE', 'XMR', 'LINK', 'ADA',
+  'NEAR', 'XLM', 'BCH', 'LTC', 'UNI', 'AVAX', 'SUI', 'GRAM', 'HBAR', 'SHIB', 'TAO', 'QNT', 'ENA', 'AAVE',
+  'PUMP', 'ONDO', 'WLD', 'DOT', 'PEPE', 'WLFI', 'SKY', 'ASTER', 'U', 'MORPHO', 'ICP', 'ARB', 'ETC',
+  'JST', 'JUP', 'ALGO', 'POL', 'RENDER', 'ATOM', 'LIT', 'NEXO', 'FIL', 'INJ', 'ZRO', 'AERO', 'APT',
+  'CAKE', 'NIGHT', 'ETHFI', 'DASH', 'STX', 'VET', 'PYTH', 'CRV', 'TIA', 'RAY', 'TRUMP', 'PENGU',
+  'VIRTUAL', 'FET', 'STRK', 'SEI', 'PENDLE', 'XPL', 'FF', 'XTZ', 'LDO', 'SUN', 'GNO', 'KITE', 'CFX',
+  'OP', 'DCR', 'BONK', 'GRT', 'BAT', 'KAIA', 'LUNC', 'COMP', 'JTO', 'AR', 'ENS', 'CVX', 'KMNO', 'SYRUP',
+  'FLOKI', 'JASMY', 'EIGEN', 'IOTA', 'RUNE', 'S', 'WIF', 'THETA', 'TWT', 'ZIL'
+].map(s=>s+'USDT');
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
 // 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
 // Per-TF starting point for the Bars box, overridden the moment the user types a number.
@@ -1249,7 +1261,7 @@ const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtl
 // 2017-08-17 to now (~9.1 years = two BTC halving cycles), which is the point: a 4.6-year
 // 4h window is bull-only and flatters every trend system in it.
 // 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
-// Oct 2026 (user's settings): Compare opens on Liq Breakout · 4h · 19,096 bars (≈8.7 years). 15m starts at
+// Oct 2026 (user's settings): Compare opens on All strategies · 4h · 19,096 bars (≈8.7 years). 15m starts at
 // a year (35,040 bars, 36 pages a coin) — a 15m pull of a whole list is the heaviest thing this tab does.
 const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w':600 };
 // cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
@@ -1309,8 +1321,8 @@ cmpSpan();
 const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
 $('cmpSyms').value=cmpSymsText(CMP_SYMS);
 // strategy filter is generated, so removing a strategy can never leave a dead option behind
-$('cmpStrat').innerHTML='<option value="all">All strategies</option>'
-  + CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
+$('cmpStrat').innerHTML='<option value="all" selected>All strategies</option>'
+  + CMP_STRATS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
 // Per-bar strategy return path -> net profit, edge over buy & hold, PF, exposure, DD, sweep.
 // Columns are chosen for "is this worth my money", not "which backtest looks prettiest":
 // CAGR/6M/1Y were dropped Oct 2026 — CAGR annualises a number whose window length varies by
