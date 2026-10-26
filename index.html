@@ -2928,9 +2928,35 @@ $('cmpSymsReset').addEventListener('click',()=>{
 const TOP_KEY='smb.top100';
 const NOT_COIN_SYM=/USD/;                        // USDT USDC FDUSD USDE PYUSD USD1 … all stables
 const NOT_COIN_SET=new Set(['WBTC','WETH','WBETH','BETH','STETH','WSTETH','BNSOL','PAXG','XAUT','EURI','EUR','AEUR','TUSD','DAI','FRAX']);
-// leveraged tokens (BTCUP, ETHDOWN, …) are the name of a listed coin plus UP/DOWN/BULL/BEAR — a bare
-// suffix test would also throw out real coins like JUP
-const isLevToken=(b, live)=>{ const m=/^(.{2,}?)(UP|DOWN|BULL|BEAR)$/.exec(b); return !!m && live.has(m[1]+'USDT'); };
+// ---- only NORMAL SPOT COINS make the Top 100 / Top 50 gainers lists -------------
+// Binance spot also trades things that are not crypto coins (checked Oct 2026):
+//  • ~100 TOKENIZED STOCKS & ETFs — AAPLB, NVDAB, SPYB, and leveraged/inverse ETF tokens such as TQQQB,
+//    SQQQB, SOXLB, UVXYB. Binance keeps them in their own trading group, TRD_GRP_261 (real coins sit in
+//    258), and that group is the only clean marker: names can't do it, because real coins end in B too
+//    (ARB, BNB, SHIB, CKB) and some stock tokens share a crypto ticker (STXB is Seagate, not Stacks).
+//  • LEVERAGED TOKENS (BTCUP, ETHDOWN, ETHBULL, …): every one is delisted (status BREAK).
+// So a list only takes pairs Binance reports as TRADING right now, minus its stock group, minus
+// stablecoins/fiat and wrapped, staked or gold copies. Both lookups are re-read on every click. If the
+// stock group can't be read, or stops looking like stock tokens, the Oct 2026 snapshot below stands in;
+// if the trading list can't be read, a name check stands in for leveraged tokens.
+const STOCK_SNAPSHOT=new Set('AAOIB AAPLB ADBEB AGPUB ALABB AMATB AMCB AMDB AMZNB ARMB ASMLB ASTSB AVGOB AXTIB BABAB BBB BEB BMNRB BNCB BOTB BRKBB CBRSB COHRB COINB CRCLB CRDOB CRMB CRWDB CRWVB CYPHB DELLB DJTB DRAMB EWYB FLNCB FWDIB GLWB GMEB GOOGLB GPROB GSB HIMSB HOODB HPEB IBMB INTCB INTWB IRENB JPMB KORUB KSTRB LITEB LLYB MDBB METAB MRNAB MRVLB MSFTB MSTRB MUB MUUB MVLLB NBISB NFLXB NOKB NVDAB ORCLB PDDB PENGB PLTRB PYPLB QCOMB QNTB QQQB RDDTB RKLBB SECZB SHAZB SKHYB SMCIB SMHB SNDKB SNXXB SOXLB SOXSB SPCXB SPYB SQQQB STXB TMFB TQQQB TSLAB TSMB USARB USDEB UVXYB VSTB WDCB WENB ZMB'.split(' '));
+const isLevToken=(b, live)=>{ const m=/^(.{2,}?)(UP|DOWN|BULL|BEAR)$/.exec(b); return !!m && live.has(m[1]+'USDT'); };  // fallback only: JUP and SYRUP are real coins
+async function spotUniverse(){
+  const q='symbolStatus=TRADING&showPermissionSets=false';
+  const [all, st]=await Promise.all([binanceJSON('/api/v3/exchangeInfo?permissions=SPOT&'+q).catch(()=>null),
+                                     binanceJSON('/api/v3/exchangeInfo?permissions=TRD_GRP_261&'+q).catch(()=>null)]);
+  const trading = all && Array.isArray(all.symbols)
+    ? new Set(all.symbols.filter(x=>x.status==='TRADING' && x.quoteAsset==='USDT').map(x=>x.symbol)) : null;
+  const sb = st && Array.isArray(st.symbols) ? st.symbols.map(x=>x.baseAsset) : [];
+  const fromBinance = sb.length>=20 && sb.every(b=>/B$/.test(b));   // the group still holds stock tokens
+  return { trading, stocks: fromBinance ? new Set(sb) : STOCK_SNAPSHOT, stockSrc: fromBinance ? 'Binance' : 'Oct 2026 snapshot' };
+}
+// `live` = USDT pairs that traded in the last 24h (from the ticker)
+const isNormalCoin=(b, U, live)=> !!b && !NOT_COIN_SYM.test(b) && !NOT_COIN_SET.has(b) && !U.stocks.has(b)
+  && (U.trading ? U.trading.has(b+'USDT') : !isLevToken(b, live)) && normSym(b)===b+'USDT';
+const coinsNote=(U)=> `normal coins only — no stablecoins, tokenized stocks/ETFs or leveraged tokens`
+  + (U.trading ? '' : '; Binance\'s trading list unavailable, leveraged tokens dropped by name')
+  + (U.stockSrc==='Binance' ? '' : `; Binance's stock list unavailable, used the ${U.stockSrc}`);
 const NOT_COIN_NAME=/wrapped|staked|restaked|bridged|liquid staking|\bgold\b/i;
 let cmpListNote='';
 async function binanceJSON(path){
@@ -2942,12 +2968,12 @@ async function binanceJSON(path){
   throw new Error(err||'Binance unreachable');
 }
 async function buildTop100(){
-  const tick=await binanceJSON('/api/v3/ticker/24hr?type=MINI');
+  const [tick, U]=await Promise.all([binanceJSON('/api/v3/ticker/24hr?type=MINI'), spotUniverse()]);
   const live=new Map();
   for(const t of tick) if(/USDT$/.test(t.symbol) && +t.quoteVolume>0) live.set(t.symbol, +t.quoteVolume);
-  // normSym round-trip check: the list is shown without "USDT" and re-parsed, so a base that would
-  // re-parse as a different pair must not get in
-  const fits=(b)=> b && !NOT_COIN_SYM.test(b) && !NOT_COIN_SET.has(b) && normSym(b)===b+'USDT' && live.has(b+'USDT');
+  // isNormalCoin includes the normSym round-trip check: the list is shown without "USDT" and re-parsed,
+  // so a base that would re-parse as a different pair must not get in
+  const fits=(b)=> isNormalCoin(b, U, live) && live.has(b+'USDT');
   try{
     const r=await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
     if(!r.ok) throw new Error('HTTP '+r.status);
@@ -2961,12 +2987,12 @@ async function buildTop100(){
       if(out.length===100) break;
     }
     if(out.length<50) throw new Error(`only ${out.length} matched Binance`);
-    return { syms:out, source:'market cap', at:Date.now() };
+    return { syms:out, source:'market cap', at:Date.now(), coins:coinsNote(U) };
   }catch(e){
     const out=[...live.entries()]
-      .filter(([sym])=>{ const b=sym.slice(0,-4); return fits(b) && !isLevToken(b, live); })
+      .filter(([sym])=>fits(sym.slice(0,-4)))
       .sort((a,b)=>b[1]-a[1]).slice(0,100).map(([sym])=>sym);
-    return { syms:out, source:'24h Binance volume', fallback:'CoinGecko unavailable ('+e.message+')', at:Date.now() };
+    return { syms:out, source:'24h Binance volume', fallback:'CoinGecko unavailable ('+e.message+')', at:Date.now(), coins:coinsNote(U) };
   }
 }
 // upper-bound cost of a run, so a 100-coin compare never starts as a surprise
@@ -3002,7 +3028,7 @@ $('cmpTop100').addEventListener('click', async ()=>{
       + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Keep this tab open until it finishes.`
       + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
     if(!ok){ $('cmpStatus').textContent=''; return; }
-    cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''}${stale?' — '+stale:''} · ranked ${new Date(t.at).toLocaleString()}`;
+    cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''}${stale?' — '+stale:''} · ranked ${new Date(t.at).toLocaleString()}${t.coins?' · '+t.coins:''}`;
     const same = t.syms.join()===CMP_SYMS.join();
     $('cmpSyms').value=cmpSymsText(t.syms);
     if(same) runCompare(false); else applyCmpSyms();
@@ -3011,24 +3037,23 @@ $('cmpTop100').addEventListener('click', async ()=>{
 });
 // ---- Top 50 gainers -----------------------------------------------------------
 // Binance's own 24h ranking: USDT spot pairs by % change over the last 24 hours, fetched fresh on every
-// click (it changes by the minute). Same exclusions as Top 100 (stablecoins, wrapped/staked copies,
-// leveraged tokens), plus a $1M 24h-volume floor so a near-dead pair that jumped on a handful of trades
-// can't take a row. New listings stay in; the ones too young to test are skipped and named in the status.
+// click (it changes by the minute). Normal coins only (isNormalCoin, as Top 100), plus a $1M 24h-volume
+// floor so a near-dead pair that jumped on a handful of trades can't take a row. New listings stay in;
+// the ones too young to test are skipped and named in the status.
 const GAIN_MIN_VOL=1e6;
 async function buildGainers(n){
-  const tick=await binanceJSON('/api/v3/ticker/24hr?type=MINI');
+  const [tick, U]=await Promise.all([binanceJSON('/api/v3/ticker/24hr?type=MINI'), spotUniverse()]);
   const live=new Set(tick.filter(t=>+t.quoteVolume>0).map(t=>t.symbol));
   const rows=[];
   for(const t of tick){
     if(!/USDT$/.test(t.symbol)) continue;
     const b=t.symbol.slice(0,-4), open=+t.openPrice, last=+t.lastPrice;
-    if(!(open>0 && last>0 && +t.quoteVolume>=GAIN_MIN_VOL)) continue;
-    if(NOT_COIN_SYM.test(b) || NOT_COIN_SET.has(b) || isLevToken(b, live) || normSym(b)!==t.symbol) continue;
+    if(!(open>0 && last>0 && +t.quoteVolume>=GAIN_MIN_VOL) || !isNormalCoin(b, U, live)) continue;
     rows.push({ sym:t.symbol, chg:last/open-1 });
   }
   rows.sort((a,b)=>b.chg-a.chg);
   const top=rows.slice(0,n);
-  return { syms:top.map(r=>r.sym), chg:top.map(r=>r.chg), at:Date.now() };
+  return { syms:top.map(r=>r.sym), chg:top.map(r=>r.chg), at:Date.now(), coins:coinsNote(U) };
 }
 $('cmpGainers').addEventListener('click', async ()=>{
   const btn=$('cmpGainers'); btn.disabled=true;
@@ -3039,12 +3064,12 @@ $('cmpGainers').addEventListener('click', async ()=>{
     const pct=(x)=>(x>=0?'+':'')+(x*100).toFixed(1)+'%', est=cmpEstimate(g.syms.length);
     const ok=confirm(`Compare Binance's top ${g.syms.length} gainers of the last 24 hours?`
       + `\n\n${g.syms.slice(0,5).map((s,i)=>s.replace(/USDT$/,'')+' '+pct(g.chg[i])).join(' · ')} … down to ${pct(g.chg[g.chg.length-1])}`
-      + ` (USDT pairs with ≥ $1M traded in 24h).`
+      + ` (USDT pairs with ≥ $1M traded in 24h; ${g.coins}).`
       + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
       + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Brand-new listings with too little history are skipped and named.`
       + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
     if(!ok){ $('cmpStatus').textContent=''; return; }
-    cmpListNote=`top ${g.syms.length} Binance gainers, 24h change at ${new Date(g.at).toLocaleString()} (≥ $1M volume)`;
+    cmpListNote=`top ${g.syms.length} Binance gainers, 24h change at ${new Date(g.at).toLocaleString()} (≥ $1M volume) · ${g.coins}`;
     const same=g.syms.join()===CMP_SYMS.join();
     $('cmpSyms').value=cmpSymsText(g.syms);
     if(same) runCompare(false); else applyCmpSyms();
