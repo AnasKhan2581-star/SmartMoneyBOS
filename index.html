@@ -135,6 +135,19 @@
   .pfHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .pfHead h2{font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
   .pfSub{font-size:12px;color:var(--muted)}
+  /* Portfolio loading: a green bar pinned to the top edge of the screen and a green pill by the heading.
+     The old grey "loading 4h… 12/62" beside the title was easy to miss. The bar slides while the book
+     loads (no count yet), then fills coin by coin. */
+  #pfLoadBar{position:fixed;top:0;left:0;right:0;height:5px;z-index:1000;background:rgba(63,185,80,.25);
+    overflow:hidden;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .35s,visibility .35s}
+  #pfLoadBar.on{opacity:1;visibility:visible}
+  #pfLoadBar>i{display:block;height:100%;width:0;background:#3fb950;box-shadow:0 0 12px #3fb950;transition:width .2s linear}
+  #pfLoadBar.indet>i{width:35%;animation:pfSlide 1.2s ease-in-out infinite}
+  @keyframes pfSlide{from{transform:translateX(-100%)}to{transform:translateX(290%)}}
+  .pfLoadPill{display:inline-flex;align-items:center;gap:8px;padding:4px 11px;border-radius:999px;
+    background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.55);color:#3fb950;font-size:12.5px;font-weight:700}
+  .pfLoadPill::before{content:"";width:8px;height:8px;border-radius:50%;background:#3fb950;animation:pfPulse 1s ease-in-out infinite}
+  @keyframes pfPulse{50%{opacity:.25}}
   /* hero — exactly one per view */
   .hero{padding:4px 0 2px}
   .hero .k{font-size:12px;color:var(--muted);letter-spacing:.3px}
@@ -357,6 +370,9 @@
     #compareView{padding:12px 12px 86px}
     main{padding-bottom:62px}
   }
+  @media (prefers-reduced-motion: reduce){
+    #pfLoadBar>i{transition:none} #pfLoadBar.indet>i{animation:none;width:100%;opacity:.6} .pfLoadPill::before{animation:none}
+  }
 </style>
 </head>
 <body>
@@ -399,6 +415,7 @@
 </header>
 <div id="stratInfo"></div>
 <section id="pfView">
+  <div id="pfLoadBar" role="progressbar" aria-label="Loading your portfolio" aria-valuemin="0" aria-valuemax="100"><i></i></div>
   <div class="pfHead">
     <h2>My portfolio</h2>
     <span class="pfSub" id="pfAsOf">—</span>
@@ -1864,39 +1881,59 @@ async function pfLoad(sym, tf, bars){
   pfCache[sym+'|'+tf+'|'+bars] = c; return c;
 }
 
+// the loading signal: total = 0 → the bar slides (nothing to count yet), otherwise it fills to done/total
+function pfProgress(label, done, total){
+  const bar = $('pfLoadBar'), fill = bar.firstElementChild;
+  if(label == null){                                           // finished: show the bar full, then fade it out
+    fill.style.width = '100%'; bar.classList.remove('indet');
+    setTimeout(()=>{ if(!pfBusy){ bar.classList.remove('on'); fill.style.width = '0'; } }, 450);
+    return;
+  }
+  const pct = total ? Math.round(100*done/total) : null;
+  bar.classList.add('on'); bar.classList.toggle('indet', pct == null);
+  fill.style.width = pct == null ? '' : Math.max(3, pct)+'%';
+  if(pct == null) bar.removeAttribute('aria-valuenow'); else bar.setAttribute('aria-valuenow', pct);
+  $('pfAsOf').innerHTML = `<span class="pfLoadPill">${label}</span>`;
+}
 async function pfRun(force){
   if(pfBusy) return;
   pfBusy = true;
   const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000, rbars = PF_RBARS[tf] || 2500;
-  if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
-  renderHoldEditor();                                          // usable while 60+ coins load (or Binance is down)
-  await bkLoad();                                               // book, journal, your answers, the alert list
-  renderBook();                                                // the book needs no candles to show its slots
-  const heldSyms = holdings.map(h=>h.sym);
-  const deep = heldSyms.concat([PF_REGIME_SYM]);               // holdings and BTC get real depth
-  const syms = [];
-  for(const x of heldSyms.concat(bkWatchSyms(), [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
-  const out = []; let done = 0;
-  const queue = syms.slice();
-  $('pfAsOf').textContent = `loading ${tf}… 0/${syms.length}`;
-  await Promise.all([0,1,2,3,4,5].map(async ()=>{
-    while(queue.length){
-      const sym = queue.shift();
-      try{
-        const c = await pfLoad(sym, tf, deep.indexOf(sym)>=0 ? bars : rbars);
-        if(c && c.length >= 60){
-          const btc = await btcFor(tf, c, sym);
-          const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
-          out.push({ sym, c, res });
-        }
-      }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
-      $('pfAsOf').textContent = `loading ${tf}… ${++done}/${syms.length}`;
-    }
-  }));
-  pfRows = out;
-  await bkFetchPrices().catch(()=>{});                         // book positions on coins outside the alert list
-  pfBusy = false;
+  try{
+    if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
+    renderHoldEditor();                                        // usable while 60+ coins load (or Binance is down)
+    pfProgress('Reading your trading book…');
+    await bkLoad();                                             // book, journal, your answers, the alert list
+    renderBook();                                              // the book needs no candles to show its slots
+    const heldSyms = holdings.map(h=>h.sym);
+    const deep = heldSyms.concat([PF_REGIME_SYM]);             // holdings and BTC get real depth
+    const syms = [];
+    for(const x of heldSyms.concat(bkWatchSyms(), [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
+    const out = []; let done = 0;
+    const queue = syms.slice();
+    pfProgress(`Loading ${tf} prices · 0 of ${syms.length} coins`, 0, syms.length);
+    await Promise.all([0,1,2,3,4,5].map(async ()=>{
+      while(queue.length){
+        const sym = queue.shift();
+        try{
+          const c = await pfLoad(sym, tf, deep.indexOf(sym)>=0 ? bars : rbars);
+          if(c && c.length >= 60){
+            const btc = await btcFor(tf, c, sym);
+            const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
+            out.push({ sym, c, res });
+          }
+        }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
+        ++done; pfProgress(`Loading ${tf} prices · ${done} of ${syms.length} coins`, done, syms.length);
+      }
+    }));
+    pfRows = out;
+    await bkFetchPrices().catch(()=>{});                       // book positions on coins outside the alert list
+  } finally {                                                  // never leave the bar running, or the screen locked
+    pfBusy = false;
+    pfProgress(null);
+  }
   renderPf();
+  if(!pfRows.length) $('pfAsOf').textContent = 'no prices loaded — tap ↻ Refresh prices';
 }
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
 
