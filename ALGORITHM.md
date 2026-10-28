@@ -740,6 +740,33 @@ Method:
   - **Measured, NOT shipped.** It needs the 5-slot book test and the user's decision. +3R is wired into the engine
     (`lbScaleR`), the bot's messages and journal, and the page's book replay.
 
+## RESEARCH (Oct 2026): 15m vs 4h on the 103-coin Compare list, last 4 years — 4h stays
+
+User question: does any strategy do better on 15m than on 4h, and what are the top 10 performers on each, ✓ or not?
+research/tfcmp/: `fetch.js` pulls klines the way the app's fetchKlines does, and `tfcmp_report.js` writes
+RESULTS_tfcmp_2026-10.md.
+
+Method:
+- Window 2022-10-28 → 2026-10-28 on both timeframes, `CMP_DEFAULT` (103 coins), all four Compare strategies.
+- It is the Compare tab in date mode: the warm-up comes out of the window, fills are at the signal close, 0.1% fee a side.
+- The stats are the app's own `pathStats`, read out of index.html.
+- A browser check (the real page, fed the same candles) matched 32/32 Compare rows.
+- 60 coins have the full 4 years; the top-10 tables rank only those.
+
+Result: **no strategy is better on 15m.** Per coin, 15m ended with this much more money than 4h on average:
+Liq Breakout −23%, Trend Follow −4.5%, Turtle −0.4%, BTC Cycle −1.0%.
+- **liqbrk is a 4h system.**
+  - On 15m: 22 trades a coin a year instead of 6, and the median win rate is 28% instead of 41%.
+  - 0.05%/side slippage costs a median 9.2 points instead of 3.5.
+  - Profitable on 52 of 102 coins vs 68, median net +1.5% vs +21%, and 15m beat 4h on only 33 coins.
+- **BTC Cycle is the same system on both** (daily on every chart): the same trade count on 102/102 coins, and within 5 points
+  of net on 94.
+- **Turtle and Trend Follow are a coin flip** between the two (15m better on 51/49 and 44/54 coins).
+- **The unfiltered top 10s** (by net P/L, as asked) are mostly the same few long trend holds on both timeframes: ZEC Turtle
+  +2,278% (15m) / +1,166% (4h), RAY, NEAR, AR, INJ and TRX on BTC Cycle or Trend Follow. 15 of the 20 rows have 1–9 trades.
+- **With the app's trade floor**, 9 of the 4h top 10 are liqbrk (FET +663%, HBAR +489%, XLM +348%, CFX, SOL, BCH, BTC, STX,
+  ETH), with a median max DD of −27%. Only 6 of the 15m top 10 are liqbrk, and that list's median max DD is −54%.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of liqbrk; they never change which trades the strategy takes, only which ones you are told to take.
