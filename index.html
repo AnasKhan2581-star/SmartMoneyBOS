@@ -101,6 +101,15 @@
   #chartWrap{position:relative;flex:1;min-width:0}
   #chart{position:absolute;inset:0}
   #overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+  /* TradingView-style readout (user request, Oct 2026): O/H/L/C of the candle under the crosshair at the chart's
+     top-left, and the crosshair's time tag past the newest candle, where the library draws none */
+  #ohlc{position:absolute;top:6px;left:8px;right:76px;z-index:6;pointer-events:none;font-size:12px;line-height:1.5;
+    color:var(--muted);text-shadow:0 0 3px #0e1117,0 0 2px #0e1117}
+  #ohlc b{font-weight:600}
+  #ohlc .g{white-space:nowrap;margin-right:7px}
+  #ohlc .k{margin-right:2px}
+  #xTime{position:absolute;z-index:6;display:none;pointer-events:none;transform:translateX(-50%);padding:0 7px;border-radius:2px;
+    background:#363a45;color:#fff;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,'Trebuchet MS',Roboto,Ubuntu,sans-serif;white-space:nowrap}
   aside{width:330px;flex:0 0 330px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
   /* drag the bottom-right corner of Advisor / Trades to give any section the room you want */
   #advisor{height:178px;min-height:44px;max-height:75vh;overflow:auto;resize:vertical;flex:0 0 auto}
@@ -608,7 +617,7 @@
   <div class="pfNote" id="alNote"></div>
 </section>
 <main>
-  <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas></div>
+  <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas><div id="ohlc"></div><div id="xTime"></div></div>
   <aside>
     <h2>Advisor</h2>
     <div id="advisor" style="padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.7">—</div>
@@ -702,6 +711,11 @@ const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision']
 let chart, candleSeries, candles = [], lastResult = null, logScale = true;
 let btcSeries = null;    // BTC candles for liqbrk's market gate on the Chart tab (null = gate skipped, flagged)
 const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
+// Price digits (user request, Oct 2026): 2 decimals from $1 up, 4 below $1 — and below a cent, 4 significant
+// digits, because 4 fixed decimals would print PEPE / SHIB / BONK as 0.0000. Capped at 8: Binance quotes USDT
+// pairs to at most 8 decimals, so a 9th is always a zero.
+const pxDigits = (p) => !(p > 0) || p >= 1 ? 2 : p >= 0.01 ? 4 : Math.min(8, Math.ceil(-Math.log10(p)) + 3);
+const pxFmt = (x) => x == null || !isFinite(x) ? '—' : x.toFixed(pxDigits(Math.abs(x)));
 const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 
 // Pages backwards 1000 bars at a time via endTime, so depth is limited only by how far the
@@ -787,7 +801,7 @@ async function btcDailyFor(sym){
   try{ return await e.p; }
   catch(err){ if(btcDaily === e) btcDaily = null; return null; }
 }
-let btcDSeries = null, btcDSym = null, candlesSym = null;   // the cycle's BTC daily, for the symbol on screen
+let btcDSeries = null, btcDSym = null, candlesSym = null, candlesTf = null;   // the cycle's BTC daily, for the symbol on screen
 async function ensureBtcD(fresh){
   if($('strategy').value !== 'cycle' || !candlesSym) return;
   if(!fresh && btcDSym === candlesSym && btcDSeries) return;
@@ -809,9 +823,11 @@ function ensureChart(){
     grid:{ vertLines:{color:'#161b22'}, horzLines:{color:'#161b22'} },
     rightPriceScale:{ borderColor:'#222a35', mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal },
     timeScale:{ borderColor:'#222a35', timeVisible:true, secondsVisible:false, rightOffset:4, minBarSpacing:0.02 },
-    // no floating price tag on the axis — it reads as a "moving stop" while scrolling;
-    // the only axis labels are the real Entry / SL / TP / last price
-    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal, horzLine:{ labelVisible:false } },
+    // TradingView-style crosshair (user request, Oct 2026): its own price tag on the right axis and time tag on
+    // the bottom one. Neutral grey, so neither can be read as the Entry / SL / TP / last-price labels.
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine:{ labelBackgroundColor:'#363a45' }, horzLine:{ labelBackgroundColor:'#363a45' } },
+    localization:{ timeFormatter: crossTime },
     // TradingView-style axis interactions: drag the price axis to scale, drag the time axis
     // to zoom, double-click either axis to reset it
     handleScroll:{ mouseWheel:true, pressedMouseMove:true, horzTouchDrag:true, vertTouchDrag:true },
@@ -824,6 +840,7 @@ function ensureChart(){
     borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350',
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
+  chart.subscribeCrosshairMove(onCrosshair);
   $('showSessions').addEventListener('change', drawOverlay);
   $('lbBrkExt').addEventListener('change', ()=>{ if(candles.length) recalc(); });
   new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); }).observe($('chartWrap'));
@@ -831,6 +848,45 @@ function ensureChart(){
 
 let priceLines = [];
 const clearPriceLines = () => { priceLines.forEach(l=>candleSeries.removePriceLine(l)); priceLines=[]; };
+
+// ---- crosshair readout ----------------------------------------------------------------------------------
+// Times are the chart's own clock, UTC (the axis and the Advisor use it too; trade markers name the IST time).
+let chartDigits = 2;          // decimals of the symbol on screen, from its last close — set in render()
+const WDAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function crossTime(t){
+  const d=new Date(t*1000), day=`${WDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;
+  const intraday = candles.length>1 && candles[1].time-candles[0].time < 86400;
+  return intraday ? `${day}  ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC` : day;
+}
+// the legend stops short of the price axis, whose width follows the digits (PEPE and BTC need a wide one)
+const fitOhlc=()=>{ $('ohlc').style.right=(chart.priceScale('right').width()+8)+'px'; };
+const volFmt=(v)=> v>=1e12 ? (v/1e12).toFixed(2)+'T' : v>=1e9 ? (v/1e9).toFixed(2)+'B' : v>=1e6 ? (v/1e6).toFixed(2)+'M' : v>=1e3 ? (v/1e3).toFixed(1)+'K' : v.toFixed(0);
+// O/H/L/C of candle i, coloured by the candle; change is against the previous close, as TradingView shows it
+function setOhlc(i){
+  const el=$('ohlc'), b=candles[i]; if(!el || !b) return;
+  const f=(x)=>x.toFixed(chartDigits), col=b.close>=b.open?'#26a69a':'#ef5350';
+  const prev=i>0?candles[i-1].close:b.open, ch=b.close-prev, pc=prev?ch/prev*100:0, sg=ch>=0?'+':'−';
+  // each group is one unbreakable unit; the spaces between groups are where a narrow screen wraps
+  const g=(h)=>`<span class="g">${h}</span> `, v=(k,x)=>g(`<span class="k">${k}</span><b style="color:${col}">${f(x)}</b>`);
+  el.innerHTML=g(`<span style="color:var(--txt)">${candlesSym||''}${candlesTf?' · '+candlesTf:''}</span>`)
+    + v('O',b.open)+v('H',b.high)+v('L',b.low)+v('C',b.close)
+    + g(`<b style="color:${ch>=0?'#26a69a':'#ef5350'}">${sg}${f(Math.abs(ch))} (${sg}${Math.abs(pc).toFixed(2)}%)</b>`)
+    + (b.volume>0 ? g(`<span class="k">Vol</span><b>${volFmt(b.volume)}</b>`) : '');
+  fitOhlc();
+}
+function onCrosshair(param){
+  const n=candles.length; if(!n) return;
+  // over a candle: that candle; anywhere else (off the chart, or past the newest bar): the newest one
+  setOhlc(param.time!==undefined && param.logical!=null ? Math.max(0, Math.min(n-1, Math.round(param.logical))) : n-1);
+  // past the newest candle the library draws the crosshair line but no time tag, since no bar is there: draw it
+  const el=$('xTime');
+  if(param.point && param.time===undefined && param.logical!=null && param.logical>n-1){
+    const dt=n>1 ? candles[n-1].time-candles[n-2].time : 86400, ps=chart.paneSize(), th=chart.timeScale().height();
+    el.textContent=crossTime(candles[n-1].time + Math.round(param.logical-(n-1))*dt);
+    el.style.display='block'; el.style.top=ps.height+'px'; el.style.height=el.style.lineHeight=th+'px';
+    const w=el.offsetWidth; el.style.left=Math.max(w/2, Math.min(ps.width-w/2, param.point.x))+'px';
+  } else el.style.display='none';
+}
 
 // ---- backtest equity: EXPOSURE model. Each hold invests `invest%` of current equity (scaled
 // by the strategy's own vol-sizing `frac`) at the entry price and sells at the exit price —
@@ -876,7 +932,7 @@ function backtest(){
   const pm=(x)=>(x>=0?'+':'−')+'$'+Math.abs(Math.round(x)).toLocaleString();
   const sign=(x)=> x>=0?'up':'down';
   // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
-  const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : x>=1? x.toFixed(2) : x.toPrecision(3));
+  const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : pxFmt(x));
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
@@ -905,6 +961,10 @@ function render(result){
   lastResult = result; window.__r = result; window.__c = candles;
   const c = candles, trades = result.trades||[];
   candleSeries.setData(c);
+  chartDigits = pxDigits(c[c.length-1].close);
+  candleSeries.applyOptions({ priceFormat:{ type:'price', precision:chartDigits, minMove:Math.pow(10,-chartDigits) } });
+  setOhlc(c.length-1);
+  requestAnimationFrame(fitOhlc);          // a new symbol's axis width is only known after the chart lays out
   // fresh data = fresh view: re-enable autoscale (a manual axis drag disables it, and the next
   // symbol can be 1000× cheaper — without this the candles land far off-screen) and refit time
   chart.priceScale('right').applyOptions({ autoScale:true });
@@ -1061,7 +1121,7 @@ function drawOverlay(){
     // right-edge labels: today's zones
     const last=(arr)=>{ for(let i=n-1;i>=0;i--) if(arr[i]&&!isNaN(arr[i])) return arr[i]; return null; };
     const zv=last(cl.zLo), mv=last(cl.ma200);
-    const fz=(x)=> x>=1000 ? Math.round(x).toLocaleString() : x>=1 ? x.toFixed(2) : x.toPrecision(3);   // ADA once read "BUY A 0–1"
+    const fz=(x)=> x>=1000 ? Math.round(x).toLocaleString() : pxFmt(x);   // ADA once read "BUY A 0–1"
     ctx.save(); ctx.font='10px system-ui';
     if(zv){ const y=Y(zv*1.05); if(y!=null){ ctx.fillStyle='#7ee787'; ctx.fillText('BUY A '+fz(zv)+'–'+fz(zv*1.1),rightX-150,y); }
       const y2=Y(zv*0.86); if(y2!=null){ ctx.fillStyle='#2ea043'; ctx.fillText('BUY B (deep) '+fz(zv*0.72)+'–'+fz(zv),rightX-150,y2); } }
@@ -1140,7 +1200,7 @@ async function run(){
       $('status').textContent = `fetching ${sym} ${tf} · ${got} bars…`;
     });
     if(!candles.length){ $('status').textContent = byDate ? 'no bars in that date range' : 'no data'; return; }
-    candlesSym = sym;
+    candlesSym = sym; candlesTf = tf;
     $('status').textContent = `fetching BTC ${tf} for the market gate…`;
     btcSeries = await btcFor(tf, candles, sym);
     if($('strategy').value === 'cycle'){ $('status').textContent = 'fetching BTC 1d for the cycle playbook…'; await ensureBtcD(true); }
@@ -1189,7 +1249,7 @@ const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value]
 function advisor(result){
   const ad=result.advice, el=$('advisor');
   if(!ad){ el.textContent='—'; return; }
-  const fmtP=(x)=> x>=100? Math.round(x).toLocaleString() : x>=1 ? x.toFixed(2) : x.toPrecision(3);
+  const fmtP=(x)=> x>=100? Math.round(x).toLocaleString() : pxFmt(x);
   // the cycle sells its half in the SELL ZONE and, once trending, exits on the 40-week line — not a stop order
   const cyA = ad.cycle, halfWhy = cyA ? 'sell zone' : '+3R', cyTrend = cyA && cyA.mode==='TREND';
 
@@ -1229,7 +1289,7 @@ function advisor(result){
   let cyc='';
   if(ad.cycle){
     const cy=ad.cycle, p=cy.plan;
-    const fpp=(x)=> x==null?'—':(x>=1000?Math.round(x).toLocaleString():x>=1?x.toFixed(2):x.toPrecision(3));
+    const fpp=(x)=> x==null?'—':(x>=1000?Math.round(x).toLocaleString():pxFmt(x));
     const zoneCol = cy.zone>=2?'#7ee787':'var(--muted)';
     const filled = p&&p.fracNow>0 ? ` · <b>${Math.round(p.fracNow*100)}% deployed${p.avgNow?` @ avg ${fpp(p.avgNow)}`:''}</b>` : '';
     cyc = `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:4px">`
