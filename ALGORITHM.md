@@ -692,6 +692,46 @@ next open, fees + slippage, settings chosen on 2023-24 and judged on 2025-26, ra
 - What works instead is the same breakout idea WITH regime gate, stop and trail on a slower TF (`liqbrk` 4h).
   Do not retry without a genuinely new input (order book, funding, listings news) — not another threshold sweep.
 
+## REJECTED (Oct 2026): SMC profit-taking for `liqbrk` — selling at resting BSL or a major bearish FVG
+
+User question: instead of "½ at +3R, the rest on the 4×ATR stop / 1-day-low trail", take profit where SMC says the coin
+falls back. That means resting buy-side liquidity above (swing highs not yet traded through) or a major bearish FVG
+(the supply POI shorts sell from). Code: research/smcexit/. `smcexit_lab.js parity` reproduces liqbrk_lab's shipped exit
+trade-for-trade on the 61 alert coins, and `smcexit_report.js` writes RESULTS_smcexit_2026-10.md (all tables).
+
+Method:
+- Every row uses the shipped entries; only the exit changes. Honest fills, 4h.
+- **alert** = the bot's 61 coins on full history. **oos** = 330 other normal spot coins in the cache, mostly 2022 onward.
+  Stocks/ETFs, stablecoins and gold are excluded by index.html's own lists.
+- Levels are used only from the candle that made them known: swing highs at the zigzag candle that confirmed them
+  (4×ATR), FVGs at the close of their third candle (≥ 0.5×ATR tall). A trade's target is fixed at the signal close.
+- Every SMC rule is run against a **control** that removes the SMC information: the same coin's target distances drawn at
+  random, or fake FVGs placed 1–2 ATR away from the real ones.
+- To ship, a rule must make more coins richer than poorer, cut drawdown on more coins than it deepens, keep PF at least
+  shipped in both halves of each coin's history, and beat its control. All four must hold on BOTH universes.
+
+**Nothing passed.**
+- **BSL is fuel, not a ceiling.** Inside liqbrk trades, after a sweep price fell 1 ATR before it rose 1 ATR 53% of the time,
+  vs 62% at plain levels (oos 58% vs 65%). The next day was weaker than at plain levels on only 21/53 and 61/207 coins.
+- **"½ at the nearest BSL" really means "½ almost at once"**: 96% of entries have one, a median 0.6R up.
+  - Win rate rises 37% → 45% and median DD improves −53% → −45%.
+  - But PF falls 1.39 → 1.35 (oos 0.89 → 0.83).
+  - Random levels at the same distances beat it on both universes, so the BSL adds nothing.
+  - Selling ALL there: alert PF 1.16.
+- **Bearish FVGs** are a coin flip as turning points: −1 ATR came first 64% vs 62% at plain levels.
+  - Three FVG exits were tested: ½ there; ALL there; and +3R½ with the rest out when price taps one and closes back below.
+    All three beat their controls 6/6, so they are the only SMC input with any information.
+  - Against shipped they are not stable. Alert PF 1.42 / 1.38 / 1.40 vs 1.39, but the first-half PF is
+    1.278 / 1.237 / 1.240 vs 1.281.
+  - They fail the both-halves test on the bot's coins.
+  - Closest candidate if ever revisited: "+3R½, rest also out on a bearish-FVG tap that closes back below".
+    oos PF 0.92 vs 0.89, but its fake-FVG placebo scores nearly the same (Σ −74.4 vs −73.7).
+- **Read the oos rows with care.** liqbrk loses on those coins (PF 0.89), so any rule that exits sooner "improves" them.
+  That is why the controls decide there, not the shipped row.
+- Read as places to SHORT, the event study says the same thing: no more fall-back than at any level.
+- **Don't retry SMC exits without a distance-matched control.** A level that is merely close to the entry always looks
+  like it "raises the win rate".
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of liqbrk; they never change which trades the strategy takes, only which ones you are told to take.
