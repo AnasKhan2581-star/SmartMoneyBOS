@@ -252,4 +252,56 @@ say(`- **On the oos coins liqbrk loses money** (shipped PF ${f2(sh('oos').pf)}),
   + `and on the alert coins, where liqbrk makes money, the same rule wrecks it (Σ ${sg(sh('alert').slog)} → ${sg(at('alert', 'ALL at nearest BSL').slog)}, `
   + `PF ${f2(sh('alert').pf)} → ${f2(at('alert', 'ALL at nearest BSL').pf)}): it sells the trades that would have run.`);
 say();
+// ---- 5. follow-up: is the closest one luck, and what do the BSL rows measure
+// per coin: how much richer than shipped over the coin's whole history (geometric mean over coins), with a 95% range
+// from resampling the coins — they share one market, so if anything the range is too narrow
+const boot = (per, base, tag) => {
+  const d = per.map((x, i) => Math.log(1 + x.s.net) - Math.log(1 + base[i].s.net)), r = rng('boot|' + tag), Bs = [];
+  for (let b = 0; b < 10000; b++) { let s = 0; for (let j = 0; j < d.length; j++) s += d[Math.floor(r() * d.length)]; Bs.push(s / d.length); }
+  Bs.sort((a, b) => a - b);
+  return { m: Math.exp(mean(d)) - 1, lo: Math.exp(Bs[250]) - 1, hi: Math.exp(Bs[9749]) - 1, pos: Bs.filter((x) => x > 0).length / Bs.length };
+};
+const bootTxt = (b) => `${pc(b.m)} (${pc(b.lo)} … ${pc(b.hi)}; above zero in ${pp(b.pos)} of resamples)`;
+say(`## 5. Is the closest one more than luck? And what the BSL rows really measure\n`);
+say(`**Paired by coin.** For each coin: how much richer the exit left you than the shipped one over that coin's whole history, averaged `
+  + `over coins, with a 95% range from resampling the coins 10,000 times. The coins share one market, so if anything the range is too narrow.\n`);
+say(row(['exit', 'alert: per coin vs shipped', 'oos: per coin vs shipped']));
+say(row(['---', '---', '---']));
+const BT = {};
+for (const n of [...F, B]) { BT[n] = {}; say(row([n, ...['alert', 'oos'].map((u) => bootTxt(BT[n][u] = boot(get(u, n).per, R[u].base, u + n)))])); }
+say();
+{
+  const A = R.alert.base.flatMap((x) => x.r.trades), H = get('alert', F[0]).per.flatMap((x) => x.r.trades);
+  const same = A.length === H.length && A.every((t, i) => t.entryIdx === H[i].entryIdx && t.exitIdx === H[i].exitIdx);
+  const d = H.map((t, i) => t.ret - A[i].ret).filter((x) => Math.abs(x) > 1e-12);
+  say(`"${F[0]}" keeps ${same ? 'exactly the same' : 'NOT the same'} trades as the shipped exit (same entry and exit candles); only the first half's sale `
+    + `moves, on ${d.length} of ${A.length} alert trades (${pp(d.length / A.length)}): ${d.filter((x) => x > 0).length} better, ${d.filter((x) => x < 0).length} worse, `
+    + `${pc(mean(d), 2)} per affected trade on average.\n`);
+}
+const KS = [0.5, 1, 1.5, 2, 3, 4], SW = {};
+say(`**Plain half-sale levels, no SMC.** The nearest BSL sits a median ${at('alert', B).dist.toFixed(1)}R above the entry, so the BSL rows mostly `
+  + `measure WHEN half is sold. Same entries and the same rest exit, half sold at a fixed multiple of R:\n`);
+for (const u of ['alert', 'oos']) {
+  say(`**${u}**\n`);
+  say(row(['half sold at', 'win rate', 'PF (1st half / 2nd half)', 'median net', 'median max DD', 'DD better / worse', 'per coin vs shipped']));
+  say(row(['---', '---', '---', '---', '---', '---', '---']));
+  SW[u] = {};
+  for (const k of KS) {
+    const per = k === 3 ? R[u].base : runAll(U[u], { exit: 'scale3R', k }), s = summary(per), v = versus(per, R[u].base);
+    SW[u][k] = { s, v, b: k === 3 ? null : boot(per, R[u].base, u + 'k' + k) };
+    say(row([k === 3 ? '**+3R (shipped)**' : `+${k}R`, pp(s.wr), `${f2(s.pf)} (${f2(s.pf1)} / ${f2(s.pf2)})`, pc(s.net, 0), pc(-s.dd, 0),
+      k === 3 ? '—' : `${v.db} / ${v.dw}`, k === 3 ? '—' : bootTxt(SW[u][k].b)]));
+  }
+  say();
+}
+const early = [0.5, 1], zeroIn = (b) => b.lo < 0 && b.hi > 0;
+say(`- **The FVG half-target's gain is not distinguishable from luck:** ${bootTxt(BT[F[0]].alert)} per coin on the alert coins, `
+  + `${bootTxt(BT[F[0]].oos)} on oos.`);
+say(`- **Selling the first half earlier is a real trade-off, and it is not SMC.** At ${early.map((k) => `+${k}R`).join(' / ')} instead of +3R the win rate is `
+  + `${early.map((k) => pp(SW.alert[k].s.wr)).join(' / ')} (vs ${pp(SW.alert[3].s.wr)}) and the median drawdown ${early.map((k) => pc(-SW.alert[k].s.dd, 0)).join(' / ')} `
+  + `(vs ${pc(-SW.alert[3].s.dd, 0)}), smaller on ${early.map((k) => SW.alert[k].v.db).join(' / ')} of ${U.alert.length} alert coins. The money is `
+  + (early.every((k) => zeroIn(SW.alert[k].b)) ? `statistically unchanged on the alert coins (both 95% ranges include zero)` : `different on the alert coins`)
+  + ` and the PF ${early.map((k) => f2(SW.alert[k].s.pf)).join(' / ')} vs ${f2(SW.alert[3].s.pf)}. On oos it helps more, but liqbrk loses there, `
+  + `and any earlier exit helps a losing system. NOT shipped: it has not been run through the 5-slot book the bot trades.`);
+say();
 process.stdout.write(out.join('\n') + '\n');

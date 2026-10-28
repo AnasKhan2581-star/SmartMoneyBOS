@@ -111,3 +111,43 @@ Inside every shipped liqbrk trade, the first candle that reaches each level abov
 - **Bearish FVGs are no better than any level as a turning point** (−1 ATR first 64% vs 62%; oos 62% vs 65%; next day weaker than at plain levels on 15 of 31 and 28 of 62 coins — a coin flip), yet the three FVG exits beat their controls in 6 of 6 comparisons: the only SMC input here with any information in it. Against the shipped exit the gain is small and not stable. On the alert coins the PF is 1.42 / 1.38 / 1.40 vs 1.39, but in the first half of each coin's history it is 1.278 / 1.237 / 1.240 vs 1.281: they help in the later half of each coin's history and hurt in the earlier half.
 - **On the oos coins liqbrk loses money** (shipped PF 0.89), so any rule that gets out sooner loses less there. That is why most rows beat the shipped exit on oos Σ, and why the controls decide. Example: selling ALL at the nearest BSL improves oos Σ (−82.4 → −62.9), random levels do it better (−55.2), and on the alert coins, where liqbrk makes money, the same rule wrecks it (Σ 6.7 → −0.1, PF 1.39 → 1.16): it sells the trades that would have run.
 
+## 5. Is the closest one more than luck? And what the BSL rows really measure
+
+**Paired by coin.** For each coin: how much richer the exit left you than the shipped one over that coin's whole history, averaged over coins, with a 95% range from resampling the coins 10,000 times. The coins share one market, so if anything the range is too narrow.
+
+| exit | alert: per coin vs shipped | oos: per coin vs shipped |
+| --- | --- | --- |
+| ½ at nearest major bearish FVG | +2.3% (−2.0% … +7.1%; above zero in 85% of resamples) | +0.2% (−1.0% … +1.5%; above zero in 64% of resamples) |
+| ALL at nearest major bearish FVG | +1.3% (−7.3% … +11.0%; above zero in 61% of resamples) | +2.6% (+0.3% … +4.9%; above zero in 99% of resamples) |
+| +3R ½, rest also out on a bearish-FVG tap that closes back below | +0.1% (−6.0% … +6.6%; above zero in 51% of resamples) | +2.7% (+0.9% … +4.4%; above zero in 100% of resamples) |
+| ½ at nearest BSL | −1.8% (−8.9% … +5.6%; above zero in 32% of resamples) | +2.5% (+0.2% … +4.7%; above zero in 98% of resamples) |
+
+"½ at nearest major bearish FVG" keeps exactly the same trades as the shipped exit (same entry and exit candles); only the first half's sale moves, on 315 of 1631 alert trades (19%): 177 better, 138 worse, +0.37% per affected trade on average.
+
+**Plain half-sale levels, no SMC.** The nearest BSL sits a median 0.6R above the entry, so the BSL rows mostly measure WHEN half is sold. Same entries and the same rest exit, half sold at a fixed multiple of R:
+
+**alert**
+
+| half sold at | win rate | PF (1st half / 2nd half) | median net | median max DD | DD better / worse | per coin vs shipped |
+| --- | --- | --- | --- | --- | --- | --- |
+| +0.5R | 54% | 1.39 (1.27 / 1.53) | +10% | −44% | 53 / 8 | +3.1% (−5.7% … +13.1%; above zero in 74% of resamples) |
+| +1R | 43% | 1.36 (1.24 / 1.51) | +25% | −45% | 46 / 14 | +2.7% (−5.0% … +11.5%; above zero in 74% of resamples) |
+| +1.5R | 39% | 1.38 (1.28 / 1.51) | +7% | −48% | 40 / 16 | +3.6% (−1.9% … +9.7%; above zero in 90% of resamples) |
+| +2R | 38% | 1.37 (1.24 / 1.52) | +6% | −50% | 29 / 22 | +0.2% (−4.2% … +4.7%; above zero in 53% of resamples) |
+| **+3R (shipped)** | 37% | 1.39 (1.28 / 1.53) | 0% | −53% | — | — |
+| +4R | 36% | 1.42 (1.29 / 1.58) | +6% | −52% | 16 / 16 | +0.5% (−2.4% … +3.1%; above zero in 64% of resamples) |
+
+**oos**
+
+| half sold at | win rate | PF (1st half / 2nd half) | median net | median max DD | DD better / worse | per coin vs shipped |
+| --- | --- | --- | --- | --- | --- | --- |
+| +0.5R | 47% | 0.85 (0.95 / 0.74) | −14% | −36% | 287 / 32 | +6.2% (+3.7% … +8.7%; above zero in 100% of resamples) |
+| +1R | 38% | 0.86 (0.95 / 0.76) | −15% | −41% | 237 / 59 | +2.6% (+0.6% … +4.7%; above zero in 99% of resamples) |
+| +1.5R | 34% | 0.88 (0.96 / 0.79) | −18% | −43% | 185 / 74 | +1.9% (+0.3% … +3.6%; above zero in 99% of resamples) |
+| +2R | 32% | 0.89 (0.97 / 0.80) | −17% | −43% | 125 / 90 | +1.4% (+0.1% … +2.7%; above zero in 98% of resamples) |
+| **+3R (shipped)** | 31% | 0.89 (0.97 / 0.81) | −20% | −45% | — | — |
+| +4R | 30% | 0.88 (0.97 / 0.79) | −22% | −45% | 70 / 83 | −1.6% (−2.6% … −0.6%; above zero in 0% of resamples) |
+
+- **The FVG half-target's gain is not distinguishable from luck:** +2.3% (−2.0% … +7.1%; above zero in 85% of resamples) per coin on the alert coins, +0.2% (−1.0% … +1.5%; above zero in 64% of resamples) on oos.
+- **Selling the first half earlier is a real trade-off, and it is not SMC.** At +0.5R / +1R instead of +3R the win rate is 54% / 43% (vs 37%) and the median drawdown −44% / −45% (vs −53%), smaller on 53 / 46 of 61 alert coins. The money is statistically unchanged on the alert coins (both 95% ranges include zero) and the PF 1.39 / 1.36 vs 1.39. On oos it helps more, but liqbrk loses there, and any earlier exit helps a losing system. NOT shipped: it has not been run through the 5-slot book the bot trades.
+

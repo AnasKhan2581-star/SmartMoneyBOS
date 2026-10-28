@@ -731,6 +731,14 @@ Method:
 - Read as places to SHORT, the event study says the same thing: no more fall-back than at any level.
 - **Don't retry SMC exits without a distance-matched control.** A level that is merely close to the entry always looks
   like it "raises the win rate".
+- **Paired by coin (RESULTS §5), the closest one is luck.** "½ at the nearest FVG" left each alert coin +2.3% richer over
+  its whole history (95% range −2.0% … +7.1%), and oos coins +0.2% (−1.0% … +1.5%). It keeps the same trades as shipped;
+  only 19% of first-half sales move.
+- **What the BSL rows really measured is WHEN half is sold** (RESULTS §5, plain levels, no SMC). On the alert coins:
+  - ½ at +0.5R / +1R instead of +3R: win rate 54% / 43% (vs 37%), median DD −44% / −45% (vs −53%), smaller on 53 / 46 of 61 coins.
+  - The money is statistically unchanged (per coin +3.1% / +2.7%, both 95% ranges include zero); PF 1.39 / 1.36 vs 1.39.
+  - **Measured, NOT shipped.** It needs the 5-slot book test and the user's decision. +3R is wired into the engine
+    (`lbScaleR`), the bot's messages and journal, and the page's book replay.
 
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
