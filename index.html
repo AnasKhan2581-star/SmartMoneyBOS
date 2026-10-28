@@ -316,6 +316,9 @@
   .bkTable td{padding:7px 6px;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .bkTable th:first-child,.bkTable td:first-child{text-align:left}
   .bkTable td button{padding:2px 7px;font-size:11px;font-weight:600}
+  .bkTable tbody tr.bkRow{cursor:pointer}
+  .bkTable tbody tr.bkRow:hover{background:#161b22}
+  .bkTable tbody tr.bkRow:focus-visible{outline:2px solid #58a6ff;outline-offset:-2px}
   .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:700;border:1px solid var(--line)}
   .chip.taken{color:#56d364;border-color:#1d5234;background:#101c15}
   .chip.await{color:#e3c34c;border-color:#4d3f17;background:#1b1810}
@@ -1569,7 +1572,7 @@ function renderCmp(){
     if($('cmpRangeMode').value==='dates'){ $('fromDate').value=$('cmpFrom').value; $('toDate').value=$('cmpTo').value; }
     else $('bars').value=cmpBars();
     syncRangeMode();
-    stratInfo(); showView('chart'); run();
+    stratInfo(); chartRun();
   }));
 }
 // ---- go-to combo -----------------------------------------------------------------------
@@ -1862,12 +1865,28 @@ function condList(ad){
     `<div><span class="ic" style="color:${sg.ok?'#56d364':'#f85149'}">${sg.ok?'✔':'✘'}</span><span>${sg.name}</span></div>`
   ).join('') + '</div>';
 }
+// Open the Chart tab on whatever the inputs now say, and wait until it has drawn. showView runs the very
+// first chart load by itself, so the old "showView('chart'); run()" fetched the coin twice on a first open.
+async function chartRun(){ chartLoaded = true; showView('chart'); await run(); }
 function bindCard(el){
   el.addEventListener('click', (ev)=>{
     if(ev.target.closest('button,input')) return;
     $('sym').value = el.dataset.sym; $('strategy').value = 'liqbrk'; $('tf').value = $('pfTf').value;
-    stratInfo(); showView('chart'); run();
+    stratInfo(); chartRun();
   });
+}
+// A journal row opens its coin on the trade's own timeframe and zooms to the trade, with enough bars to
+// reach back past the entry (double-click the chart for the whole history).
+async function openJournalChart(e){
+  const tfS = (TF_MS[e.tf] || 144e5)/1000, nowS = Date.now()/1000;
+  $('sym').value = e.symbol; $('strategy').value = e.strategy || 'liqbrk'; $('tf').value = e.tf;
+  $('rangeMode').value = 'bars'; syncRangeMode();
+  $('bars').value = Math.min(60000, Math.max(+$('bars').value || 4500, Math.ceil((nowS - e.signalTime)/tfS) + 120));
+  stratInfo();
+  await chartRun();
+  if(chart && candlesSym === e.symbol && candles.length){
+    try{ chart.timeScale().setVisibleRange({ from: e.signalTime - 60*tfS, to: (e.exitTime || nowS) + 25*tfS }); }catch(err){}
+  }
 }
 
 async function pfLoad(sym, tf, bars){
@@ -2251,7 +2270,7 @@ function renderBook(){
   const list = BK.entries.filter(F[bkFilter]).sort((a,b)=>b.signalTime-a.signalTime);
   $('bkJCount').textContent = `${BK.entries.length} signal${BK.entries.length===1?'':'s'} logged`;
   $('bkJournal').innerHTML = list.map(e=>{ const a = bkAnswer(e), res = bkResult(e), now = bkIsOpen(e) ? bkPrice(e.symbol) : null;
-    return `<tr><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td><td>${bkStatus(e)}</td>
+    return `<tr class="bkRow" data-id="${e.id}" tabindex="0" title="Open the ${coin(e.symbol)} ${e.tf} chart at this trade"><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td><td>${bkStatus(e)}</td>
       <td>${pfFmt(e.entry)}</td><td>${e.status==='closed'?pfFmt(e.exitRest!=null?e.exitRest:e.exit):now?pfFmt(now):'—'}</td>
       <td>${bkPct(res)}</td><td>${e.status==='closed'&&e.R!=null?(e.R>=0?'+':'')+(+e.R).toFixed(1):'—'}</td>
       <td>${a?'':`<button data-bk="taken" data-id="${e.id}">Took it</button> <button class="ghost" data-bk="skipped" data-id="${e.id}">Skip</button>`}</td></tr>`; }).join('')
@@ -2269,6 +2288,12 @@ function renderBook(){
   const [owner, repo] = alRepo().split('/');
   $('bkEdit').href = `https://github.com/${owner}/${repo}/edit/main/signals/decisions.json`;
   $('bookBox').querySelectorAll('button[data-bk]').forEach(b=>b.onclick = ()=>bkDecide(b.dataset.id, b.dataset.bk));
+  // a row opens its chart; its Took it / Skip buttons keep doing only their own job
+  $('bkJournal').querySelectorAll('tr.bkRow').forEach(tr=>{
+    const go = (ev)=>{ if(ev.target.closest('button')) return; const e = BK.entries.find(x=>x.id===tr.dataset.id); if(e) openJournalChart(e); };
+    tr.onclick = go;
+    tr.onkeydown = (ev)=>{ if(ev.key==='Enter') go(ev); };
+  });
   $('bkFilt').querySelectorAll('button[data-f]').forEach(b=>b.onclick = ()=>{ bkFilter = b.dataset.f; renderBook(); });
   $('bkOpen').querySelectorAll('.card[data-sym]').forEach(bindCard);
 }
