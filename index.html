@@ -108,6 +108,8 @@
   #ohlc b{font-weight:600}
   #ohlc .g{white-space:nowrap;margin-right:7px}
   #ohlc .k{margin-right:2px}
+  #tzBox{position:absolute;right:0;bottom:0;z-index:7;display:none;align-items:center;justify-content:center;width:60px;height:28px}
+  #tzSel{background:#0e1117;color:var(--muted);border:1px solid var(--line);border-radius:4px;font-size:11px;padding:1px 2px;color-scheme:dark;cursor:pointer}
   #xTime{position:absolute;z-index:6;display:none;pointer-events:none;transform:translateX(-50%);padding:0 7px;border-radius:2px;
     background:#363a45;color:#fff;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,'Trebuchet MS',Roboto,Ubuntu,sans-serif;white-space:nowrap}
   aside{width:330px;flex:0 0 330px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
@@ -617,7 +619,7 @@
   <div class="pfNote" id="alNote"></div>
 </section>
 <main>
-  <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas><div id="ohlc"></div><div id="xTime"></div></div>
+  <div id="chartWrap"><div id="chart"></div><canvas id="overlay"></canvas><div id="ohlc"></div><div id="xTime"></div><div id="tzBox"><select id="tzSel" title="Chart time zone" aria-label="Chart time zone"><option value="IST">IST</option><option value="UTC">UTC</option></select></div></div>
   <aside>
     <h2>Advisor</h2>
     <div id="advisor" style="padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.7">—</div>
@@ -630,7 +632,7 @@
       <span style="color:#7ee787">▲ buy</span>
       <span style="color:#ef5350">▼ sell</span>
     </div>
-    <div id="log"><table><thead><tr><th>Entry</th><th>Buy @</th><th>SL</th><th>Exit/TP</th><th>Move</th><th>P/L</th><th>Bal</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    <div id="log"><table><thead><tr><th id="logEntry">Entry</th><th>Buy @</th><th>SL</th><th>Exit/TP</th><th>Move</th><th>P/L</th><th>Bal</th></tr></thead><tbody id="logBody"></tbody></table></div>
     <div id="bt">
       <div class="row">
         <label>Capital $<input id="cap" class="num" type="number" value="1000" min="1" step="100" style="width:78px" /></label>
@@ -710,7 +712,14 @@ const $ = (id) => document.getElementById(id);
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
 let chart, candleSeries, candles = [], lastResult = null, logScale = true;
 let btcSeries = null;    // BTC candles for liqbrk's market gate on the Chart tab (null = gate skipped, flagged)
-const fmtTime = (sec) => new Date(sec*1000).toISOString().slice(5,16).replace('T',' ');
+// The chart's clock (user request, Oct 2026): IST by default, UTC from the small menu in the chart's bottom-right
+// corner (#tzSel, saved as smb.chartTz). Display only: candles, sessions and every rule stay in UTC.
+const CHART_TZ = { IST: 19800, UTC: 0 };
+let chartTz = 'IST';
+try{ const v = localStorage.getItem('smb.chartTz'); if(v in CHART_TZ) chartTz = v; }catch(e){}
+const tzDate = (sec) => new Date((sec + CHART_TZ[chartTz]) * 1000);   // a shifted clock: read it with getUTC*
+const tzClock = (sec) => tzDate(sec).toISOString().slice(11,16);
+const fmtTime = (sec) => tzDate(sec).toISOString().slice(5,16).replace('T',' ');
 // Price digits (user request, Oct 2026): 2 decimals from $1 up, 4 below $1 — and below a cent, 4 significant
 // digits, because 4 fixed decimals would print PEPE / SHIB / BONK as 0.0000. Capped at 8: Binance quotes USDT
 // pairs to at most 8 decimals, so a 9th is always a zero.
@@ -822,12 +831,13 @@ function ensureChart(){
     layout:{ background:{color:'#0e1117'}, textColor:'#8b949e' },
     grid:{ vertLines:{color:'#161b22'}, horzLines:{color:'#161b22'} },
     rightPriceScale:{ borderColor:'#222a35', mode: logScale?LightweightCharts.PriceScaleMode.Logarithmic:LightweightCharts.PriceScaleMode.Normal },
-    timeScale:{ borderColor:'#222a35', timeVisible:true, secondsVisible:false, rightOffset:4, minBarSpacing:0.02 },
+    timeScale:{ borderColor:'#222a35', timeVisible:true, secondsVisible:false, rightOffset:4, minBarSpacing:0.02,
+      tickMarkFormatter:(t,k)=>tickLabel(t,k) },
     // TradingView-style crosshair (user request, Oct 2026): its own price tag on the right axis and time tag on
     // the bottom one. Neutral grey, so neither can be read as the Entry / SL / TP / last-price labels.
     crosshair:{ mode: LightweightCharts.CrosshairMode.Normal,
       vertLine:{ labelBackgroundColor:'#363a45' }, horzLine:{ labelBackgroundColor:'#363a45' } },
-    localization:{ timeFormatter: crossTime },
+    localization:{ timeFormatter:(t)=>crossTime(t) },
     // TradingView-style axis interactions: drag the price axis to scale, drag the time axis
     // to zoom, double-click either axis to reset it
     handleScroll:{ mouseWheel:true, pressedMouseMove:true, horzTouchDrag:true, vertTouchDrag:true },
@@ -841,22 +851,58 @@ function ensureChart(){
   });
   chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
   chart.subscribeCrosshairMove(onCrosshair);
+  $('tzSel').value = chartTz; $('tzBox').style.display = 'flex';
+  $('tzSel').addEventListener('change', ()=>setChartTz($('tzSel').value));
   $('showSessions').addEventListener('change', drawOverlay);
   $('lbBrkExt').addEventListener('change', ()=>{ if(candles.length) recalc(); });
-  new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); }).observe($('chartWrap'));
+  new ResizeObserver(()=>{ const w=$('chartWrap'); chart.resize(w.clientWidth, w.clientHeight); sizeOverlay(); drawOverlay(); fitCorner(); }).observe($('chartWrap'));
 }
 
 let priceLines = [];
 const clearPriceLines = () => { priceLines.forEach(l=>candleSeries.removePriceLine(l)); priceLines=[]; };
+// TradingView-style position markers: ▲ buy at entry, ▼ sell at exit. On intraday charts the marker names the
+// session and the chart-clock time, so a long can be read against the session boxes without opening the log.
+function setTradeMarkers(){
+  const c = candles, trades = (lastResult && lastResult.trades) || [], markers = [];
+  const intraday = c.length>1 && (c[1].time-c[0].time) < 86400;
+  const sessOf = (ts)=>{ const h=new Date(ts*1000).getUTCHours();
+    for(const s of SESSIONS) if(h>=s.h0 && h<s.h1) return s.name; return 'Late'; };
+  trades.forEach(t=>{
+    const et=c[t.entryIdx].time;
+    markers.push({ time:et, position:'belowBar', color:'#7ee787', shape:'arrowUp',
+      text: intraday ? `buy ${sessOf(et)} ${tzClock(et)}` : 'buy' });
+    if(t.outcome!=='open'){ const xt=c[t.exitIdx].time;
+      markers.push({ time:xt, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown',
+        text: intraday ? `sell ${tzClock(xt)}` : 'sell' }); }
+  });
+  markers.sort((a,b)=>a.time-b.time);
+  candleSeries.setMarkers(markers);
+}
 
 // ---- crosshair readout ----------------------------------------------------------------------------------
-// Times are the chart's own clock, UTC (the axis and the Advisor use it too; trade markers name the IST time).
+// Every time on the chart (axis, crosshair, markers, Advisor, Trades) reads the chart clock, chartTz.
 let chartDigits = 2;          // decimals of the symbol on screen, from its last close — set in render()
 const WDAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function crossTime(t){
-  const d=new Date(t*1000), day=`${WDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;
+  const d=tzDate(t), day=`${WDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;
   const intraday = candles.length>1 && candles[1].time-candles[0].time < 86400;
-  return intraday ? `${day}  ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC` : day;
+  return intraday ? `${day}  ${tzClock(t)} ${chartTz}` : day;
+}
+// axis tick labels in the chart clock. The library still places ticks on UTC boundaries, so on IST a 4h chart's
+// day tick sits on the 05:30 bar, which is the right date.
+function tickLabel(t, type){
+  const d=tzDate(t);
+  return type===0 ? String(d.getUTCFullYear()) : type===1 ? MON[d.getUTCMonth()] : type===2 ? String(d.getUTCDate())
+    : type===3 ? tzClock(t) : d.toISOString().slice(11,19);
+}
+// the clock menu fills the corner where the price and time axes meet, as on TradingView
+function fitCorner(){ const b=$('tzBox'); if(!chart || !b) return;
+  b.style.width=chart.priceScale('right').width()+'px'; b.style.height=chart.timeScale().height()+'px'; }
+function setChartTz(z){
+  chartTz = z; try{ localStorage.setItem('smb.chartTz', z); }catch(e){}
+  if(!chart) return;
+  chart.applyOptions({ timeScale:{ tickMarkFormatter:(t,k)=>tickLabel(t,k) }, localization:{ timeFormatter:(t)=>crossTime(t) } });
+  if(lastResult){ setTradeMarkers(); backtest(); advisor(lastResult); }
 }
 // the legend stops short of the price axis, whose width follows the digits (PEPE and BTC need a wide one)
 const fitOhlc=()=>{ $('ohlc').style.right=(chart.priceScale('right').width()+8)+'px'; };
@@ -933,6 +979,7 @@ function backtest(){
   const sign=(x)=> x>=0?'up':'down';
   // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
   const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : pxFmt(x));
+  $('logEntry').textContent = 'Entry ' + chartTz;
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
@@ -964,30 +1011,14 @@ function render(result){
   chartDigits = pxDigits(c[c.length-1].close);
   candleSeries.applyOptions({ priceFormat:{ type:'price', precision:chartDigits, minMove:Math.pow(10,-chartDigits) } });
   setOhlc(c.length-1);
-  requestAnimationFrame(fitOhlc);          // a new symbol's axis width is only known after the chart lays out
+  requestAnimationFrame(()=>{ fitOhlc(); fitCorner(); });   // a new symbol's axis width is only known after layout
   // fresh data = fresh view: re-enable autoscale (a manual axis drag disables it, and the next
   // symbol can be 1000× cheaper — without this the candles land far off-screen) and refit time
   chart.priceScale('right').applyOptions({ autoScale:true });
   chart.timeScale().resetTimeScale();
   chart.timeScale().fitContent();
 
-  // TradingView-style position markers: ▲ buy at entry, ▼ sell at exit
-  const markers = [];
-  const intraday = c.length>1 && (c[1].time-c[0].time) < 86400;
-  // On intraday charts the marker names the session and the IST clock time, so a
-  // long can be read against the session boxes without opening the trade log.
-  const sessOf = (ts)=>{ const h=new Date(ts*1000).getUTCHours();
-    for(const s of SESSIONS) if(h>=s.h0 && h<s.h1) return s.name; return 'Late'; };
-  trades.forEach(t=>{
-    const et=c[t.entryIdx].time;
-    markers.push({ time:et, position:'belowBar', color:'#7ee787', shape:'arrowUp',
-      text: intraday ? `buy ${sessOf(et)} ${istLabel(et)}` : 'buy' });
-    if(t.outcome!=='open'){ const xt=c[t.exitIdx].time;
-      markers.push({ time:xt, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown',
-        text: intraday ? `sell ${istLabel(xt)}` : 'sell' }); }
-  });
-  markers.sort((a,b)=>a.time-b.time);
-  candleSeries.setMarkers(markers);
+  setTradeMarkers();
 
   clearPriceLines();
   const L=LightweightCharts.LineStyle;
@@ -1021,7 +1052,7 @@ function box(ctx,x1,x2,yT,yB,fill,stroke,label){
   if(label){ ctx.fillStyle=stroke||'#fff'; ctx.font='10px system-ui'; ctx.fillText(label,x1+3,yT-3); }
 }
 // ---------------------------------------------------------------------------
-// LuxAlgo-style trading sessions. UTC internally, labelled in IST (UTC+5:30).
+// LuxAlgo-style trading sessions. UTC internally; markers read the chart's clock (IST by default).
 // Only meaningful intraday: hidden on >=1d charts. The US block is drawn
 // brighter because that is the only window with a measured expectancy edge
 // (see ALGORITHM.md -> Session structure).
@@ -1031,10 +1062,6 @@ const SESSIONS = [
   { key:'preus',  name:'Pre-US',  ist:'12:30-18:30', h0:7,  h1:13, fill:'rgba(139,148,158,.04)', edge:'#8b949e44' },
   { key:'us',     name:'US',      ist:'18:30-02:30', h0:13, h1:21, fill:'rgba(126,231,135,.07)', edge:'#7ee78766' },
 ];
-function istLabel(tsSec){
-  const d = new Date((tsSec + 5.5*3600) * 1000);
-  return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
-}
 // Contiguous runs of bars whose UTC hour falls inside each session, newest-first capped.
 function sessionBlocks(c, maxBlocks){
   if(c.length < 2) return [];
@@ -1257,8 +1284,7 @@ function advisor(result){
   const open = result.trades.filter(t=>t.outcome==='open').slice(-1)[0];
   const investPct = Math.max(0, Math.min(100, +$('risk').value||100));
   const deployed = open ? investPct*(open.frac!=null?open.frac:1)*(open.remain!=null?open.remain:1) : 0;
-  const dt = open ? new Date(candles[open.entryIdx].time*1000) : null;
-  const when = dt ? dt.toISOString().slice(0,10)+' '+dt.toISOString().slice(11,16) : '';
+  const when = open ? tzDate(candles[open.entryIdx].time).toISOString().slice(0,16).replace('T',' ')+' '+chartTz : '';
   // P/L of the whole position: a scaled-out half counts at its fill, only the rest floats
   const now = ad.px, pl = open ? ((open.exitPrice!=null?open.exitPrice:now)/open.entry-1)*100 : 0;
   const held = open ? candles.length-1-open.entryIdx : 0;
@@ -1784,8 +1810,9 @@ const PF_REGIME_SYM = 'BTCUSDT';          // BTC's own 200d MA is the gate valid
 const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
 // radar depth: the 149-candle MA, the 30-day leader check and a 1-day volume average all fit well inside
 const PF_RBARS = { '1h':1500, '2h':1500, '4h':1200,  '1d':600 };
-const pfCache = {};
+const pfCache = {};                 // sym|tf|bars -> { c: candles, at: when fetched }
 let pfRows = [], pfBusy = false;
+let pfOldest = Infinity, pfLoadedAt = 0;   // the oldest price data on screen — the "as of" the screen must admit
 
 const lsGet = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
 const lsSet = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -1954,10 +1981,10 @@ async function pfLoad(sym, tf, bars){
   // 10,000 once it becomes a holding. Reuse a deeper cache by slicing it; never serve a shallower one.
   for(const k of Object.keys(pfCache)){
     const [s2,t2,b2] = k.split('|');
-    if(s2===sym && t2===tf && +b2>=bars) return pfCache[k].slice(-bars);
+    if(s2===sym && t2===tf && +b2>=bars){ pfOldest = Math.min(pfOldest, pfCache[k].at); return pfCache[k].c.slice(-bars); }
   }
   const c = await fetchKlines(sym, tf, bars);
-  pfCache[sym+'|'+tf+'|'+bars] = c; return c;
+  pfCache[sym+'|'+tf+'|'+bars] = { c, at: Date.now() }; pfOldest = Math.min(pfOldest, Date.now()); return c;
 }
 
 // the loading signal: total = 0 → the bar slides (nothing to count yet), otherwise it fills to done/total
@@ -1981,6 +2008,7 @@ async function pfRun(force){
   try{
     if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
     renderHoldEditor();                                        // usable while 60+ coins load (or Binance is down)
+    pfOldest = Infinity;
     pfProgress('Reading your trading book…');
     await bkLoad();                                             // book, journal, your answers, the alert list
     renderBook();                                              // the book needs no candles to show its slots
@@ -2006,6 +2034,7 @@ async function pfRun(force){
       }
     }));
     pfRows = out;
+    if(out.length && isFinite(pfOldest)) pfLoadedAt = pfOldest;
     await bkFetchPrices().catch(()=>{});                       // book positions on coins outside the alert list
   } finally {                                                  // never leave the bar running, or the screen locked
     pfBusy = false;
@@ -2015,6 +2044,27 @@ async function pfRun(force){
   if(!pfRows.length) $('pfAsOf').textContent = 'no prices loaded — tap ↻ Refresh prices';
 }
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
+// A phone keeps this page alive for days, so "loaded once" goes stale without anyone noticing. Oct 2026: a 5-day-old
+// journal showed two closed trades as still open, marked to today's price (INIT +71% instead of its real +11%), and
+// hid the newest signal. Whenever the Portfolio comes back into view: prices older than 15 minutes reload in full
+// (the green bar shows it); otherwise the book alone is re-read if it is over 2 minutes old (the bot writes it every
+// 15 minutes, and a read is 4 small requests).
+const PF_STALE_MS = 15*60e3, BK_STALE_MS = 2*60e3;
+let bkReading = false;
+async function bkRefresh(){
+  if(bkReading) return;
+  bkReading = true;
+  try{ await bkLoad(); await bkFetchPrices().catch(()=>{}); renderBook(); }
+  finally{ bkReading = false; }
+}
+function pfFreshen(){
+  if(pfBusy || $('pfView').style.display === 'none' || document.visibilityState === 'hidden') return;
+  if(!pfRows.length) return pfRun(false);
+  if(Date.now() - pfLoadedAt > PF_STALE_MS) return pfRun(true);
+  if(Date.now() - (BK.loadedAt || 0) > BK_STALE_MS) bkRefresh();
+}
+document.addEventListener('visibilitychange', pfFreshen);
+window.addEventListener('pageshow', (e)=>{ if(e.persisted) pfFreshen(); });   // restored from the back/forward cache
 
 function renderPf(){
   const has = orders.length > 0;      // live once ANY order exists — a fully sold book still has history
@@ -2138,7 +2188,7 @@ function renderPf(){
   $('pfRadar').querySelectorAll('.card[data-sym]').forEach(bindCard);
   renderHoldEditor();
   renderBook();
-  $('pfAsOf').textContent = new Date().toLocaleString()+' · '+$('pfTf').value+' bars';
+  $('pfAsOf').textContent = new Date(pfLoadedAt || Date.now()).toLocaleString()+' · '+$('pfTf').value+' bars';
   $('pfNote').innerHTML = `<b>Trading book.</b> The signal bot gives the book <b>${BK.slots} slots</b> (each
     ${Math.round(100/BK.slots)}% of the book). A BUY alert reserves a slot until you tap <b>Taken</b> or <b>Skipped</b>;
     when every slot is in use, new signals are written to the journal only — no alert. Money left over stays as plain
@@ -2279,7 +2329,8 @@ function renderBook(){
   if(document.activeElement !== $('bkCap')) $('bkCap').value = cap || '';
   const held = BK.entries.filter(bkHolds).sort((a,b)=>a.signalTime-b.signalTime);
   const R = cap > 0 ? bkReplay(cap) : null;
-  $('bkAsOf').textContent = BK.err ? BK.err : (BK.loadedAt ? `${N} slots · journal since ${BK.start || '—'} · read ${new Date(BK.loadedAt).toLocaleTimeString()}` : 'loading…');
+  const readAt = new Date(BK.loadedAt), today = readAt.toDateString() === new Date().toDateString();
+  $('bkAsOf').textContent = BK.err ? BK.err : (BK.loadedAt ? `${N} slots · journal since ${BK.start || '—'} · read ${today ? readAt.toLocaleTimeString() : readAt.toLocaleString()}` : 'loading…');
   // tiles
   if(R){
     const pl = R.value - cap;
@@ -3218,7 +3269,7 @@ function showView(v){
   $('compareView').style.display = v==='compare'?'block':'none';
   $('pfView').style.display = v==='portfolio'?'block':'none';
   $('alView').style.display = v==='alerts'?'block':'none';
-  if(v==='portfolio' && !pfRows.length && !pfBusy) pfRun(false);
+  if(v==='portfolio') pfFreshen();
   if(v==='alerts') alInit();
   if(v==='compare') runCompare(false);
   if(v==='chart'){
