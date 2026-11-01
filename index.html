@@ -868,12 +868,12 @@ function setTradeMarkers(){
   const sessOf = (ts)=>{ const h=new Date(ts*1000).getUTCHours();
     for(const s of SESSIONS) if(h>=s.h0 && h<s.h1) return s.name; return 'Late'; };
   trades.forEach(t=>{
-    const et=c[t.entryIdx].time;
-    markers.push({ time:et, position:'belowBar', color:'#7ee787', shape:'arrowUp',
-      text: intraday ? `buy ${sessOf(et)} ${tzClock(et)}` : 'buy' });
+    const et=c[t.entryIdx].time, pe=pendingEntry(t), px=pendingExit(t);
+    markers.push({ time:et, position:'belowBar', color: pe ? '#e3c34c' : '#7ee787', shape:'arrowUp',
+      text: pe ? `buy? at ${closesAt()}` : intraday ? `buy ${sessOf(et)} ${tzClock(et)}` : 'buy' });
     if(t.outcome!=='open'){ const xt=c[t.exitIdx].time;
-      markers.push({ time:xt, position:'aboveBar', color:ocColor(t.outcome), shape:'arrowDown',
-        text: intraday ? `sell ${tzClock(xt)}` : 'sell' }); }
+      markers.push({ time:xt, position:'aboveBar', color: px ? '#e3c34c' : ocColor(t.outcome), shape:'arrowDown',
+        text: px ? `sell? at ${closesAt()}` : intraday ? `sell ${tzClock(xt)}` : 'sell' }); }
   });
   markers.sort((a,b)=>a.time-b.time);
   candleSeries.setMarkers(markers);
@@ -882,6 +882,30 @@ function setTradeMarkers(){
 // ---- crosshair readout ----------------------------------------------------------------------------------
 // Every time on the chart (axis, crosshair, markers, Advisor, Trades) reads the chart clock, chartTz.
 let chartDigits = 2;          // decimals of the symbol on screen, from its last close — set in render()
+// The newest candle is FORMING until it closes, and the bot acts on closed candles only. So a buy or sell the engine
+// sees on that candle is provisional: price can cross back before the close. Nov 2026: PART's chart showed a closed
+// −25.6% trade on the forming candle while the journal, correctly, still had it open. formIdx = that candle (−1 when
+// every candle is closed), formEnd = when it closes. A STOP is the exception: a price touch, which a real stop order
+// would already have filled.
+let formIdx = -1, formEnd = 0;
+function formingOf(c, tf){                       // the newest candle's index if still forming (else −1), and its close
+  const n = c.length; if(!n) return { idx:-1, end:0 };
+  const sec = (TF_MS[tf]||0)/1000 || (n>1 ? c[n-1].time-c[n-2].time : 86400), end = c[n-1].time + sec;
+  return { idx: end*1000 > Date.now() ? n-1 : -1, end };
+}
+const pendingExit = (t) => formIdx >= 0 && t.outcome !== 'open' && t.exitIdx === formIdx && t.targetPool !== 'STOP';
+const pendingEntry = (t) => formIdx >= 0 && t.outcome === 'open' && t.entryIdx === formIdx;
+// coming back to a chart whose pending signal's candle has since closed: fetch the real candle instead of
+// promising "closes at 01:30" after 01:30. Only while a pending signal is on screen, so a return doesn't reset the zoom.
+let chartPending = false;
+function chartFreshen(){
+  if(!chartPending || document.visibilityState === 'hidden' || document.querySelector('main').style.display === 'none') return;
+  if(Date.now() > formEnd*1000) run();
+}
+document.addEventListener('visibilitychange', chartFreshen);
+// when the forming candle closes, in the chart clock: "01:30" intraday, "Mon 2 Nov 05:30" on 1d/1w
+const closesAt = () => { const d = tzDate(formEnd), intraday = candles.length>1 && candles[1].time-candles[0].time < 86400;
+  return intraday ? tzClock(formEnd) : `${WDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${tzClock(formEnd)}`; };
 const WDAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function crossTime(t){
   const d=tzDate(t), day=`${WDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;
@@ -983,12 +1007,14 @@ function backtest(){
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
-    const open=t.outcome==='open';
-    const pl = led ? (open?`<span style="color:#58a6ff">${pm(led.pl)} open</span>`:`<span class="${led.pl>=0?'up':'down'}">${pm(led.pl)}</span>`) : '—';
+    const open=t.outcome==='open', pend=pendingExit(t), pe=pendingEntry(t);
+    const pl = led ? (open?`<span style="color:#58a6ff">${pm(led.pl)} open</span>`
+      : pend?`<span style="color:#e3c34c">${pm(led.pl)} pending</span>`:`<span class="${led.pl>=0?'up':'down'}">${pm(led.pl)}</span>`) : '—';
     // a split exit shows both fills (half at +3R / the rest); Move and P/L are the weighted result
     const exitCell = open ? `<span style="color:#58a6ff">${t.scale?`½ ${fp(t.scale.px)} · `:''}TP ${fp(t.tp)}</span>`
+      : pend ? `<span style="color:#e3c34c" title="the exit fires on the candle still forming — it counts once that candle closes at ${closesAt()}">${fp(t.exitPrice)}?</span>`
       : `<span class="${mv>=0?'up':'down'}" title="weighted exit ${fp(t.exitPrice)}">${t.scale?`½ ${fp(t.scale.px)} · ${fp(t.exitRest)}`:fp(t.exitPrice)}</span>`;
-    return `<tr><td>${fmtTime(c[t.entryIdx].time)}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
+    return `<tr><td${pe?` style="color:#e3c34c" title="buy signal on the candle still forming — it counts once that candle closes at ${closesAt()}"`:''}>${fmtTime(c[t.entryIdx].time)}${pe?'?':''}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
   }).join('') || '<tr><td colspan="7" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
   // summary grid
   $('btGrid').innerHTML = `
@@ -1007,6 +1033,8 @@ function backtest(){
 function render(result){
   lastResult = result; window.__r = result; window.__c = candles;
   const c = candles, trades = result.trades||[];
+  ({ idx: formIdx, end: formEnd } = formingOf(c, candlesTf));
+  chartPending = trades.some((t)=>pendingExit(t) || pendingEntry(t));
   candleSeries.setData(c);
   chartDigits = pxDigits(c[c.length-1].close);
   candleSeries.applyOptions({ priceFormat:{ type:'price', precision:chartDigits, minMove:Math.pow(10,-chartDigits) } });
@@ -1023,7 +1051,8 @@ function render(result){
   clearPriceLines();
   const L=LightweightCharts.LineStyle;
   const pl=(price,color,style,title)=>priceLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));
-  const openT = trades.find(t=>t.outcome==='open');
+  const pendT = trades.find(pendingExit);
+  const openT = trades.find(t=>t.outcome==='open') || pendT;     // a pending exit is still held until the close
   const cyAd = result.advice && result.advice.cycle;
   if(openT){
     pl(openT.entry,'#e2b93d',L.Dashed,'Entry');
@@ -1034,7 +1063,7 @@ function render(result){
 
   sizeOverlay(); drawOverlay(); backtest(); advisor(result);
   const sm = result.summary;
-  const inMkt = openT ? 'IN THE MARKET' : 'in cash';
+  const inMkt = pendT ? 'IN THE MARKET · exit pending' : openT && pendingEntry(openT) ? 'buy pending' : openT ? 'IN THE MARKET' : 'in cash';
   $('status').innerHTML = `${c.length} bars • ${sm.trades} holds • ${sm.wins}W/${sm.losses}L • <b class="${openT?'bull':'bear'}">${inMkt}</b>`
     + (result.advice && result.advice.cycle && result.advice.cycle.btc && result.advice.cycle.btc.missing
       ? ' • <span style="color:#f85149">BTC daily unavailable — this alt is NOT gated on BTC\'s cycle</span>' : '');
@@ -1180,8 +1209,9 @@ function drawOverlay(){
     const yE=Y(t.entry), yX=Y(exit), yS=Y(t.stop); if(yE==null||yX==null) return;
     if(yS!=null) box(ctx,x1,x2,yE,yS,'#f8514915','#f8514966',null);        // risk zone below entry
     const pct=(exit/t.entry-1)*100;
-    const col= t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
-    box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+(t.outcome==='open'?' open':''));
+    const pend = pendingExit(t) ? ' exit pending' : pendingEntry(t) ? ' buy pending' : t.outcome==='open' ? ' open' : '';
+    const col= pend && pend!==' open' ? '#e3c34c' : t.outcome==='open' ? '#58a6ff' : (pct>=0?'#3fb950':'#f85149');
+    box(ctx,x1,x2,Math.min(yE,yX),Math.max(yE,yX),col+'2e',col,(pct>=0?'+':'')+pct.toFixed(1)+'%'+pend);
     if(t.scale){                                                        // where the first half was sold (+3R)
       const xs=X(t.scale.idx), ys=Y(t.scale.px);
       if(xs!=null && ys!=null && xs>=0 && xs<=rightX){
@@ -1281,7 +1311,9 @@ function advisor(result){
   const cyA = ad.cycle, halfWhy = cyA ? 'sell zone' : '+3R', cyTrend = cyA && cyA.mode==='TREND';
 
   // ---- PLAIN ENGLISH FIRST: are we in, with how much, from where, up or down ----
-  const open = result.trades.filter(t=>t.outcome==='open').slice(-1)[0];
+  const pendX = result.trades.find(pendingExit);
+  const open = pendX || result.trades.filter(t=>t.outcome==='open').slice(-1)[0];
+  const pendE = open && pendingEntry(open);
   const investPct = Math.max(0, Math.min(100, +$('risk').value||100));
   const deployed = open ? investPct*(open.frac!=null?open.frac:1)*(open.remain!=null?open.remain:1) : 0;
   const when = open ? tzDate(candles[open.entryIdx].time).toISOString().slice(0,16).replace('T',' ')+' '+chartTz : '';
@@ -1291,7 +1323,22 @@ function advisor(result){
   const dtBar = candles.length>1 ? Math.max(60,candles[1].time-candles[0].time) : 86400;
   const heldTxt = held*dtBar>=172800 ? Math.round(held*dtBar/86400)+' days' : Math.round(held*dtBar/3600)+' hours';
   const bigNum = (txt,col)=>`<div style="font-size:22px;font-weight:800;line-height:1.15;color:${col}">${txt}</div>`;
-  const head = open
+  const tfName = candlesTf || 'this', trailLow = ad.lb && ad.lb.trailLow;
+  const pendNote = pendX
+    ? `<div style="color:#e3c34c;margin-top:3px">` + (pendX.targetPool==='TRAIL' && trailLow
+        ? `<b>Exit pending</b> — price ${fmtP(now)} is below the trail (${fmtP(trailLow)}, the prior 1-day low). If this ${tfName} candle`
+          + ` closes below it at ${closesAt()} ${chartTz}, it's a sell and the bot alerts; if price climbs back first, you stay in.</div>`
+        : `<b>Exit pending</b> — the exit rule is firing on the current ${tfName} candle. If it still holds when the candle closes at`
+          + ` ${closesAt()} ${chartTz}, it's a sell and the bot alerts; if not, you stay in.</div>`)
+    : '';
+  const head = pendE
+    ? `<div style="padding:2px 0 8px">`
+      + bigNum('Buy signal forming', '#e3c34c')
+      + `<div style="margin-top:5px">The entry rules are met on the current ${tfName} candle at <b>${fmtP(now)}</b>. If they still hold when it`
+      + ` closes at ${closesAt()} ${chartTz}, it's a buy and the bot alerts. Nothing is bought before then.</div>`
+      + `<div style="color:var(--muted)">If it confirms: stop <b style="color:#f85149">${fmtP(open.stop)}</b>${open.tp?` · sell half at ${fmtP(open.tp)} (${halfWhy})`:''}</div>`
+      + `</div>`
+    : open
     ? `<div style="padding:2px 0 8px">`
       + bigNum(`${deployed.toFixed(0)}% of your money is in the market`, '#3fb950')
       + `<div style="margin-top:5px">Bought at <b>${fmtP(open.entry)}</b> · ${when} <span style="color:var(--muted)">(${heldTxt} ago)</span></div>`
@@ -1299,13 +1346,16 @@ function advisor(result){
       + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (${halfWhy}) — riding the other half</div>` : '')
       + `<div style="color:var(--muted)">${cyTrend ? `Exit: 5 days under the 40-week line ≈ <b style="color:#f85149">${fmtP(0.97*cyA.plan.trendLine)}</b>`
           : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`
+      + pendNote
       + `</div>`
     : `<div style="padding:2px 0 8px">`
       + bigNum('0% in the market — all cash', '#f85149')
       + `<div style="color:var(--muted);margin-top:5px">No entry signal right now. Price ${fmtP(now)}.</div>`
       + `</div>`;
 
-  const stance = ad.stance==='IN'
+  const stance = pendX ? '<b style="color:#e3c34c">EXIT PENDING</b> — the exit rule fires on the candle still forming; it counts at the close'
+    : pendE ? '<b style="color:#e3c34c">BUY PENDING</b> — the entry rules fire on the candle still forming; it counts at the close'
+    : ad.stance==='IN'
     ? '<b style="color:#7ee787">INVESTED</b> — trend intact, stay with the position'
     : '<b style="color:#f85149">IN CASH</b> — no entry signal, capital protected';
   const sig = (ad.signals||[]).map(s=>`<div>${s.ok?'<span style="color:#7ee787">✔</span>':'<span style="color:#f85149">✘</span>'} ${s.name}</div>`).join('');
@@ -1923,8 +1973,14 @@ function actionFor(row, held){
   const lb = ad.lb || {};
   const sigs = ad.signals || [];
   const met = sigs.filter(s=>s.ok).length, tot = sigs.length || 1;
-  const open = row.res.trades.filter(t=>t.outcome==='open').slice(-1)[0];
+  // like the bot, judge only closed candles: an exit on the still-forming candle is not final yet (the position
+  // stands until the close), and a buy on it is not a position yet. A STOP is a touch, so it counts at once.
+  const fo = formingOf(row.c, $('pfTf').value);
+  const live = (t) => (t.outcome==='open' && t.entryIdx!==fo.idx) || (fo.idx>=0 && t.outcome!=='open' && t.exitIdx===fo.idx && t.targetPool!=='STOP');
+  const open = row.res.trades.filter(live).slice(-1)[0];
   const trail = lb.trailLow, brk = lb.breakHigh, gap = lb.toBreak;
+  const exitNote = open && open.outcome!=='open'
+    ? ` <b style="color:#e3c34c">Exit pending</b> — price is below that line right now; if this ${$('pfTf').value} candle closes there, it's a sell (the bot alerts then).` : '';
   // the +3R half: either still to take, or already banked
   const half = !open ? '' : open.scale ? ` Half already taken at <b>${pfFmt(open.scale.px)}</b>.`
     : open.tp ? ` <b>Sell half at ${pfFmt(open.tp)}</b> (+3R).` : '';
@@ -1932,14 +1988,14 @@ function actionFor(row, held){
   const g = lb.btcGate, gateNote = (g && !g.open) ? ` <b>Blocked while BTC is below its ${g.maDays}-day MA</b> (unless the coin runs +${Math.round(g.leadPump*100)}% in 30 days).` : '';
   if(held){
     if(open) return { tag:'HOLD', cls:'a-hold',
-      line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).${half}` };
+      line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).${half}${exitNote}` };
     if(met >= tot-1) return { tag:'HOLD · BUY SIGNAL NEAR', cls:'a-near',
       line:`You are in, the system is not — but ${met}/${tot} conditions are met. It buys on a close above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.${gateNote}` };
     return { tag:'NO SYSTEM SUPPORT', cls:'a-out',
       line:`Liquidity Breakout is flat here (${met}/${tot} conditions). This is your own call, not a system trade — it would only buy above <b>${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}%)`:''}.${gateNote}` };
   }
   if(open) return { tag:'SYSTEM IS LONG', cls:'a-hold',
-    line:`The system holds this and you do not. It exits on a close below <b>${pfFmt(trail)}</b>.${half}` };
+    line:`The system holds this and you do not. It exits on a close below <b>${pfFmt(trail)}</b>.${half}${exitNote}` };
   if(met >= tot-1) return { tag:'NEXT TRADE', cls:'a-next',
     line:`Closest to firing: ${met}/${tot} conditions. <b>Buy a close above ${pfFmt(brk)}</b>${gap>0?` (+${gap.toFixed(1)}% away)`:' — already above'}, on ≥1.3× volume.${gateNote}` };
   return { tag:'WATCH', cls:'a-wait',
@@ -3276,7 +3332,7 @@ function showView(v){
     ensureChart();
     if(!chart) return;
     if(!chartLoaded){ chartLoaded=true; run(); }
-    else { sizeOverlay(); drawOverlay(); }
+    else { sizeOverlay(); drawOverlay(); chartFreshen(); }
   }
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.v)));
