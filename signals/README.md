@@ -159,8 +159,12 @@ are ETH, SOL, LINK and BTC.
 ## Punctual alerts (optional)
 
 The workflow is scheduled every 15 minutes, but GitHub runs scheduled jobs late or skips them when its runners are
-busy (on this repo a 2-hourly schedule once fired only every 5–6 hours). If you want alerts within a few minutes of
-every candle close, let a free outside scheduler start the workflow:
+busy. On this repo a 2-hourly schedule once fired only every 5–6 hours, and in Nov 2026 the 15-minute schedule fired
+only every **3–7 hours**. Until the bot runs, nothing that happened since its last run is alerted or in the journal.
+On Nov 1, PARTI hit its stop in the 21:30–01:30 IST candle, and at 01:56 the journal still said Open because the bot
+had last run at 22:32. The Portfolio page says when this is happening ("The bot is behind") and links to GitHub's
+**Run workflow** button. If you want alerts within a few minutes of every candle close, let a free outside scheduler
+start the workflow:
 
 1. GitHub → Settings → Developer settings → Fine-grained tokens → new token, **only this repository**, permission
    **Actions: Read and write**. Copy it.
@@ -172,4 +176,8 @@ every candle close, let a free outside scheduler start the workflow:
    run with nothing new commits nothing, so extra starts are harmless.
 
 The token lives only in cron-job.org — never put it in the repo or the web page.
+
+When the bot is behind, the Portfolio's book can also start it by hand. Its **Run it now on GitHub** link opens
+GitHub's Run workflow page, and needs no token. If the token saved in the Alerts tab also has **Actions: Read and
+write**, a **Run the bot now** button starts it in one tap.
 

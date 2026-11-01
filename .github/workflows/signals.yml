@@ -1,17 +1,19 @@
 # Buy/sell alerts for liqbrk, delivered with the browser shut.
 #
-# Runs every 15 minutes. It used to run 5 past every even hour, but GitHub's scheduler delays and drops
-# cron runs on quiet repos — measured Oct 2026 the 2-hourly schedule actually fired every 5-6 HOURS, so a
-# buy signal could reach you half a day late. Four attempts an hour means a candle close is normally
-# reported within minutes. A run that finds no new candle changes nothing and commits nothing.
-# The bot drops any still-forming bar, so an early or late run is harmless.
+# Scheduled four times an hour, off the top of the hour: GitHub's docs name the start of every hour as the
+# busiest time, when its scheduler delays and drops runs. Even so GitHub runs schedules late or skips them on
+# quiet repos. Measured Oct 2026, a 2-hourly schedule fired every 5-6 HOURS. Measured Nov 2026, the 15-minute
+# schedule fired only every 3-7 HOURS (Oct 30 to Nov 1: 12 runs, 3 to 7 hours apart), so alerts and the
+# journal could trail a candle close by hours. The Portfolio page shows that lag ("The bot is behind"). For
+# punctual alerts, let an outside scheduler start it: see signals/README.md ("Punctual alerts").
+# A run that finds no new candle changes nothing and commits nothing, and the bot drops any still-forming bar,
+# so an early or late run is harmless.
 # Position state lives in signals/state.json and is committed back, so each flip alerts once.
-# For exact timing, an outside scheduler can also start it — see signals/README.md ("Punctual alerts").
 name: liqbrk signals
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:

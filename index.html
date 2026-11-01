@@ -337,6 +337,17 @@
   .bkStats{font-size:12px;color:var(--muted);line-height:1.7;margin-top:10px}
   .bkMsg{font-size:12px;margin-top:8px;line-height:1.5}
   .bkMsg.ok{color:#56d364} .bkMsg.err{color:#f0877f}
+  /* what the bot has not read yet: it lags when GitHub starts it late, and a candle counts only once closed */
+  .bkBot{margin-top:10px;padding:10px 12px;border:1px solid var(--line);background:var(--panel);border-radius:12px;font-size:12.5px;line-height:1.55}
+  .bkBot.warn{border-color:#4d3f17;background:#1b1810}
+  .bkBot ul{margin:6px 0 0;padding-left:18px}
+  .bkBot li{margin-top:3px}
+  .bkBotRun{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:9px}
+  .bkBotRun button{padding:6px 12px;font-weight:700}
+  .bkBotRun a{color:#e3c34c;font-weight:600}
+  .bkBotRun .ok{color:#56d364} .bkBotRun .err{color:#f0877f}
+  .bkLiveTag{display:block;font-size:10.5px;font-weight:600;color:#e3c34c;white-space:normal}
+  .bkLiveLine{margin-top:6px;font-size:12px;line-height:1.5;color:#e3c34c}
   /* mobile bottom tab bar — the primary nav on a phone */
   #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:rgba(16,21,29,.96);
     backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
@@ -472,6 +483,7 @@
 
   <div id="bookBox">
     <div class="pfHead" style="margin-top:22px"><h2>Trading book</h2><span class="pfSub" id="bkAsOf">loading…</span></div>
+    <div class="bkBot" id="bkBot" hidden></div>
     <div class="bkCap">
       <label>Trading capital (USDT)<input id="bkCap" type="number" step="any" inputmode="decimal" placeholder="e.g. 2000" /></label>
       <span class="bkCapNote">kept in this browser only — the repo never sees it</span>
@@ -883,7 +895,7 @@ function setTradeMarkers(){
 // Every time on the chart (axis, crosshair, markers, Advisor, Trades) reads the chart clock, chartTz.
 let chartDigits = 2;          // decimals of the symbol on screen, from its last close — set in render()
 // The newest candle is FORMING until it closes, and the bot acts on closed candles only. So a buy or sell the engine
-// sees on that candle is provisional: price can cross back before the close. Nov 2026: PART's chart showed a closed
+// sees on that candle is provisional: price can cross back before the close. Nov 2026: PARTI's chart showed a closed
 // −25.6% trade on the forming candle while the journal, correctly, still had it open. formIdx = that candle (−1 when
 // every candle is closed), formEnd = when it closes. A STOP is the exception: a price touch, which a real stop order
 // would already have filled.
@@ -2083,7 +2095,7 @@ async function pfRun(force){
           if(c && c.length >= 60){
             const btc = await btcFor(tf, c, sym);
             const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
-            out.push({ sym, c, res });
+            out.push({ sym, tf, c, res });
           }
         }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
         ++done; pfProgress(`Loading ${tf} prices · ${done} of ${syms.length} coins`, done, syms.length);
@@ -2103,8 +2115,8 @@ const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
 // A phone keeps this page alive for days, so "loaded once" goes stale without anyone noticing. Oct 2026: a 5-day-old
 // journal showed two closed trades as still open, marked to today's price (INIT +71% instead of its real +11%), and
 // hid the newest signal. Whenever the Portfolio comes back into view: prices older than 15 minutes reload in full
-// (the green bar shows it); otherwise the book alone is re-read if it is over 2 minutes old (the bot writes it every
-// 15 minutes, and a read is 4 small requests).
+// (the green bar shows it); otherwise the book alone is re-read if it is over 2 minutes old (a read is 5 small
+// requests, and GitHub allows 60 an hour without a token).
 const PF_STALE_MS = 15*60e3, BK_STALE_MS = 2*60e3;
 let bkReading = false;
 async function bkRefresh(){
@@ -2268,7 +2280,7 @@ function renderPf(){
 // there: dollars are computed below from a capital figure that stays in this browser (smb.bookCapital).
 // Slot rule (ALGORITHM.md "The trading book"): a slot is held by a Taken position or by an alerted one
 // you have not answered yet; Skipped frees it; every slot frees at the strategy's own SELL.
-const BK = { slots: 5, start: null, entries: [], decisions: {}, watch: [], loadedAt: 0, err: '', px: {} };
+const BK = { slots: 5, start: null, entries: [], decisions: {}, watch: [], loadedAt: 0, err: '', px: {}, lastRun: 0, seen: {} };
 let bkFilter = 'all';
 const BK_FEE = 0.001;
 const bkLocal = ()=>{ try{ return JSON.parse(lsGet('smb.bookLocal','{}')) || {}; }catch(e){ return {}; } };
@@ -2292,14 +2304,18 @@ async function ghReadJSON(file){
 }
 async function bkLoad(){
   try{
-    const [b, j, d, w] = await Promise.all(['signals/book.json','signals/journal.json','signals/decisions.json','signals/watchlist.json']
+    const [b, j, d, w, s] = await Promise.all(['signals/book.json','signals/journal.json','signals/decisions.json','signals/watchlist.json','signals/state.json']
       .map(f=>ghReadJSON(f).catch(()=>({ json:null }))));
     BK.slots = Math.max(1, Math.round(+((b.json||{}).slots) || 5));
     BK.start = (b.json||{}).start || null;
     BK.entries = Array.isArray((j.json||{}).entries) ? j.json.entries.filter(e=>e && e.id && e.symbol) : [];
     BK.decisions = (d.json && typeof d.json === 'object' && !Array.isArray(d.json)) ? d.json : {};
     BK.watch = Array.isArray((w.json||{}).watch) ? w.json.watch : [];
-    BK.loadedAt = Date.now(); BK.err = (j.stale||d.stale) ? 'read from the GitHub cache — may be a few minutes old' : '';
+    // what the bot has read: its last run that saw a new candle, and each watch's newest processed (closed) candle
+    const st = (s.json && typeof s.json === 'object') ? s.json : {};
+    BK.lastRun = +((st._meta||{}).lastRun) || 0; BK.seen = {};
+    for(const [k, v] of Object.entries(st)) if(k !== '_meta' && v && v.lastBar) BK.seen[k] = +v.lastBar;
+    BK.loadedAt = Date.now(); BK.err = (j.stale||d.stale||s.stale) ? 'read from the GitHub cache — may be a few minutes old' : '';
     // a local answer the repo now carries is confirmed — drop it from the local layer
     const loc = bkLocal(); let ch = false;
     for(const id of Object.keys(loc)) if(BK.decisions[id] && BK.decisions[id].d === loc[id].d){ delete loc[id]; ch = true; }
@@ -2372,9 +2388,97 @@ function bkYouChip(e){
   if(e.alerted) return '<span class="chip await">Answer?</span>';
   return '<span class="chip skip">—</span>';
 }
+// ---- what the bot has not read yet ----------------------------------------------------------------------------
+// The journal has one writer, the bot, and GitHub starts it late: measured Nov 2026, the 15-minute schedule fired
+// every 3–7 HOURS. So the journal can trail the chart by hours. PARTI hit its stop in the 21:30–01:30 candle, and at 01:56
+// the journal still said Open, because the bot had last run at 22:32. A candle also counts for the bot only once it
+// has closed, while a stop is hit the moment price touches it. bkBotLag() says when the bot has missed a candle close
+// (20+ minutes is not a punctual run), and bkLive() says what the chart engine sees that the journal doesn't yet.
+const BOT_GRACE_S = 20*60;
+const tfSecOf = (tf)=> (TF_MS[tf] || 144e5)/1000;
+// candles close on multiples of their length since 1970, except weekly ones, which open on Monday (1970-01-01 was a Thursday)
+const nextClose = (t, tf)=>{ const s = tfSecOf(tf), o = tf === '1w' ? 4*86400 : 0; return o + (Math.floor((t - o)/s) + 1)*s; };
+const bkHM = (sec)=>{ const d = new Date(sec*1000), z = (x)=>String(x).padStart(2,'0'); return `${z(d.getHours())}:${z(d.getMinutes())}`; };
+const bkHHMM = (sec)=>{ const d = new Date(sec*1000); return d.toDateString() === new Date().toDateString() ? bkHM(sec) : `${d.getDate()} ${MON[d.getMonth()]} ${bkHM(sec)}`; };
+const bkAgo = (sec)=>{ const m = Math.max(0, Math.round((Date.now()/1000 - sec)/60));
+  return m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m/60)} h${m%60 ? ` ${m%60} min` : ''}` : `${Math.round(m/1440)} days`; };
+function bkBotLag(){
+  if(!BK.lastRun) return null;
+  const tfs = [...new Set(BK.watch.map(w=>w.tf).filter(tf=>TF_MS[tf]))];
+  const missed = Math.min(...(tfs.length ? tfs : ['4h']).map(tf=>nextClose(BK.lastRun, tf)));
+  return { missed, behind: Date.now()/1000 - missed > BOT_GRACE_S };
+}
+// The chart engine's view of an entry the journal still calls open: the same candles and rules as the holding cards,
+// so a journal row never silently contradicts the chart. It speaks only about candles the bot has NOT read
+// (BK.seen): if the bot has read the exit candle and still says open, the bot's file wins and no note is shown.
+function bkLive(e){
+  if(!bkIsOpen(e) || (e.strategy || 'liqbrk') !== 'liqbrk') return null;
+  const r = rowFor(e.symbol); if(!r || r.tf !== e.tf || !r.res || !Array.isArray(r.res.trades)) return null;
+  const c = r.c, n = c.length, eb = +String(e.id).split('|')[2], tfS = tfSecOf(e.tf);
+  const t = r.res.trades.find(x=>c[x.entryIdx] && c[x.entryIdx].time === eb); if(!t) return null;
+  const seen = BK.seen[`${e.symbol}|${e.tf}|${e.strategy || 'liqbrk'}`] || 0;
+  // still forming when these prices were fetched, so its close is not known yet
+  const forming = (i)=> i === n-1 && (c[i].time + tfS)*1000 > (pfLoadedAt || Date.now());
+  const span = (i)=> `${bkHHMM(c[i].time)}–${bkHM(c[i].time + tfS)} candle`;
+  const since = BK.lastRun ? ` The bot hasn't run since ${bkHHMM(BK.lastRun)}.` : '';
+  const ret = (px)=> px*(1-BK_FEE)/(e.entry*(1+BK_FEE)) - 1;
+  if(t.outcome !== 'open'){
+    if(c[t.exitIdx].time <= seen) return null;
+    const stop = t.targetPool === 'STOP', px = t.exitRest != null ? t.exitRest : t.exitPrice, closes = bkHM(c[t.exitIdx].time + tfS);
+    if(forming(t.exitIdx) && stop) return { kind:'stop', px, ret: ret(t.exitPrice), tag:`stop hit · logged at ${closes}`, slot:'stop hit',
+      text:`Stop hit at ${pfFmt(px)}, ${bkPct(ret(t.exitPrice))}. A stop order would have filled. The bot logs the sell when this candle closes at ${closes}.` };
+    if(forming(t.exitIdx)){
+      const tl = r.res.advice && r.res.advice.lb ? r.res.advice.lb.trailLow : null;
+      return { kind:'pending', tag:'exit pending', slot:'exit pending',
+        text:`Exit pending: price is below the trail${tl ? ` (${pfFmt(tl)})` : ''}. If this candle closes there at ${closes}, it's a sell. If price climbs back first, the trade stays open.` };
+    }
+    return { kind:'closed', px, ret: ret(t.exitPrice), tag:`${stop ? 'stopped out' : 'sold'} · not logged yet`, slot: stop ? 'stopped out' : 'sold',
+      text:`${stop ? 'Stopped out' : 'Sold on the trail'} at ${pfFmt(px)} in the ${span(t.exitIdx)}, ${bkPct(ret(t.exitPrice))}. The journal still says Open.`, why: since };
+  }
+  if(t.scale && !e.scale && c[t.scale.idx].time > seen) return { kind:'half', tag:'half hit · not logged yet', slot:'half hit',
+    text:`Half-sell level ${pfFmt(t.scale.px)} reached in the ${span(t.scale.idx)}. Not in the journal yet.`, why: since };
+  return null;
+}
+function renderBot(){
+  const box = $('bkBot'); if(!box) return;
+  const lag = bkBotLag(), behind = !!(lag && lag.behind);
+  const live = BK.entries.filter(bkIsOpen).map(e=>({ e, lv: bkLive(e) })).filter(x=>x.lv);
+  if(!behind && !live.length){ box.hidden = true; box.innerHTML = ''; return; }
+  const [owner, repo] = alRepo().split('/'), token = lsGet('smb.ghToken','');
+  const url = `https://github.com/${owner}/${repo}/actions/workflows/signals.yml`;
+  const head = behind
+    ? `<b>The bot is behind. It last ran at ${bkHHMM(BK.lastRun)}, ${bkAgo(BK.lastRun)} ago.</b> GitHub starts it late (it should run every
+       15 minutes), so anything since then (a stop, a sell, a new buy) is not in the journal and has not been alerted.`
+    : '<b>Not in the journal yet.</b> The bot reads a candle once it has closed, on its next run.';
+  const list = live.length ? `<ul>${live.map(({ e, lv })=>`<li><b>${coin(e.symbol)} ${e.tf}</b>: ${lv.text}</li>`).join('')}</ul>` : '';
+  const run = behind ? `<div class="bkBotRun">${token ? '<button id="bkRunBt">Run the bot now</button>' : ''}<a href="${url}" target="_blank"
+       rel="noopener">${token ? 'or on GitHub' : 'Run it now on GitHub'} ↗</a>${token ? '' : '<span style="color:var(--muted)">tap “Run workflow” there</span>'}<span id="bkBotMsg"></span>
+       <a href="https://github.com/${owner}/${repo}/blob/main/signals/README.md#punctual-alerts-optional" target="_blank" rel="noopener"
+       style="color:var(--muted);font-weight:400">Make it punctual ↗</a></div>` : '';
+  box.className = 'bkBot' + (behind ? ' warn' : '');
+  box.innerHTML = head + list + run; box.hidden = false;
+  if($('bkRunBt')) $('bkRunBt').onclick = bkRunBot;
+}
+// One tap with a saved token that may start workflows (fine-grained: Actions "Read and write"). Without one, the
+// GitHub link above does the same by hand — the tokenless route always works.
+async function bkRunBot(){
+  const msg = $('bkBotMsg'), btn = $('bkRunBt'), [owner, repo] = alRepo().split('/');
+  btn.disabled = true; msg.className = ''; msg.textContent = 'starting…';
+  try{
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/signals.yml/dispatches`, { method:'POST',
+      headers:{ Authorization:`Bearer ${lsGet('smb.ghToken','')}`, Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+      body: JSON.stringify({ ref:'main' }) });
+    if(r.status === 204){ msg.className = 'ok'; msg.textContent = 'Started. The journal updates in about a minute.'; setTimeout(bkRefresh, 80e3); return; }
+    msg.className = 'err';
+    msg.textContent = r.status === 403 ? 'Your saved token can\'t start the bot: it needs Actions "Read and write". Use the GitHub link.'
+      : r.status === 401 ? 'GitHub rejected the saved token (401). Use the GitHub link.' : `GitHub said ${r.status}. Use the GitHub link.`;
+  }catch(e){ msg.className = 'err'; msg.textContent = 'Could not reach GitHub. Use the GitHub link.'; }
+  btn.disabled = false;
+}
 // current or final result of one entry, on the strategy's own prices (the half at +3R included)
 function bkResult(e){
   if(e.status === 'closed') return e.ret;
+  const lv = bkLive(e); if(lv && lv.ret != null) return lv.ret;      // an exit the chart has and the journal hasn't logged yet
   const now = bkPrice(e.symbol); if(!now || !bkIsOpen(e)) return null;
   const gross = e.scale ? 0.5*e.scale.px + 0.5*now : now;
   return gross*(1-BK_FEE)/(e.entry*(1+BK_FEE)) - 1;
@@ -2386,7 +2490,9 @@ function renderBook(){
   const held = BK.entries.filter(bkHolds).sort((a,b)=>a.signalTime-b.signalTime);
   const R = cap > 0 ? bkReplay(cap) : null;
   const readAt = new Date(BK.loadedAt), today = readAt.toDateString() === new Date().toDateString();
-  $('bkAsOf').textContent = BK.err ? BK.err : (BK.loadedAt ? `${N} slots · journal since ${BK.start || '—'} · read ${today ? readAt.toLocaleTimeString() : readAt.toLocaleString()}` : 'loading…');
+  $('bkAsOf').textContent = BK.err ? BK.err : (BK.loadedAt ? `${N} slots · journal since ${BK.start || '—'} · read ${today ? readAt.toLocaleTimeString() : readAt.toLocaleString()}`
+    + (BK.lastRun ? ` · bot last ran ${bkHHMM(BK.lastRun)}` : '') : 'loading…');
+  renderBot();
   // tiles
   if(R){
     const pl = R.value - cap;
@@ -2407,14 +2513,14 @@ function renderBook(){
   for(let k = 0; k < N; k++){
     const e = held[k];
     if(!e){ slotHtml.push('<div class="bkSlot free">free</div>'); continue; }
-    const a = bkAnswer(e) === 'taken';
-    slotHtml.push(`<div class="bkSlot ${a?'taken':'await'}"><b>${coin(e.symbol)}</b>${e.tf} · ${a?'taken':'answer?'}<br>${bkPct(bkResult(e))}</div>`);
+    const a = bkAnswer(e) === 'taken', lv = bkLive(e);
+    slotHtml.push(`<div class="bkSlot ${a?'taken':'await'}"><b>${coin(e.symbol)}</b>${e.tf} · ${a?'taken':'answer?'}<br>${bkPct(bkResult(e))}${lv?`<span class="bkLiveTag">${lv.slot}</span>`:''}</div>`);
   }
   $('bkSlots').innerHTML = slotHtml.join('');
   // waiting for your answer: alerted, not answered — open or already closed
   const ask = BK.entries.filter(e=>e.alerted && !bkAnswer(e)).sort((a,b)=>b.signalTime-a.signalTime);
   $('bkAskBox').innerHTML = ask.map(e=>`<div class="bkAsk"><b>${coin(e.symbol)} ${e.tf}</b> · ${e.late?'OPEN TRADE':'BUY'} at <b>${pfFmt(e.entry)}</b>
-      · ${bkWhen(e.signalTime)}<br>Stop ${pfFmt(e.stop)}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}
+      · ${bkWhen(e.signalTime)}<br>Stop ${pfFmt(e.stop)}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
       <div style="color:var(--muted)">Did you buy it? This slot stays reserved until you answer.</div>
       <div class="bkBtns"><button data-bk="taken" data-id="${e.id}">Taken</button><button class="ghost" data-bk="skipped" data-id="${e.id}">Skipped</button></div></div>`).join('');
   // your open positions
@@ -2428,6 +2534,7 @@ function renderBook(){
         <div class="rowK"><span>Stop</span><b style="color:#f85149">${pfFmt(e.stop)}</b></div>
         <div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>
         ${lb.trailLow && $('pfTf').value===e.tf ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
+        ${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
         </div>`; }).join('');
   // journal
   const F = { all:()=>true, mine:e=>bkAnswer(e)==='taken', ask:e=>e.alerted && !bkAnswer(e), skip:e=>bkAnswer(e)==='skipped',
@@ -2436,8 +2543,10 @@ function renderBook(){
   $('bkFilt').innerHTML = Object.keys(F).map(k=>`<button class="ghost ${bkFilter===k?'on':''}" data-f="${k}">${LBL[k]} (${BK.entries.filter(F[k]).length})</button>`).join('');
   const list = BK.entries.filter(F[bkFilter]).sort((a,b)=>b.signalTime-a.signalTime);
   $('bkJCount').textContent = `${BK.entries.length} signal${BK.entries.length===1?'':'s'} logged`;
-  $('bkJournal').innerHTML = list.map(e=>{ const a = bkAnswer(e), res = bkResult(e), now = bkIsOpen(e) ? bkPrice(e.symbol) : null;
-    return `<tr class="bkRow" data-id="${e.id}" tabindex="0" title="Open the ${coin(e.symbol)} ${e.tf} chart at this trade"><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td><td>${bkStatus(e)}</td>
+  $('bkJournal').innerHTML = list.map(e=>{ const a = bkAnswer(e), res = bkResult(e), lv = bkLive(e);
+    const now = bkIsOpen(e) ? (lv && lv.px != null ? lv.px : bkPrice(e.symbol)) : null;
+    return `<tr class="bkRow" data-id="${e.id}" tabindex="0" title="Open the ${coin(e.symbol)} ${e.tf} chart at this trade"><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td>
+      <td>${bkStatus(e)}${lv?`<span class="bkLiveTag">${lv.tag}</span>`:''}</td>
       <td>${pfFmt(e.entry)}</td><td>${e.status==='closed'?pfFmt(e.exitRest!=null?e.exitRest:e.exit):now?pfFmt(now):'—'}</td>
       <td>${bkPct(res)}</td><td>${e.status==='closed'&&e.R!=null?(e.R>=0?'+':'')+(+e.R).toFixed(1):'—'}</td>
       <td>${a?'':`<button data-bk="taken" data-id="${e.id}">Took it</button> <button class="ghost" data-bk="skipped" data-id="${e.id}">Skip</button>`}</td></tr>`; }).join('')
