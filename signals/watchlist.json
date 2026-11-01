@@ -372,6 +372,12 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "SUPERUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
     }
   ]
 }
