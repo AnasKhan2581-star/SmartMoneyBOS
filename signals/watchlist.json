@@ -378,6 +378,12 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "FETUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
     }
   ]
 }
