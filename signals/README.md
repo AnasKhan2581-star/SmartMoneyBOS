@@ -166,14 +166,25 @@ had last run at 22:32. The Portfolio page says when this is happening ("The bot 
 **Run workflow** button. If you want alerts within a few minutes of every candle close, let a free outside scheduler
 start the workflow:
 
-1. GitHub → Settings → Developer settings → Fine-grained tokens → new token, **only this repository**, permission
-   **Actions: Read and write**. Copy it.
-2. On cron-job.org (free), create a job that runs at **minute 2 of every hour** with:
+1. **A token** (a phone browser is fine): `https://github.com/settings/personal-access-tokens/new`
+   - Expiration: the longest offered, and note the date. When it expires the trigger stops, and the Portfolio shows
+     "The bot is behind" again.
+   - Repository access: **Only select repositories**, this one.
+   - Repository permissions: **Actions: Read and write**. Nothing else. Generate it and copy it (GitHub shows it once).
+2. **A job** on cron-job.org (free account), Create cronjob:
    - URL `https://api.github.com/repos/<you>/SmartMoneyBOS/actions/workflows/signals.yml/dispatches`
-   - Method `POST`, headers `Authorization: Bearer <token>` and `Accept: application/vnd.github+json`
-   - Body `{"ref":"main"}`
-3. Keep the 15-minute schedule as a backup. Runs never overlap (the workflow's concurrency group queues them) and a
-   run with nothing new commits nothing, so extra starts are harmless.
+   - Schedule: every hour at **minute 2, UTC**. Set the job's time zone to UTC, or in IST use minute **32**. Candles
+     close at :30 in India (the 4h closes are 01:30, 05:30, 09:30, 13:30, 17:30 and 21:30 IST), so minute 2 on an IST
+     clock would run 32 minutes after every close. Hourly covers 1h and 4h alerts; for 15m alerts use 2,17,32,47.
+   - Advanced: method `POST`; headers `Authorization: Bearer <token>`, `Accept: application/vnd.github+json` and
+     `Content-Type: application/json`; request body `{"ref":"main"}`.
+   - Turn on its email for failed runs, so an expired or wrong token tells you instead of going quiet.
+3. **Test it**: the job's test run should answer **204**, and GitHub's Actions tab then shows a new "liqbrk signals"
+   run started by `workflow_dispatch`. 401 means the token is wrong or expired, 403 that it lacks Actions write, 404
+   a wrong URL or a token that doesn't cover this repo.
+4. Keep the GitHub schedule as a backup. Runs never overlap (the workflow's concurrency group queues them) and a
+   run with nothing new commits nothing, so extra starts are harmless. An alert then arrives about two minutes after
+   the candle closes.
 
 The token lives only in cron-job.org — never put it in the repo or the web page.
 
