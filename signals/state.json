@@ -39,7 +39,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1793588400,
+    "lastBar": 1793592000,
     "rules": "liqbrk-2026-10-btc50-lead50-scale3R",
     "lastEntry": 1792490400,
     "noted": false
@@ -639,7 +639,7 @@
     "noted": false
   },
   "_meta": {
-    "lastRun": 1793595292
+    "lastRun": 1793598572
   },
   "1INCHUSDT|4h|liqbrk": {
     "inPosition": false,
