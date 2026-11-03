@@ -421,7 +421,8 @@
   }
 
   // ---- GOLD: the clean-trend system, long term (Nov 2026) ---------------------------------------------
-  // ALGORITHM.md "`gold`", research/gold/RESULTS_gold_2026-11.md. Built for PAXGUSDT (one token = one ounce).
+  // ALGORITHM.md "`gold`", research/gold/RESULTS_gold_2026-11.md. Built for XAUUSD (spot gold; the app reads its daily
+  // candles from data/xauusd_1d.csv); PAXGUSDT (one token = one ounce) works too.
   // Every UTC calendar month gets the AVERAGE of its daily closes. A month counts once a later month has started (the
   // running month never decides; so in a date range that ends on a month's last day, that month is never decided),
   // and a first month the data joins midway is dropped. Kaufman's efficiency ratio over goldMonths months,
@@ -430,18 +431,42 @@
   // the change turns down OR ER falls under goldER ÷ 2. Decided at each month's end and filled at its last daily
   // close, so 4h and 1d show the same trades. No stop: the monthly exit is the risk control, and `stop` carries the
   // EXIT LINE instead (the average n months back, which the month's average must stay above).
-  // 1975-2026 on World Bank monthly averages: +7.1%/yr vs +6.2% holding, max drawdown −24% vs −62%. On PAXG 2020-26
-  // it made less than holding (×1.40 vs ×2.00): it sidesteps gold's long bears, it does not beat a bull.
+  // 1975-2026 on World Bank monthly averages: +7.1%/yr vs +6.2% holding, max drawdown −24% vs −62%. On XAUUSD's daily
+  // candles 2003-26 it made less than holding (×5.6 vs ×11.4, daily drawdown −31% vs −45%), and on PAXG 2020-26 too
+  // (×1.40 vs ×2.00): it sidesteps gold's long bears, it does not beat a bull.
   function runGold(c, p) {
     const n = c.length, N = Math.max(2, Math.round(p.goldMonths || 9)), E = p.goldER > 0 ? p.goldER : 0.3;
     const dt0 = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
-    const days = dt0 < 86400 ? dailyBars(c) : c.map((x, i) => ({ time: x.time, close: x.close, first: i, last: i }));
+    // A weekly or monthly chart still decides on DAILY closes when the caller passes them (p.goldDaily: the app's
+    // XAUUSD daily file, cut to the chart's span). Each day lands on the chart bar that holds it, so 1d, 1w and 1M
+    // show the same trades. Without them a coarse chart falls back to its own bars' closes.
+    const daily = dt0 > 86400 && Array.isArray(p.goldDaily) && p.goldDaily.length > 1 ? p.goldDaily : null;
+    let days;
+    if (daily) {
+      days = [];
+      for (let k = 0, i = 0; k < daily.length; k++) {
+        if (daily[k].time < c[0].time) continue;
+        while (i + 1 < n && c[i + 1].time <= daily[k].time) i++;
+        days.push({ time: daily[k].time, close: daily[k].close, first: i, last: i });
+      }
+    } else days = dt0 < 86400 ? dailyBars(c) : c.map((x, i) => ({ time: x.time, close: x.close, first: i, last: i }));
     const ymOf = (t) => { const d = new Date(t * 1000); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
+    // Is the first month whole? A coin trades every day, so only if the data starts on the 1st. Spot gold has no
+    // weekend candles, and 1 Jan is a holiday, so there it is whole if at most one weekday is missing before the first
+    // candle (XAUUSD's file starts on Thu 2 Jan 2003).
+    const wd = (t) => new Date(t * 1000).getUTCDay();
+    const weekdaysOnly = days.length > 20 && !days.slice(0, 40).some((d) => wd(d.time) === 0 || wd(d.time) === 6);
+    const startsMonth = (t) => {
+      const d = new Date(t * 1000); if (d.getUTCDate() === 1) return true; if (!weekdaysOnly) return false;
+      let miss = 0;
+      for (let x = 1; x < d.getUTCDate(); x++) { const w = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), x)).getUTCDay(); if (w !== 0 && w !== 6) miss++; }
+      return miss <= 1;
+    };
     const M = [];                                   // calendar months of daily closes
     for (let k = 0; k < days.length; k++) {
       const m = ymOf(days[k].time), cur = M[M.length - 1];
       if (!cur || cur.ym !== m) M.push({ ym: m, sum: days[k].close, cnt: 1, lastDay: k,
-        whole: M.length > 0 || new Date(days[k].time * 1000).getUTCDate() === 1 });
+        whole: M.length > 0 || startsMonth(days[k].time) });
       else { cur.sum += days[k].close; cur.cnt++; cur.lastDay = k; }
     }
     const A = [], at = [], lab = [];                // the months that have ENDED: average, last day, label

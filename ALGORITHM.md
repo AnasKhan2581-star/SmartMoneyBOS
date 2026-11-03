@@ -857,6 +857,40 @@ averages before PAXG listed): Aug 2020 → Mar 2021 −13%, Mar → Jul 2022 −
 0%, **Mar 2024 → Jul 2026 +82%**; out since 31 Jul 2026. In the app, PAXG alone needs 10 complete months first, so its
 first decision is at the end of June 2021.
 
+**XAUUSD, spot gold, on the chart (Nov 2026, user request).** PAXG only goes back to 2020, so the chart also offers
+`XAUUSD`, and picking the Gold strategy opens it (1d, all history).
+- Data: Dukascopy's public historical datafeed (a Swiss bank; BID prices), from 2 January 2003.
+  `scripts/xauusd-data.py` (Python standard library) reads Dukascopy's own daily candles for finished years (one file
+  a year), hourly files for this year's finished months, and minute files for the running month (its hour file only
+  appears when the month ends). A day's minute file appears after the day ends, so the file reaches yesterday.
+  Gold's Sunday-evening session is folded into Monday, so a week has five candles.
+- Checked before shipping: Dukascopy's daily candles are UTC days (Feb 2024 matches UTC days built from its hourly
+  candles to the cent). The file's monthly averages match the World Bank's within 0.08% (median of 285 months,
+  2003-2026; worst 0.97%, Dec 2008). Its daily closes match PAXG's within 0.35% (median of 1,603 days), and each of
+  the six days since PAXG listed (Aug 2020) that moved more than 5% shows the same move in PAXG (30 Jan 2026: −10.0%
+  vs −10.1%).
+- `.github/workflows/xauusd.yml` re-reads the last two months six times a day, merges, and commits
+  `data/xauusd_1d.csv`. The page reads it from the same site, because a page can't read Dukascopy's feed (no CORS).
+- The page builds weekly (Monday) and monthly candles from the days. There is no intraday gold: 15m to 12h say so.
+- Today's candle follows the live price from gold-api.com (keyless, readable by a page). If the file is more than
+  two trading days behind (one missing day is allowed, for a holiday), the live price is not applied and the status
+  line says so.
+- Probed and refused from GitHub's runners: Stooq, LBMA and Dukascopy's widget API (403), Yahoo (429), Binance
+  futures (451, US block). Twelve Data, OANDA and Polygon need a key.
+- On 1w and 1M charts the engine is handed the daily closes (`params.goldDaily`), so the trades are the 1d trades.
+- A first month counts when the data starts on its 1st. Gold has no weekend candles and 1 January is a holiday, so
+  on a weekday-only series the first month also counts when at most one weekday is missing before the first candle.
+  The XAUUSD file starts on Thu 2 Jan 2003. Coins trade daily, and for them the rule is unchanged.
+
+**The gold system on XAUUSD's daily candles, 2003-01-02 → 2026-11-02** (`node research/gold/gold_lab.js xau`: the
+engine on the file, all-in, 0.1% a side, marked to market daily): ×5.56 (+7.5%/yr), worst fall −31%, in gold 55% of
+days, 12 trades (7 won). Holding: ×11.42 (+10.8%/yr), worst fall −45%. Return per unit of drawdown is a tie (0.24
+both). These 24 years are mostly a gold bull, with one long bear (2011-15), which the system sat out from 30 Apr 2012
+to 29 Apr 2016. Its worst fall ran from the August 2020 high to 5 Oct 2023: the 2021 exit came 17.5% below that
+high, a 2022 trade lost 9%, and the low came inside the 2023 trade, which then closed flat. The 2026 top cost it 28%
+inside one trade: in from 28 Mar 2024 at 2,233, it rode the 28 Jan 2026 record close (5,512) down to 3,986 on 16 Jul,
+and sold on 31 Jul at 4,043 (still +81% on the trade). The trades on 1w and 1M charts are the same 12.
+
 **Rejected, with reasons.** G1 seasonal: under holding in both halves (MAR 0.14 / 0.19); the demand calendar is real
 but too weak to time. G3 dollar: the best rule of 1975-2000 (0.24) and the worst of 2001-2026 (0.12); gold and the
 dollar decoupled (2022-26 gold rose with a strong dollar), and no setting survived (0 of 6 beat holding out of

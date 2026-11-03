@@ -325,8 +325,49 @@ async function parity(){
   console.log(same(e1, e4) ? 'PARITY 4h: 4h = 1d, trade for trade' : 'PARITY 4h: MISMATCH');
 }
 
-module.exports = { loadData, STRATS, positions, evaluate, study, placebo, dailyCheck, fetchAll, monthlyAvg, parity, IS, OOS };
+// REAL DAILY GOLD: the shipped engine on the app's own XAUUSD file (data/xauusd_1d.csv, Dukascopy, 2003-), marked to
+// market every day, against holding gold; and 1w / 1M charts (fed the days, as the app does) must trade like 1d.
+function xauCheck(){
+  const SMC = require('../../detector.js'), f = path.join(__dirname, '..', '..', 'data', 'xauusd_1d.csv');
+  if(!fs.existsSync(f)) return null;
+  const c = fs.readFileSync(f, 'utf8').trim().split('\n').slice(1).map((l)=>{ const [d, o, h, lo, cl] = l.split(',');
+    return { time: Date.parse(d + 'T00:00:00Z') / 1000, open: +o, high: +h, low: +lo, close: +cl, volume: 0 }; });
+  const agg = (tf)=>{ const out = [];
+    for(const d of c){ const t = new Date(d.time * 1000), k = tf === '1w' ? d.time - ((t.getUTCDay() + 6) % 7) * 86400 : Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1) / 1000;
+      const cur = out[out.length - 1]; if(!cur || cur.time !== k) out.push({ ...d, time: k }); else { cur.high = Math.max(cur.high, d.high); cur.low = Math.min(cur.low, d.low); cur.close = d.close; } }
+    return out; };
+  const run = (cs, daily)=> SMC.detectAll(cs, { strategy: 'gold', longOnly: true, goldDaily: daily || null }).trades;
+  const T = run(c), W = run(agg('1w'), c), Mo = run(agg('1M'), c);
+  const sig = (ts)=> ts.map((t)=> `${t.entry.toFixed(3)}>${t.outcome === 'open' ? 'open' : t.exitPrice.toFixed(3)}`).join('|');
+  // equity on the daily closes: all-in while a trade is open, 0.1% a side, cash earns 0
+  const at = new Map(c.map((x, i)=>[x.time, i]));
+  let eq = 1, peak = 1, dd = 0, inDays = 0; const ent = new Set(T.map((t)=>t.entryIdx)), ext = new Set(T.filter((t)=>t.outcome !== 'open').map((t)=>t.exitIdx));
+  let on = false;
+  for(let i = 1; i < c.length; i++){
+    if(on){ eq *= c[i].close / c[i-1].close; inDays++; }
+    if(ent.has(i)){ on = true; eq *= 1 - FEE; }
+    if(ext.has(i) && on){ on = false; eq *= 1 - FEE; }
+    peak = Math.max(peak, eq); dd = Math.min(dd, eq / peak - 1);
+  }
+  let bh = 1, bp = 1, bdd = 0; for(let i = 1; i < c.length; i++){ bh *= c[i].close / c[i-1].close; bp = Math.max(bp, bh); bdd = Math.min(bdd, bh / bp - 1); }
+  const yrs = (c[c.length-1].time - c[0].time) / (365.25 * 86400);
+  const day = (t)=> new Date(t * 1000).toISOString().slice(0, 10);
+  return { from: day(c[0].time), to: day(c[c.length-1].time), days: c.length, yrs, trades: T.map((t)=>({ in: day(c[t.entryIdx].time), entry: t.entry,
+      out: t.outcome === 'open' ? null : day(c[t.exitIdx].time), exit: t.exitPrice, ret: t.exitPrice / t.entry - 1 })),
+    mult: eq, cagr: Math.pow(eq, 1 / yrs) - 1, dd, inMkt: inDays / (c.length - 1),
+    bh: { mult: bh, cagr: Math.pow(bh, 1 / yrs) - 1, dd: bdd }, sameW: sig(W) === sig(T), sameM: sig(Mo) === sig(T), nW: W.length, nM: Mo.length };
+}
+
+module.exports = { loadData, STRATS, positions, evaluate, study, placebo, dailyCheck, fetchAll, monthlyAvg, parity, xauCheck, IS, OOS };
 if(require.main === module && process.argv[2] === 'parity'){ parity().catch(e=>{ console.error(e); process.exit(1); }); }
+else if(require.main === module && process.argv[2] === 'xau'){
+  const x = xauCheck(); if(!x){ console.log('no data/xauusd_1d.csv'); process.exit(1); }
+  console.log(`XAUUSD daily ${x.from} → ${x.to} (${x.days} days, ${x.yrs.toFixed(1)} yrs)`);
+  for(const t of x.trades) console.log(`  ${t.in} @ ${t.entry.toFixed(2)} → ${t.out ? t.out + ' @ ' + t.exit.toFixed(2) : 'open (' + t.exit.toFixed(2) + ')'}  ${(t.ret*100).toFixed(1)}%`);
+  console.log(`gold system: ×${x.mult.toFixed(2)}  CAGR ${(x.cagr*100).toFixed(1)}%  max DD (daily) ${(x.dd*100).toFixed(1)}%  in gold ${(x.inMkt*100).toFixed(0)}% of days`);
+  console.log(`holding gold: ×${x.bh.mult.toFixed(2)}  CAGR ${(x.bh.cagr*100).toFixed(1)}%  max DD (daily) ${(x.bh.dd*100).toFixed(1)}%`);
+  console.log(`1w chart = 1d trades: ${x.sameW} (${x.nW}) · 1M chart = 1d trades: ${x.sameM} (${x.nM})`);
+}
 else if(require.main === module){
   (async()=>{
     await fetchAll(process.argv.includes('--refresh'));

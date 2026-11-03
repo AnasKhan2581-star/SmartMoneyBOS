@@ -419,9 +419,9 @@
     </select>
   </label>
   <label class="cc">Symbol<input id="sym" class="sym" value="ARBUSDT" list="symList" /></label>
-  <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option><option>PAXGUSDT</option></datalist>
+  <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option><option>XAUUSD</option><option>PAXGUSDT</option></datalist>
   <label class="cc">TF
-    <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>1d</option><option>1w</option></select>
+    <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>1d</option><option>1w</option><option>1M</option></select>
   </label>
   <label class="cc" title="Fetch the most recent N bars, or everything between two dates.">Fetch
     <select id="rangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select></label>
@@ -748,11 +748,12 @@ const ocColor = (o) => o==='win'?'#3fb950':o==='loss'?'#f85149':'#58a6ff';
 // Bar duration in ms — lets a date range be sized, and the reference window be expressed
 // as a span when the user is fetching by date rather than by count.
 const TF_MS = {'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,
-               '12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
+               '12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5,'1M':2629746e3};   // 1M: average month, spacing only
 // `spec` is either a bar COUNT (number) or a DATE RANGE ({from, to} in ms).
 // In range mode it pages back until it passes `from` OR the pair's history runs out — so a
 // start date older than the listing simply yields the earliest bars that exist, no error.
 async function fetchKlines(symbol, interval, spec, onPage){
+  if(isXau(symbol)) return xauKlines(interval, spec);
   const range = (spec && typeof spec === 'object') ? spec : null;
   const total = range ? Infinity : spec;
   let collected = [], endTime = range && range.to ? range.to : undefined;
@@ -789,6 +790,96 @@ async function fetchKlines(symbol, interval, spec, onPage){
   if(range) collected = collected.filter(c => c.time*1000 >= range.from
                                            && (!range.to || c.time*1000 <= range.to));
   return finishKlines(collected);
+}
+// ---- XAUUSD: spot gold (Nov 2026, user request) ---------------------------------------------------------
+// Binance has no spot gold, only the PAXG and XAUT tokens (from 2020 and 2026). The repo carries gold's daily
+// candles (data/xauusd_1d.csv, refreshed by .github/workflows/xauusd.yml, see that file for the source), served from
+// this same site, and weekly and monthly candles are built here from the days. Daily is the finest: there is no
+// intraday gold. Weeks open on Monday 00:00 UTC (Binance's convention), months on the 1st.
+const XAU = { rows: null, at: 0, err: '' };
+const isXau = (s) => String(s || '').trim().toUpperCase() === 'XAUUSD';
+async function xauDaily(){
+  if(XAU.rows && Date.now() - XAU.at < 5*60e3) return XAU.rows;
+  const r = await fetch('data/xauusd_1d.csv', { cache:'no-cache' });
+  if(!r.ok) throw new Error(`XAUUSD data unavailable (HTTP ${r.status})`);
+  const rows = [];
+  for(const line of (await r.text()).trim().split('\n').slice(1)){
+    const [d, o, h, l, c] = line.split(',');
+    const t = Date.parse(d + 'T00:00:00Z') / 1000;
+    if(isFinite(t) && +c > 0) rows.push({ time: t, open: +o, high: +h, low: +l, close: +c, volume: 0 });
+  }
+  if(!rows.length) throw new Error('XAUUSD data file is empty');
+  XAU.rows = rows.sort((a, b)=> a.time - b.time); XAU.at = Date.now();
+  return XAU.rows;
+}
+function aggCandles(days, tf){
+  const key = tf === '1w'
+    ? (t)=> t - ((new Date(t*1000).getUTCDay() + 6) % 7) * 86400              // that week's Monday
+    : (t)=>{ const d = new Date(t*1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; };
+  const out = [];
+  for(const d of days){
+    const k = key(d.time), cur = out[out.length - 1];
+    if(!cur || cur.time !== k) out.push({ time: k, open: d.open, high: d.high, low: d.low, close: d.close, volume: 0 });
+    else { cur.high = Math.max(cur.high, d.high); cur.low = Math.min(cur.low, d.low); cur.close = d.close; }
+  }
+  return out;
+}
+// Today's candle follows the live price from gold-api.com (keyless, readable from a web page), the way Binance
+// candles move on the other charts. The file is rebuilt only a few times a day. If the file stops more than two
+// trading days short of the live price, the overlay is skipped and the status line says so.
+async function xauLive(){
+  if(XAU.live && Date.now() - XAU.live.at < 60e3) return XAU.live;
+  try{
+    const r = await fetch('https://api.gold-api.com/price/XAU', { cache:'no-store' });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(), px = +j.price, t = Date.parse(j.updatedAt);
+    if(!(px > 200 && px < 20000) || !isFinite(t)) throw new Error('unexpected reply');
+    XAU.live = { px, t, at: Date.now() };
+  }catch(e){ XAU.live = { px: null, err: e.message, at: Date.now() }; }
+  return XAU.live;
+}
+// the trading day a moment belongs to, as in the file: Sunday's evening session (from 22:00 UTC at the earliest)
+// is Monday's candle; Saturday and the rest of Sunday belong to no candle, so a weekend quote adds nothing
+const xauDayOf = (ms)=>{ const d = new Date(ms), wd = d.getUTCDay(); if(wd === 6 || (wd === 0 && d.getUTCHours() < 22)) return null;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())/1000 + (wd === 0 ? 86400 : 0); };
+const prevTradingDay = (t)=>{ let p = t - 86400; while([0, 6].includes(new Date(p*1000).getUTCDay())) p -= 86400; return p; };
+function xauWithLive(rows, live){
+  XAU.liveUsed = false; XAU.stale = false;
+  if(!live || !(live.px > 0) || !rows.length) return rows;
+  const day = xauDayOf(live.t), last = rows[rows.length - 1];
+  if(day == null || day < last.time) return rows;
+  // one missing trading day is allowed (a holiday such as 25 Dec, or a late run); more means the file is behind
+  if(day > last.time && last.time < prevTradingDay(prevTradingDay(day))){ XAU.stale = true; return rows; }
+  XAU.stale = false; XAU.liveUsed = true;
+  const out = rows.slice(), px = live.px;
+  if(day === last.time) out[out.length - 1] = { ...last, high: Math.max(last.high, px), low: Math.min(last.low, px), close: px };
+  else out.push({ time: day, open: last.close, high: Math.max(last.close, px), low: Math.min(last.close, px), close: px, volume: 0 });
+  return out;
+}
+// what the status line says about gold's data: where it ends, and whether the live price is on it
+function xauNote(){
+  if(!XAU.rows) return '';
+  const fileTo = new Date(XAU.rows[XAU.rows.length - 1].time*1000).toISOString().slice(0, 10), L = XAU.live || {};
+  return `XAUUSD daily candles: Dukascopy to ${fileTo}`
+    + (XAU.liveUsed ? ` + live ${L.px.toLocaleString(undefined,{maximumFractionDigits:2})} (gold-api.com, ${tzClock(L.t/1000)} ${chartTz})`
+      : XAU.stale ? ' · <span style="color:#e3c34c">the data file is more than two trading days behind; live price not applied</span>'
+      : L.err ? ` · <span style="color:#e3c34c">live price unavailable (${L.err})</span>` : '');
+}
+async function xauKlines(tf, spec){
+  if(tf !== '1d' && tf !== '1w' && tf !== '1M') throw new Error('XAUUSD has daily, weekly and monthly candles only. Pick 1d, 1w or 1M');
+  const days = xauWithLive(await xauDaily(), await xauLive());
+  XAU.days = days;
+  let c = tf === '1d' ? days.slice() : aggCandles(days, tf);
+  if(spec && typeof spec === 'object') c = c.filter((x)=> x.time*1000 >= spec.from && (!spec.to || x.time*1000 <= spec.to));
+  else c = c.slice(-Math.max(1, spec | 0));
+  return c;
+}
+// the gold system decides on DAILY closes on every chart: hand a weekly or monthly XAUUSD chart its days
+function xauDaysFor(c, tf){
+  if(!isXau(candlesSym) || tf === '1d' || !XAU.days || !c.length) return null;
+  const n = c.length, last = c[n-1].time, d = new Date(last*1000);
+  const end = tf === '1M' ? Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 1)/1000 : last + 7*86400;
+  return XAU.days.filter((x)=> x.time >= c[0].time && x.time < end);
 }
 function finishKlines(collected){
   const seen = new Set();
@@ -903,7 +994,9 @@ let chartDigits = 2;          // decimals of the symbol on screen, from its last
 let formIdx = -1, formEnd = 0;
 function formingOf(c, tf){                       // the newest candle's index if still forming (else −1), and its close
   const n = c.length; if(!n) return { idx:-1, end:0 };
-  const sec = (TF_MS[tf]||0)/1000 || (n>1 ? c[n-1].time-c[n-2].time : 86400), end = c[n-1].time + sec;
+  const sec = (TF_MS[tf]||0)/1000 || (n>1 ? c[n-1].time-c[n-2].time : 86400);
+  // a monthly candle closes on the calendar, not after an average month
+  const end = tf === '1M' ? (()=>{ const d=new Date(c[n-1].time*1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 1)/1000; })() : c[n-1].time + sec;
   return { idx: end*1000 > Date.now() ? n-1 : -1, end };
 }
 const pendingExit = (t) => formIdx >= 0 && t.outcome !== 'open' && t.exitIdx === formIdx && t.targetPool !== 'STOP';
@@ -1016,7 +1109,9 @@ function backtest(){
   const sign=(x)=> x>=0?'up':'down';
   // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
   const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : pxFmt(x));
-  $('logEntry').textContent = 'Entry ' + chartTz;
+  // daily and slower charts: the date with its year (gold's trades are years apart); faster ones: date and clock
+  const daily = ['1d', '3d', '1w', '1M'].includes(candlesTf), entryAt = (sec)=> daily ? tzDate(sec).toISOString().slice(0, 10) : fmtTime(sec);
+  $('logEntry').textContent = daily ? 'Entry' : 'Entry ' + chartTz;
   $('logSL').textContent = lastResult && lastResult.advice && lastResult.advice.gold ? 'Exit line' : 'SL';
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
@@ -1028,7 +1123,7 @@ function backtest(){
     const exitCell = open ? `<span style="color:#58a6ff">${t.scale?`½ ${fp(t.scale.px)} · `:''}TP ${fp(t.tp)}</span>`
       : pend ? `<span style="color:#e3c34c" title="the exit fires on the candle still forming — it counts once that candle closes at ${closesAt()}">${fp(t.exitPrice)}?</span>`
       : `<span class="${mv>=0?'up':'down'}" title="weighted exit ${fp(t.exitPrice)}">${t.scale?`½ ${fp(t.scale.px)} · ${fp(t.exitRest)}`:fp(t.exitPrice)}</span>`;
-    return `<tr><td${pe?` style="color:#e3c34c" title="buy signal on the candle still forming — it counts once that candle closes at ${closesAt()}"`:''}>${fmtTime(c[t.entryIdx].time)}${pe?'?':''}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
+    return `<tr><td${pe?` style="color:#e3c34c" title="buy signal on the candle still forming — it counts once that candle closes at ${closesAt()}"`:''}>${entryAt(c[t.entryIdx].time)}${pe?'?':''}</td><td>${fp(t.entry)}</td><td style="color:#f85149">${fp(t.stop)}</td><td>${exitCell}</td><td class="${mv>=0?'up':'down'}">${(mv>=0?'+':'')}${mv.toFixed(1)}%</td><td>${pl}</td><td style="color:#8b949e">${led?money(led.bal):'—'}</td></tr>`;
   }).join('') || '<tr><td colspan="7" style="color:#8b949e;padding:10px">No holds in this range.</td></tr>';
   // summary grid
   $('btGrid').innerHTML = `
@@ -1314,6 +1409,7 @@ async function run(){
         + (got0>want0 ? ` · ${sym} only lists from ${got0}` : '');
     }
     if(!btcSeries && $('strategy').value === 'liqbrk') $('status').innerHTML += ' • <span style="color:#f85149">BTC data unavailable — the 50-day BTC gate is skipped</span>';
+    if(isXau(sym)) $('status').innerHTML += ' • ' + xauNote();
   }
   catch(e){ $('status').textContent='error: '+e.message; }
 }
@@ -1335,7 +1431,8 @@ function recalc(){
   const params={ strategy:$('strategy').value, longOnly:true, atrLen:+$('atrLen').value||14, htfMult:1,
     useLiq:liq!=='off', liqTargets:liq==='trade',
     lbBrkExt: Math.max(0, +($('lbBrkExt')||{}).value || 0), btc: btcSeries,
-    btcD: btcDSym === candlesSym ? btcDSeries : null };
+    btcD: btcDSym === candlesSym ? btcDSeries : null,
+    goldDaily: $('strategy').value === 'gold' ? xauDaysFor(candles, candlesTf) : null };
   render(SMC.detectAll(candles, params));
 }
 // what the selected system does, in one breath
@@ -1343,7 +1440,7 @@ const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — a <b>daily</b> system on every chart (4h shows exactly the trades 1d shows). BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout, while price is still above the deep-zone floor (0.72×200w). Accumulation is staged: 40% in zone A (200w→×1.1), 40% on a deep-zone recovery day (0.72–1.0×200w), the rest when price reclaims the 40-week MA; stop 0.65×200w. Or a trend entry after 5 days above the 40-week MA. <b>Half is sold in the red SELL ZONE</b> (first close ≥1.85× the 200-day MA, never below the entry); the rest exits on the Pi-Cycle top or 5 days under the 40-week MA. <b>Alts follow BTC\'s cycle:</b> they only buy while BTC is above its 40-week MA or in its own buy zone, and a trend hold is sold when BTC loses its 40-week MA. Rebuilt Oct 2026 — the old version showed impossible profits on alts (ADA 4h: 49 of 60 trades sold above the candle). 209 coins, full history: median drawdown −67% vs −98% holding; on the median alt it still loses a little (−7% vs −85% holding). See ALGORITHM.md.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
   liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
-  gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: PAXGUSDT, where one token is one troy ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on PAXG 2020–26, ×1.40 against ×2.00. Choosing it opens PAXGUSDT on the 1d chart. See ALGORITHM.md.',
+  gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: XAUUSD, spot gold in dollars per ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on XAUUSD\'s daily candles 2003–2026, ×5.6 against ×11.4 for holding, with a −31% worst fall against −45%. Choosing it opens <b>XAUUSD</b> (daily candles from 2003, Dukascopy; today\'s candle follows the live price) on 1d; 1w and 1M show the same trades. PAXGUSDT works too. See ALGORITHM.md.',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
 const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
@@ -1456,8 +1553,8 @@ function advisor(result){
       + (gA.read ? `<div>Last decided month (${gA.read.month}): average <b>${fmtP(gA.read.avg)}</b> · ${gA.months}-month change ${pc(gA.read.chg)} · efficiency <b>${gA.read.er.toFixed(2)}</b></div>`
         : `<div>Not enough history yet: ${gA.have} of ${gA.need} complete months</div>`)
       + (gA.live ? `<div>${gA.running} so far (${gA.live.days} days): average <b>${fmtP(gA.live.avg)}</b> · change ${pc(gA.live.chg)} · efficiency <b>${gA.live.er.toFixed(2)}</b> → ${gWould}</div>` : '')
-      + `<div style="color:var(--muted)">The dashed gold steps on the chart are the monthly averages it decides on. Built for PAXGUSDT;`
-      + ` 1975–2026 +7.1%/yr at a −24% worst fall vs +6.2% at −62% holding; on PAXG 2020–26 it made less than holding (×1.40 vs ×2.00). See ALGORITHM.md.</div></div>`;
+      + `<div style="color:var(--muted)">The dashed gold steps on the chart are the monthly averages it decides on. Built for XAUUSD (spot gold);`
+      + ` 1975–2026 +7.1%/yr at a −24% worst fall vs +6.2% at −62% holding; on XAUUSD's daily candles 2003–26 it made less than holding (×5.6 vs ×11.4, worst fall −31% vs −45%). See ALGORITHM.md.</div></div>`;
   }
   // everything below is the technical read — collapsed by default so the panel stays readable
   el.innerHTML = head
@@ -3509,9 +3606,12 @@ $('run').addEventListener('click', run);
 $('recalc').addEventListener('click', recalc);
 $('strategy').addEventListener('change', async ()=>{
   stratInfo();
-  // the gold system is built for gold: picking it on another coin opens PAXG (one token = one ounce) on the daily chart
-  if($('strategy').value === 'gold' && !/^PAXG/.test($('sym').value.trim().toUpperCase())){
-    $('sym').value = 'PAXGUSDT'; $('tf').value = '1d'; await run(); return;
+  // the gold system is built for gold: picking it opens spot gold (XAUUSD) with all its daily history (2003-)
+  if($('strategy').value === 'gold' && !isXau($('sym').value)){
+    $('sym').value = 'XAUUSD';
+    if(!['1d','1w','1M'].includes($('tf').value)) $('tf').value = '1d';
+    if($('rangeMode').value === 'bars' && +$('bars').value < 9000) $('bars').value = 9000;
+    await run(); return;
   }
   await ensureBtcD(); recalc();
 });

@@ -1,0 +1,52 @@
+# Spot gold (XAUUSD) daily candles for the webapp's chart: data/xauusd_1d.csv.
+#
+# Binance has no spot gold (only the PAXG and XAUT tokens, from 2020 and 2026), so scripts/xauusd-data.py builds
+# UTC daily candles from Dukascopy's public datafeed (from January 2003). A web page can't read that feed itself
+# (no CORS), so this job commits the file and the page reads it from this same site. Each run re-reads the last
+# two months and merges, so a late or skipped run only delays days, never loses them. GitHub runs schedules late
+# (see signals.yml); the page moves today's candle with the live price (gold-api.com) either way.
+name: xauusd data
+
+on:
+  schedule:
+    - cron: '41 */4 * * *'        # six times a day, off the top of the hour; a daily candle closes 00:00 UTC
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Rebuild the whole history from January 2003 (otherwise: the last two months)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: xauusd-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write                  # commit data/xauusd_1d.csv
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the daily candles
+        run: python3 scripts/xauusd-data.py ${{ inputs.full && '--full' || '' }}
+
+      # signals.yml and the web page also push to main; rebase and retry, the files never overlap
+      - name: Commit if anything changed
+        run: |
+          if [ -n "$(git status --porcelain data/xauusd_1d.csv)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/xauusd_1d.csv
+            git commit -m "data: XAUUSD daily candles $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+            for i in 1 2 3 4; do
+              git push && exit 0
+              sleep $((i * 3))
+              git pull --rebase origin main
+            done
+            echo "push failed after 4 attempts"; exit 1
+          else
+            echo "candles unchanged"
+          fi
