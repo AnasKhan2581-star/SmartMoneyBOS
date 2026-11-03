@@ -33,6 +33,8 @@
     cyclePersist: 5, // cycle: days beyond the 40w band before a trend entry/exit confirms
     cycleScale: 1.85, // cycle: sell HALF at the first close ≥ n × the 200-day MA (the chart's SELL ZONE), only
                      // at or above the entry. 0 = off. 209 coins: drawdown better on 188, worse on 1 (ALGORITHM.md).
+    goldMonths: 9,   // gold: efficiency-ratio window in CALENDAR MONTHS of monthly-average closes (ALGORITHM.md `gold`)
+    goldER: 0.3,     // gold: buy at efficiency ≥ this with the n-month change up; sell under half of it or on a down change
     volTarget: 0.3,  // advisor sizing suggestion: annualized vol target / realized vol, capped at 1
     persist: 3,      // tsmom: entry signal must hold this many consecutive days (whipsaw filter)
     tsmomMa: 200,    // tsmom: long-term trend filter, close > SMA(n)
@@ -418,6 +420,81 @@
     return { trades, lines, adv };
   }
 
+  // ---- GOLD: the clean-trend system, long term (Nov 2026) ---------------------------------------------
+  // ALGORITHM.md "`gold`", research/gold/RESULTS_gold_2026-11.md. Built for PAXGUSDT (one token = one ounce).
+  // Every UTC calendar month gets the AVERAGE of its daily closes. A month counts once a later month has started (the
+  // running month never decides; so in a date range that ends on a month's last day, that month is never decided),
+  // and a first month the data joins midway is dropped. Kaufman's efficiency ratio over goldMonths months,
+  // ER = |A[m] − A[m−n]| ÷ Σ|A[k] − A[k−1]|, is the share of all that movement that went somewhere: a straight rise
+  // scores near 1, the same rise through big swings near 0. IN when the n-month change is up AND ER ≥ goldER; OUT when
+  // the change turns down OR ER falls under goldER ÷ 2. Decided at each month's end and filled at its last daily
+  // close, so 4h and 1d show the same trades. No stop: the monthly exit is the risk control, and `stop` carries the
+  // EXIT LINE instead (the average n months back, which the month's average must stay above).
+  // 1975-2026 on World Bank monthly averages: +7.1%/yr vs +6.2% holding, max drawdown −24% vs −62%. On PAXG 2020-26
+  // it made less than holding (×1.40 vs ×2.00): it sidesteps gold's long bears, it does not beat a bull.
+  function runGold(c, p) {
+    const n = c.length, N = Math.max(2, Math.round(p.goldMonths || 9)), E = p.goldER > 0 ? p.goldER : 0.3;
+    const dt0 = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+    const days = dt0 < 86400 ? dailyBars(c) : c.map((x, i) => ({ time: x.time, close: x.close, first: i, last: i }));
+    const ymOf = (t) => { const d = new Date(t * 1000); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
+    const M = [];                                   // calendar months of daily closes
+    for (let k = 0; k < days.length; k++) {
+      const m = ymOf(days[k].time), cur = M[M.length - 1];
+      if (!cur || cur.ym !== m) M.push({ ym: m, sum: days[k].close, cnt: 1, lastDay: k,
+        whole: M.length > 0 || new Date(days[k].time * 1000).getUTCDate() === 1 });
+      else { cur.sum += days[k].close; cur.cnt++; cur.lastDay = k; }
+    }
+    const A = [], at = [], lab = [];                // the months that have ENDED: average, last day, label
+    for (let j = 0; j < M.length - 1; j++) if (M[j].whole) { A.push(M[j].sum / M[j].cnt); at.push(M[j].lastDay); lab.push(M[j].ym); }
+    const read = (AA, m) => {
+      let path = 0; for (let k = m - N + 1; k <= m; k++) path += Math.abs(AA[k] - AA[k - 1]);
+      const net = AA[m] - AA[m - N];
+      return { net, chg: net / AA[m - N], er: path > 0 ? Math.abs(net) / path : 0 };
+    };
+    const out = []; let pos = null;
+    for (let m = N; m < A.length; m++) {
+      const r = read(A, m), k = at[m], px = days[k].close;
+      if (pos) {
+        if (r.net < 0 || r.er < E / 2) { out.push(Object.assign(pos, { exitK: k, exitPx: px, why: r.net < 0 ? 'TREND' : 'CHOP' })); pos = null; }
+      } else if (r.net > 0 && r.er >= E) pos = { k0: k, entry: px, stop: A[m + 1 - N] };
+    }
+    const rec = (t, open) => {
+      const exitIdx = open ? n - 1 : days[t.exitK].last, exit = open ? c[n - 1].close : t.exitPx;
+      const risk0 = t.entry - t.stop, rMult = risk0 > 0 ? (exit - t.entry) / risk0 : exit / t.entry - 1;
+      return { dir: 'long', poiIdx: days[t.k0].last, fvgIdx: -1, zoneLow: t.stop, zoneTop: t.entry, sweepIdx: -1,
+        targetPool: open ? 'OPEN' : t.why, entry: t.entry, stop: t.stop, target: exit, exitPrice: exit, tp: null,
+        entryIdx: days[t.k0].last, exitIdx, outcome: open ? 'open' : (rMult >= 0 ? 'win' : 'loss'), frac: 1,
+        rr: +rMult.toFixed(2), rMult: +rMult.toFixed(4), scale: null, exitRest: exit, ...(open ? { remain: 1 } : {}) };
+    };
+    const trades = out.map((t) => rec(t, false));
+    if (pos) trades.push(rec(pos, true));
+    // the monthly average on the chart's own bars (the running month shows its average so far)
+    const lines = { avg: new Array(n).fill(NaN) };
+    for (let j = 0; j < M.length; j++) {
+      if (!M[j].whole) continue;
+      const v = M[j].sum / M[j].cnt, d0 = j ? M[j - 1].lastDay + 1 : 0;
+      for (let i = days[d0].first; i <= days[M[j].lastDay].last; i++) lines.avg[i] = v;
+    }
+    // the advisor: the last month that decided, and the running month read as if it ended now
+    const run = M[M.length - 1], m = A.length - 1, r = m >= N ? read(A, m) : null;
+    let live = null;
+    if (run && run.whole && A.length >= N) {
+      const AA = A.concat([run.sum / run.cnt]), mm = AA.length - 1, lr = read(AA, mm);
+      live = { avg: AA[mm], days: run.cnt, chg: lr.chg, er: lr.er, line: AA[mm - N],
+        would: pos ? (lr.net < 0 || lr.er < E / 2 ? 'sell' : 'hold') : (lr.net > 0 && lr.er >= E ? 'buy' : 'wait') };
+    }
+    const mon = (x) => `${Math.floor(x / 12)}-${String(x % 12 + 1).padStart(2, '0')}`;
+    const adv = { months: N, er: E, have: A.length, need: N + 1, inPos: !!pos,
+      read: r ? { month: mon(lab[m]), avg: A[m], chg: r.chg, er: r.er } : null, live,
+      running: run ? mon(run.ym) : null,
+      decideAt: run ? Date.UTC(Math.floor((run.ym + 1) / 12), (run.ym + 1) % 12, 1) / 1000 : null,
+      signals: [
+        { name: `${N}-month change of the monthly average is up${r ? ` (${r.chg >= 0 ? '+' : ''}${(r.chg * 100).toFixed(1)}%)` : ''}`, ok: !!(r && r.net > 0) },
+        { name: `Clean move: efficiency ${r ? r.er.toFixed(2) : '—'} (buy ≥ ${E}, stay in ≥ ${+(E / 2).toFixed(2)})`, ok: !!(r && r.er >= (pos ? E / 2 : E)) },
+      ] };
+    return { trades, lines, adv };
+  }
+
   // ---- quant investment strategies (no SMC structure involved) --------------
   // The three systems the big systematic firms actually run, long-only spot, daily bars:
   //  tsmom   — time-series momentum / CTA trend (AQR, Man AHL): long while close > SMA(200)
@@ -568,9 +645,12 @@
     // CYCLE runs on its own daily machine (runCycle above) — its trades join the list as-is
     const cy = p.strategy === 'cycle' ? runCycle(c, p) : null;
     if (cy) for (const t of cy.trades) trades.push(t);
+    // GOLD runs on its own monthly machine (runGold above), the same way
+    const gd = p.strategy === 'gold' ? runGold(c, p) : null;
+    if (gd) for (const t of gd.trades) trades.push(t);
 
     const persistN = Math.max(1, S(p.persist));                   // persistence is day-denominated too
-    for (let i = cy ? n : warm; i < n; i++) {
+    for (let i = cy || gd ? n : warm; i < n; i++) {
       const px = closes[i];
       if (p.strategy === 'tsmom') {
         const on = px > maL[i] && i >= lookLen && px > closes[i - lookLen];
@@ -673,9 +753,10 @@
       volAnn: +volA[i].toFixed(2), alloc: +volFrac(i).toFixed(2),
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,
     };
-    let cycleLines = null;
+    let cycleLines = null, goldLines = null;
     if (cy) { advice.cycle = cy.adv; cycleLines = cy.lines; }   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
-    return { trades, advice, cycleLines };
+    if (gd) { advice.gold = gd.adv; advice.signals = gd.adv.signals; goldLines = gd.lines; }
+    return { trades, advice, cycleLines, goldLines };
   }
 
   // ---- arm a resting order after a confirmed break --------------------------
@@ -966,7 +1047,7 @@
     const ws = walkStructure(c, extPiv, fvgs, p, a, htfBias, false, pools);
 
     // quant strategies replace the SMC trade stream; structure/pools remain as chart context
-    const quant = ['cycle', 'tsmom', 'donch', 'liqbrk'].indexOf(p.strategy) >= 0;
+    const quant = ['cycle', 'tsmom', 'donch', 'liqbrk', 'gold'].indexOf(p.strategy) >= 0;
     const rq = quant ? runQuant(c, p, a, pools) : null;
     const trades = quant ? rq.trades : ws.trades;
     const longs = trades.filter((t) => t.dir === 'long'), shorts = trades.filter((t) => t.dir === 'short');
@@ -990,7 +1071,7 @@
     return { params: p, atr: a, intPivots: intPiv, extPivots: extPiv, fvgs, unmitigated, htfBias, pools,
       legs: ws.legs, events: ws.events, trades, trend: ws.trend, strong: ws.strong,
       ssIdx: ws.ssIdx, ssPrice: ws.ssPrice, majorLowIdx: ws.majorLowIdx, summary,
-      advice: quant ? rq.advice : null, cycleLines: quant ? rq.cycleLines : null };
+      advice: quant ? rq.advice : null, cycleLines: quant ? rq.cycleLines : null, goldLines: quant ? rq.goldLines : null };
   }
 
   // Gross value multiple of a trade at bar j given that bar's close: after a scale-out the banked

@@ -784,6 +784,86 @@ Execution rules on top of liqbrk; they never change which trades the strategy ta
 - Taken = the signal's own price (one tap). The journal stores no money; the book's dollar values are computed in the
   browser from a capital figure that never leaves it.
 
+## `gold` — long-term gold: the clean-trend system (Nov 2026, user request; SHIPPED)
+
+User brief: one long-term strategy for gold, "not something all retail knows", that "works historically"; build five,
+test all five, ship the best. Lab `research/gold/gold_lab.js`, full report `research/gold/RESULTS_gold_2026-11.md`.
+Built for **PAXGUSDT** (Pax Gold, one token = one troy ounce, on Binance since 2020-08-28).
+
+**The rule (shipped as `strategy: 'gold'`, params `goldMonths` 9, `goldER` 0.3).**
+- Every calendar month (UTC) gets the AVERAGE of its daily closes. A month counts once it has ended (a later month
+  has started); the month still running never decides, and a first month the data joins midway is dropped.
+- Efficiency ratio (Kaufman) over the last 9 months: ER = |A[m] − A[m−9]| ÷ Σ|A[k] − A[k−1]|, the share of all the
+  months' movement that actually went somewhere. A straight rise scores near 1, the same rise through big swings
+  near 0.
+- **In gold** when the 9-month change is up AND ER ≥ 0.30. **Out** when the 9-month change turns down OR ER < 0.15
+  (half the entry bar: hysteresis, so a trend is not dropped on one choppy month).
+- Decided at each month's end, filled at that month's last daily close. 4h, 1d and 1w use the same monthly series, so
+  4h shows the trades 1d shows (1w approximates the averages from weekly closes).
+- **No stop.** The monthly exit is the risk control. A trade's `stop` field holds the **exit line** instead (the
+  average 9 months back, which the month's average must stay above), so R multiples and the chart line have a level.
+- Price only: no BTC, no dollar, no other feed.
+
+**Data and method.** Gold: World Bank monthly average price (github.com/datasets/gold-prices, public domain),
+1968-2026, then PAXG monthly averages for months not yet published. Dollar: EUR/USD monthly average, the Deutsche Mark
+÷ 1.95583 before 1999. Parameters chosen on **1975-2000 only**, judged on **2001-2026**. Monthly AVERAGES smooth the
+path, which flatters trend-following (averaging a random walk gives its changes a +0.25 autocorrelation, Working
+1960), so a decision at the end of month i earns the average-to-average return of month i+2, which starts after it:
+about half a month slower than real life, never looking ahead. Fees 0.1%/side, idle money earns 0% (T-bills paid 5-15%
+in 1975-2000, so this is harsh on anything that sits out). Drawdowns are on monthly averages and understate the daily
+truth.
+
+**The five candidates** (plus two retail baselines everyone knows: the 10-month average and 12-month momentum):
+- G1 Seasonal tide: hold Aug-Feb (India's wedding season and Diwali, then Lunar New Year; Baur 2013's autumn effect).
+- G2 52-week-high anchor (George & Hwang 2004): hold while within b of the 12-month high.
+- G3 Dollar tide: hold while EUR/USD is above its n-month average (the dollar weakening).
+- G4 Secular breakout: buy a new L-month high, sell d below the peak since entry.
+- G5 Clean trend: the efficiency-ratio rule above.
+
+| (MAR = CAGR ÷ max DD) | 1975-2000 CAGR / DD / MAR | 2001-2026 CAGR / DD / MAR | 1975-2026 CAGR / DD / MAR | Money 1975-2026 |
+|---|---|---|---|---|
+| Buy & hold | +1.5% / −62% / 0.02 | +11.1% / −39% / 0.28 | +6.2% / −62% / 0.10 | ×22.3 |
+| 10-month average *(retail)* | +5.3% / −24% / 0.22 | +9.3% / −29% / 0.32 | +7.3% / −29% / 0.25 | ×38.1 |
+| 12-month momentum *(retail)* | +3.2% / −42% / 0.08 | +9.6% / −22% / 0.43 | +6.3% / −44% / 0.14 | ×24.0 |
+| G1 Seasonal (Sep-Jan) | +3.5% / −25% / 0.14 | +5.7% / −30% / 0.19 | +4.6% / −30% / 0.15 | ×10.1 |
+| G2 Anchor (12m, 5%) | +3.3% / −39% / 0.09 | +10.8% / −25% / 0.43 | +7.0% / −39% / 0.18 | ×33.3 |
+| G3 Dollar (12m) | +6.2% / −26% / 0.24 | +3.9% / −33% / 0.12 | +5.1% / −33% / 0.15 | ×12.9 |
+| G4 Breakout (6m, −10%) | +4.4% / −38% / 0.12 | +9.2% / −38% / 0.24 | +6.8% / −38% / 0.18 | ×29.7 |
+| **G5 Clean trend (9m, 0.30)** | **+5.4% / −24% / 0.23** | **+8.8% / −22% / 0.40** | **+7.1% / −24% / 0.30** | **×34.5** |
+
+**Why G5.** It is the only rule near the top in BOTH halves: 2nd of 8 in 1975-2000 and 3rd in 2001-2026, where the
+retail rules swap places (the 10-month average is 3rd then 4th; 12-month momentum 7th then joint 1st). Whole period: the
+best MAR (0.30), the smallest drawdown (−24% vs −62% holding), +55% more money than holding, 22 trades in 51 years,
+in gold 46% of the time, win rate 55%, PF 11.3. Beats holding's MAR in **5 of 6 decades** (both retail rules: 3).
+Its grid is a plateau: 80% of its 20 settings beat holding's 2001-2026 MAR and 75% beat the 10-month average's (median
+0.36). Under the lag assumption it stays the best or tied-best: MAR 0.26 / 0.30 / 0.20 at lags 1 / 2 / 3 (10-month
+average 0.24 / 0.25 / 0.20; 12-month momentum 0.21 / 0.14 / 0.15). Against 2,000 random in/out paths at its own
+switching pace it beats 100% on both CAGR and MAR (the trend rules all land at 96-100%: gold trends, and timing on it
+carries information).
+
+**What it is NOT.** It does not beat 12-month momentum on 2001-2026 alone (0.40 vs 0.43), and it makes less money
+than holding in long bull markets (2001-2026: ×8.7 vs ×15.1). Its value is sidestepping gold's long bears (1980-2001:
+−62% on monthly averages, about −70% close to close; 2011-15: −45%), not beating gold in a bull.
+
+**Real daily prices, PAXGUSDT 2020-08-28 → 2026-11-02** (monthly averages of PAXG's daily closes, decided at each
+month's last daily close, marked to market daily): holding ×2.00 (+11.9%/yr, −30% daily DD); G5 ×1.40 (+5.6%/yr,
+−30%). **No G5 setting beat holding here** (0 of 20, best ×1.86), nor did either retail rule (10-month ×1.71,
+momentum ×1.69). G2's settings did better in this window (6 of 18 beat holding; its chosen one ×1.77). Two reasons,
+both about this window: holding started near the Aug 2020 top, so it sat through the 2020-23 range while every rule
+paid for false starts in it; and after the steep 2024-26 run a 9-month rule exits late. PAXG fell 30% from its
+28 Jan 2026 close (5,541) to 31 Oct (3,899); G5 sold on 31 Jul at 4,048, 27% below the high. Choosing G5 anyway is a
+choice of 51 years over 6: G2's good window comes from a setting whose neighbours fail over the long history. G5's PAXG trades (seeded with World Bank
+averages before PAXG listed): Aug 2020 → Mar 2021 −13%, Mar → Jul 2022 −9%, Apr → Oct 2023 −2%, Nov 2023 → Jan 2024
+0%, **Mar 2024 → Jul 2026 +82%**; out since 31 Jul 2026. In the app, PAXG alone needs 10 complete months first, so its
+first decision is at the end of June 2021.
+
+**Rejected, with reasons.** G1 seasonal: under holding in both halves (MAR 0.14 / 0.19); the demand calendar is real
+but too weak to time. G3 dollar: the best rule of 1975-2000 (0.24) and the worst of 2001-2026 (0.12); gold and the
+dollar decoupled (2022-26 gold rose with a strong dollar), and no setting survived (0 of 6 beat holding out of
+sample). G2 anchor: its chosen setting tied the best out of sample, but it is an isolated good cell (12m 7.5% and
+10% drawdown −42% to −43%); median 0.28. G4 breakout: weak in 1975-2000 at every setting (0.01-0.12); the wide stops
+that look fine after 2001 are just holding.
+
 ## `cycle` — the BTC halving playbook (July 2026; rebuilt Oct 2026)
 
 ### Oct 2026 — a fill bug was faking the results; rebuilt and SHIPPED (user request)

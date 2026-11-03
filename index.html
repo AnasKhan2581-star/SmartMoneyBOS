@@ -415,10 +415,11 @@
       <option value="tsmom">Trend Follow · CTA momentum</option>
       <option value="donch">Turtle · channel breakout</option>
       <option value="liqbrk" selected>Liquidity Breakout · swing</option>
+      <option value="gold">Gold · clean trend (monthly)</option>
     </select>
   </label>
   <label class="cc">Symbol<input id="sym" class="sym" value="ARBUSDT" list="symList" /></label>
-  <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option></datalist>
+  <datalist id="symList"><option>SOLUSDT</option><option>ETHUSDT</option><option>SUIUSDT</option><option>BTCUSDT</option><option>BNBUSDT</option><option>LINKUSDT</option><option>INJUSDT</option><option>HBARUSDT</option><option>XRPUSDT</option><option>ARBUSDT</option><option>ZECUSDT</option><option>XMRUSDT</option><option>PAXGUSDT</option></datalist>
   <label class="cc">TF
     <select id="tf"><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>1d</option><option>1w</option></select>
   </label>
@@ -644,7 +645,7 @@
       <span style="color:#7ee787">▲ buy</span>
       <span style="color:#ef5350">▼ sell</span>
     </div>
-    <div id="log"><table><thead><tr><th id="logEntry">Entry</th><th>Buy @</th><th>SL</th><th>Exit/TP</th><th>Move</th><th>P/L</th><th>Bal</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    <div id="log"><table><thead><tr><th id="logEntry">Entry</th><th>Buy @</th><th id="logSL">SL</th><th>Exit/TP</th><th>Move</th><th>P/L</th><th>Bal</th></tr></thead><tbody id="logBody"></tbody></table></div>
     <div id="bt">
       <div class="row">
         <label>Capital $<input id="cap" class="num" type="number" value="1000" min="1" step="100" style="width:78px" /></label>
@@ -861,7 +862,7 @@ function ensureChart(){
     upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a',
     borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350',
   });
-  chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlay);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(drawOverlaySoon);
   chart.subscribeCrosshairMove(onCrosshair);
   $('tzSel').value = chartTz; $('tzBox').style.display = 'flex';
   $('tzSel').addEventListener('change', ()=>setChartTz($('tzSel').value));
@@ -1016,6 +1017,7 @@ function backtest(){
   // ledger table (newest first): entry date, days held, price move, $ P/L, running balance
   const fp=(x)=> x==null?'—': (x>=1000? Math.round(x).toLocaleString() : pxFmt(x));
   $('logEntry').textContent = 'Entry ' + chartTz;
+  $('logSL').textContent = lastResult && lastResult.advice && lastResult.advice.gold ? 'Exit line' : 'SL';
   $('logBody').innerHTML = trades.slice().reverse().map(t=>{
     const led=s.ledger.get(t);
     const mv=(t.exitPrice!=null? t.exitPrice/t.entry-1 : 0)*100;
@@ -1065,15 +1067,19 @@ function render(result){
   const pl=(price,color,style,title)=>priceLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));
   const pendT = trades.find(pendingExit);
   const openT = trades.find(t=>t.outcome==='open') || pendT;     // a pending exit is still held until the close
-  const cyAd = result.advice && result.advice.cycle;
-  if(openT){
+  const cyAd = result.advice && result.advice.cycle, gdAd = result.advice && result.advice.gold;
+  if(gdAd){
+    // gold has no stop: once a month it compares the month's AVERAGE with its level n months back
+    if(openT) pl(openT.entry,'#e2b93d',L.Dashed,'Entry');
+    if(gdAd.live) pl(gdAd.live.line, openT ? '#f85149' : '#8b949e', L.Dotted, openT ? 'Exit line (month avg)' : 'Trend line (month avg)');
+  } else if(openT){
     pl(openT.entry,'#e2b93d',L.Dashed,'Entry');
     if(cyAd && cyAd.mode==='TREND') pl(0.97*cyAd.plan.trendLine,'#f85149',L.Dotted,'40w exit');
     else pl(openT.stop,'#f85149',L.Dotted,'SL');
     if(openT.tp) pl(openT.tp,'#3fb950',L.Dotted, cyAd ? 'Sell ½' : 'TP');
   }
 
-  sizeOverlay(); drawOverlay(); backtest(); advisor(result);
+  sizeOverlay(); drawOverlaySoon(); backtest(); advisor(result);
   const sm = result.summary;
   const inMkt = pendT ? 'IN THE MARKET · exit pending' : openT && pendingEntry(openT) ? 'buy pending' : openT ? 'IN THE MARKET' : 'in cash';
   $('status').innerHTML = `${c.length} bars • ${sm.trades} holds • ${sm.wins}W/${sm.losses}L • <b class="${openT?'bull':'bear'}">${inMkt}</b>`
@@ -1081,6 +1087,16 @@ function render(result){
       ? ' • <span style="color:#f85149">BTC daily unavailable — this alt is NOT gated on BTC\'s cycle</span>' : '');
 }
 
+// The chart rescales its price axis when it PAINTS (the next animation frame), after render() or a scroll has already
+// drawn the overlay with the old scale. Nov 2026: switching to PAXG drew the gold monthly-average line and the trade
+// boxes against ARB's old price axis, far off the candles, until something moved. So each draw is repeated once the
+// chart has painted (two frames: the chart's own paint may be queued after ours in the first).
+let ovRaf = 0;
+function drawOverlaySoon(){
+  drawOverlay();
+  cancelAnimationFrame(ovRaf);
+  ovRaf = requestAnimationFrame(()=>{ ovRaf = requestAnimationFrame(drawOverlay); });
+}
 function sizeOverlay(){
   const cv=$('overlay'), w=$('chartWrap'), dpr=window.devicePixelRatio||1;
   cv.width=w.clientWidth*dpr; cv.height=w.clientHeight*dpr;
@@ -1197,6 +1213,22 @@ function drawOverlay(){
     ctx.restore();
   }
 
+  // GOLD: the monthly average the system decides on, a step per calendar month (the running month still moves)
+  if(r.goldLines){
+    const v=r.goldLines.avg, n=candles.length;
+    ctx.save(); ctx.strokeStyle='#e3b341'; ctx.globalAlpha=.95; ctx.lineWidth=1.8; ctx.setLineDash([6,3]); ctx.beginPath();
+    let st=false, prev=null;
+    for(let i=0;i<n;i++){
+      const y=(v[i] && !isNaN(v[i])) ? Y(v[i]) : null, x=X(i);
+      if(y==null || x==null){ st=false; prev=null; continue; }
+      if(!st){ ctx.moveTo(x,y); st=true; } else { if(prev!=null && prev!==y) ctx.lineTo(x,prev); ctx.lineTo(x,y); }
+      prev=y;
+    }
+    ctx.stroke(); ctx.restore();
+    for(let i=n-1;i>=0;i--) if(v[i] && !isNaN(v[i])){ const y=Y(v[i]); if(y!=null){ ctx.save(); ctx.font='10px system-ui'; ctx.fillStyle='#e3b341';
+      ctx.fillText('month avg '+(v[i]>=1000?Math.round(v[i]).toLocaleString():pxFmt(v[i])), rightX-120, y-5); ctx.restore(); } break; }
+  }
+
   // Coinglass-style liquidation heat (context layer): unswept estimated bands, opacity ∝ size
   if(r.params && r.params.useLiq && r.pools){
     const un=r.pools.filter(q=>q.liq && q.sweptIdx===-1);
@@ -1281,7 +1313,7 @@ async function run(){
       $('status').textContent = `${candles.length} bars · ${got0} → ${fmtDay(candles[candles.length-1].time)}`
         + (got0>want0 ? ` · ${sym} only lists from ${got0}` : '');
     }
-    if(!btcSeries) $('status').innerHTML += ' • <span style="color:#f85149">BTC data unavailable — the 50-day BTC gate is skipped</span>';
+    if(!btcSeries && $('strategy').value === 'liqbrk') $('status').innerHTML += ' • <span style="color:#f85149">BTC data unavailable — the 50-day BTC gate is skipped</span>';
   }
   catch(e){ $('status').textContent='error: '+e.message; }
 }
@@ -1311,6 +1343,7 @@ const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — a <b>daily</b> system on every chart (4h shows exactly the trades 1d shows). BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout, while price is still above the deep-zone floor (0.72×200w). Accumulation is staged: 40% in zone A (200w→×1.1), 40% on a deep-zone recovery day (0.72–1.0×200w), the rest when price reclaims the 40-week MA; stop 0.65×200w. Or a trend entry after 5 days above the 40-week MA. <b>Half is sold in the red SELL ZONE</b> (first close ≥1.85× the 200-day MA, never below the entry); the rest exits on the Pi-Cycle top or 5 days under the 40-week MA. <b>Alts follow BTC\'s cycle:</b> they only buy while BTC is above its 40-week MA or in its own buy zone, and a trend hold is sold when BTC loses its 40-week MA. Rebuilt Oct 2026 — the old version showed impossible profits on alts (ADA 4h: 49 of 60 trades sold above the candle). 209 coins, full history: median drawdown −67% vs −98% holding; on the median alt it still loses a little (−7% vs −85% holding). See ALGORITHM.md.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
   liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
+  gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: PAXGUSDT, where one token is one troy ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on PAXG 2020–26, ×1.40 against ×2.00. Choosing it opens PAXGUSDT on the 1d chart. See ALGORITHM.md.',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
 const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
@@ -1343,6 +1376,22 @@ function advisor(result){
         : `<b>Exit pending</b> — the exit rule is firing on the current ${tfName} candle. If it still holds when the candle closes at`
           + ` ${closesAt()} ${chartTz}, it's a sell and the bot alerts; if not, you stay in.</div>`)
     : '';
+  // GOLD decides once a month, after the month's last daily close, and exits on a monthly-average line, not a stop
+  const gA = ad.gold, gEnd = gA && gA.decideAt ? tzDate(gA.decideAt) : null;
+  const gWhen = gEnd ? `${gEnd.getUTCDate()} ${MON[gEnd.getUTCMonth()]} ${tzClock(gA.decideAt)} ${chartTz}` : '';
+  const gMon = gA && gA.running ? MON[+gA.running.slice(5) - 1] : 'this month';
+  const gWould = gA && gA.live ? ({ hold:'it would stay in', sell:'<b style="color:#f85149">it would sell</b>',
+    buy:'<b style="color:#3fb950">it would buy</b>', wait:'it would stay out' })[gA.live.would] : '';
+  const gSoFar = gA && gA.live ? `<div style="color:var(--muted)">${gMon} so far (${gA.live.days} days): average ${fmtP(gA.live.avg)},`
+    + ` efficiency ${gA.live.er.toFixed(2)}. If the month ended now, ${gWould}.</div>` : '';
+  const gNeed = gA && !gA.read ? `<div style="color:#e3c34c">It needs ${gA.need} complete months of prices to decide; this chart has ${gA.have}.`
+    + ` Use the 1d chart with more bars.</div>` : '';
+  const gOpen = gA && gA.live ? `<div style="color:var(--muted)">No stop: it sells only at a month's end, if ${gMon}'s average ends below`
+    + ` <b style="color:#f85149">${fmtP(gA.live.line)}</b> (its level ${gA.months} months earlier) or the rise turns choppy`
+    + ` (efficiency under ${+(gA.er/2).toFixed(2)}). Next decision ${gWhen}.</div>` + gSoFar : '';
+  const gCash = gA ? (gA.live ? `<div style="color:var(--muted);margin-top:5px">Gold is decided once a month. Next decision ${gWhen}:`
+    + ` it buys if ${gMon}'s average ends above <b>${fmtP(gA.live.line)}</b> (its level ${gA.months} months earlier) and the rise`
+    + ` is clean (efficiency ≥ ${gA.er}). Price ${fmtP(now)}.</div>` + gSoFar : '') + gNeed : '';
   const head = pendE
     ? `<div style="padding:2px 0 8px">`
       + bigNum('Buy signal forming', '#e3c34c')
@@ -1356,13 +1405,13 @@ function advisor(result){
       + `<div style="margin-top:5px">Bought at <b>${fmtP(open.entry)}</b> · ${when} <span style="color:var(--muted)">(${heldTxt} ago)</span></div>`
       + `<div>Now <b>${fmtP(now)}</b> → <b class="${pl>=0?'up':'down'}">${pl>=0?'+':''}${pl.toFixed(1)}%</b> on this position</div>`
       + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (${halfWhy}) — riding the other half</div>` : '')
-      + `<div style="color:var(--muted)">${cyTrend ? `Exit: 5 days under the 40-week line ≈ <b style="color:#f85149">${fmtP(0.97*cyA.plan.trendLine)}</b>`
-          : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`
+      + (gA ? gOpen : `<div style="color:var(--muted)">${cyTrend ? `Exit: 5 days under the 40-week line ≈ <b style="color:#f85149">${fmtP(0.97*cyA.plan.trendLine)}</b>`
+          : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`)
       + pendNote
       + `</div>`
     : `<div style="padding:2px 0 8px">`
       + bigNum('0% in the market — all cash', '#f85149')
-      + `<div style="color:var(--muted);margin-top:5px">No entry signal right now. Price ${fmtP(now)}.</div>`
+      + (gA ? gCash : `<div style="color:var(--muted);margin-top:5px">No entry signal right now. Price ${fmtP(now)}.</div>`)
       + `</div>`;
 
   const stance = pendX ? '<b style="color:#e3c34c">EXIT PENDING</b> — the exit rule fires on the candle still forming; it counts at the close'
@@ -1400,10 +1449,20 @@ function advisor(result){
             + ` → ${cy.btc.bull||cy.btc.zone2?'entries allowed':'<span style="color:#f85149">no new entries</span>'}</div>`) : '')
       + `</div>`;
   }
+  let gld='';
+  if(gA){
+    const pc=(x)=>`<b class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(1)}%</b>`;
+    gld = `<div style="margin-top:4px;border-top:1px solid var(--line);padding-top:4px">`
+      + (gA.read ? `<div>Last decided month (${gA.read.month}): average <b>${fmtP(gA.read.avg)}</b> · ${gA.months}-month change ${pc(gA.read.chg)} · efficiency <b>${gA.read.er.toFixed(2)}</b></div>`
+        : `<div>Not enough history yet: ${gA.have} of ${gA.need} complete months</div>`)
+      + (gA.live ? `<div>${gA.running} so far (${gA.live.days} days): average <b>${fmtP(gA.live.avg)}</b> · change ${pc(gA.live.chg)} · efficiency <b>${gA.live.er.toFixed(2)}</b> → ${gWould}</div>` : '')
+      + `<div style="color:var(--muted)">The dashed gold steps on the chart are the monthly averages it decides on. Built for PAXGUSDT;`
+      + ` 1975–2026 +7.1%/yr at a −24% worst fall vs +6.2% at −62% holding; on PAXG 2020–26 it made less than holding (×1.40 vs ×2.00). See ALGORITHM.md.</div></div>`;
+  }
   // everything below is the technical read — collapsed by default so the panel stays readable
   el.innerHTML = head
     + `<details class="detail"${advisorOpen?' open':''}><summary>Technical detail</summary>`
-    + `<div style="margin:4px 0">${stance}</div>${sig}${vol}${liq}${cyc}</details>`;
+    + `<div style="margin:4px 0">${stance}</div>${sig}${vol}${liq}${cyc}${gld}</details>`;
   const d=el.querySelector('details');
   if(d) d.addEventListener('toggle',()=>{ advisorOpen=d.open; });
 }
@@ -3448,7 +3507,14 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>show
 
 $('run').addEventListener('click', run);
 $('recalc').addEventListener('click', recalc);
-$('strategy').addEventListener('change', async ()=>{ stratInfo(); await ensureBtcD(); recalc(); });
+$('strategy').addEventListener('change', async ()=>{
+  stratInfo();
+  // the gold system is built for gold: picking it on another coin opens PAXG (one token = one ounce) on the daily chart
+  if($('strategy').value === 'gold' && !/^PAXG/.test($('sym').value.trim().toUpperCase())){
+    $('sym').value = 'PAXGUSDT'; $('tf').value = '1d'; await run(); return;
+  }
+  await ensureBtcD(); recalc();
+});
 $('liq').addEventListener('change', recalc);
 $('sym').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
 $('tf').addEventListener('change', run);
