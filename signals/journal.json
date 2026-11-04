@@ -89,6 +89,28 @@
    "R": -1,
    "why": "STOP",
    "logged": 1793317593
+  },
+  {
+   "id": "PARTIUSDT|4h|1793779200",
+   "symbol": "PARTIUSDT",
+   "tf": "4h",
+   "strategy": "liqbrk",
+   "signalTime": 1793793600,
+   "entry": 0.0497,
+   "stop": 0.039830881129501255,
+   "tp": 0.07930735661149624,
+   "status": "open",
+   "scale": null,
+   "late": false,
+   "alerted": true,
+   "skip": null,
+   "exit": null,
+   "exitRest": null,
+   "exitTime": null,
+   "ret": null,
+   "R": null,
+   "why": null,
+   "logged": 1793817694
   }
  ]
 }
