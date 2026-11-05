@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /*
- * signal-bot — buy/sell alerts for `liqbrk` that reach you with the browser closed.
+ * signal-bot — buy/sell alerts that reach you with the browser closed, for every strategy on the
+ * watchlist: Liquidity Breakout (liqbrk), BTC Cycle (cycle), Trend Follow (tsmom) and Turtle (donch).
+ * Each watch item names its own strategy; all of them share the trading book's slots (note 5).
  *
  * Runs detector.js (the same engine the webapp uses — there is no second copy of the rules)
  * against freshly fetched Binance klines, compares the result to the state of the previous
@@ -133,6 +135,8 @@ function syntheticKlines(symbol, n, drift) {
 const fmtPx = (x) => x == null || !isFinite(x) ? '—'
   : x >= 1000 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x >= 0.01 ? x.toFixed(4) : x.toPrecision(3);
 const fmtDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+// candles are stamped with their OPEN time; a signal fills at the CLOSE, so that is the time a message names
+const closeAt = (w, sec) => sec + (TF_MS[w.tf] || 864e5) / 1000;
 
 function gateLine(lb) {
   const g = lb.btcGate;
@@ -162,6 +166,31 @@ const restRule = (w) => isCycle(w) ? 'it rides to the Pi-Cycle top or 5 days und
   : 'stop as before, trail = close below the 1-day low';
 const WHY = { STOP: 'stop hit', TRAIL: 'trailed out below the 1-day low', 'PI-TOP': 'Pi-Cycle top',
   'BTC-BEAR': 'BTC lost its 40-week MA (its bear signal)' };
+const stratOf = (w) => w.strategy || 'liqbrk';
+// every title names the strategy unless it is liqbrk (the original alerts, whose titles stay as they were),
+// so two strategies on one coin can never be mistaken for each other
+const tagOf = (w) => stratOf(w) === 'liqbrk' ? '' : ` · ${STRAT_NAME[stratOf(w)] || stratOf(w)}`;
+// why a position closed, in the words of the strategy that closed it
+function whyText(w, pool) {
+  const s = stratOf(w);
+  if (s === 'tsmom' && pool === 'TREND') return 'the trend broke (a close under the 200-day MA, or under the close 90 days back)';
+  if (s === 'donch' && pool === 'TRAIL') return 'closed below the 20-day low';
+  if (s === 'cycle' && pool === 'TREND') return '5 days under the 40-week MA';
+  return WHY[pool] || String(pool || '').toLowerCase();
+}
+// what still ends the position: each strategy's own exit, with today's levels where the engine gives them
+function exitLines(w, trade, advice, open) {
+  const s = stratOf(w), q = (advice && advice.q) || {};
+  if (s === 'cycle') return cycleLines(trade, advice);
+  if (s === 'tsmom') return [
+    `Exit          close under the ${q.maDays || 200}-day MA (now ${fmtPx(q.ma)})`,
+    `              or under the close ${q.refDays || 90} days back (now ${fmtPx(q.ref)})`,
+    'No stop: it holds until the trend breaks'];
+  if (s === 'donch') return [
+    `${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}`,
+    `Trail exit    close below the ${q.outDays || 20}-day low (now ${fmtPx(q.chanLow)})`];
+  return [`${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}`];
+}
 // what a cycle entry still has to do: the tranche program, the exit line, BTC's state for alts
 function cycleLines(trade, advice) {
   const cy = advice && advice.cycle; if (!cy) return [];
@@ -183,14 +212,14 @@ function buyMessage(w, c, trade, advice, btcReg, pair, slot) {
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
   const tag = pair && pair.other ? (w.tf === '2h' ? '  (heads-up)' : w.tf === '4h' ? '  (trade)' : '') : '';
   return {
-    title: `BUY ${coin} ${w.tf}${tag}`,
+    title: `BUY ${coin} ${w.tf}${tagOf(w)}${tag}`,
     body: [
       ...(pairLine(w, pair) ? [pairLine(w, pair), ''] : []),
       ...(slot ? [slotText(slot), ''] : []),
       `${name} triggered at ${fmtPx(trade.entry)}`,
-      `Bar closed ${fmtDay(c[trade.entryIdx].time)}`,
+      `Bar closed ${fmtDay(closeAt(w, c[trade.entryIdx].time))}`,
       ``,
-      ...(isCycle(w) ? cycleLines(trade, advice) : [`Initial stop  ${fmtPx(trade.stop)}`]),
+      ...exitLines(w, trade, advice, false),
       trade.tp ? `Take half     at ${isCycle(w) ? '≈ ' : ''}${fmtPx(trade.tp)} (${isCycle(w) ? halfWhy(w) : `+${lb.scaleR || 3}R`}) — separate alert when hit` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       lb.breakHigh ? `Took the pool above ${fmtPx(lb.breakHigh)} on ${lb.relVol}x volume` : null,
@@ -208,18 +237,17 @@ function sellMessage(w, c, trade, slotLine) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.exitPrice / trade.entry - 1) * 100;
   const name = STRAT_NAME[w.strategy || 'liqbrk'] || (w.strategy || 'liqbrk');
-  const why = WHY[trade.targetPool] || (trade.targetPool === 'TREND' && isCycle(w) ? '5 days under the 40-week MA'
-    : String(trade.targetPool || '').toLowerCase());
+  const why = whyText(w, trade.targetPool);
   const rest = trade.exitRest != null ? trade.exitRest : trade.exitPrice;
   return {
-    title: `SELL ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`,
+    title: `SELL ${coin} ${w.tf}${tagOf(w)}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`,
     body: [
       `${name} exited ${trade.scale ? 'the remaining half ' : ''}at ${fmtPx(rest)} — ${why}`,
-      `Bar closed ${fmtDay(c[trade.exitIdx].time)}`,
+      `Bar closed ${fmtDay(closeAt(w, c[trade.exitIdx].time))}`,
       ``,
-      `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
-      trade.scale ? `First half sold at ${fmtPx(trade.scale.px)} on ${fmtDay(c[trade.scale.idx].time)}` : null,
-      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)${trade.scale ? ' — both halves' : ''}`,
+      `Entered ${fmtPx(trade.entry)} on ${fmtDay(closeAt(w, c[trade.entryIdx].time))}`,
+      trade.scale ? `First half sold at ${fmtPx(trade.scale.px)} on ${fmtDay(closeAt(w, c[trade.scale.idx].time))}` : null,
+      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%${stratOf(w) === 'tsmom' ? '' : `  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)`}${trade.scale ? ' — both halves' : ''}`,
       slotLine ? `` : null,
       slotLine || null,
     ].filter((x) => x !== null).join('\n'),
@@ -231,12 +259,12 @@ function halfMessage(w, c, trade, slotLine) {
   const coin = w.symbol.replace(/USDT$/, '');
   const pc = (trade.scale.px / trade.entry - 1) * 100;
   return {
-    title: `TAKE HALF ${coin} ${w.tf}  +${pc.toFixed(1)}%`,
+    title: `TAKE HALF ${coin} ${w.tf}${tagOf(w)}  +${pc.toFixed(1)}%`,
     body: [
       `Sell half at ${fmtPx(trade.scale.px)} (${halfWhy(w)} reached)`,
-      `Bar ${fmtDay(c[trade.scale.idx].time)}`,
+      `Bar closed ${fmtDay(closeAt(w, c[trade.scale.idx].time))}`,
       ``,
-      `Entered ${fmtPx(trade.entry)} on ${fmtDay(c[trade.entryIdx].time)}`,
+      `Entered ${fmtPx(trade.entry)} on ${fmtDay(closeAt(w, c[trade.entryIdx].time))}`,
       isCycle(w) ? `The other half stays on: ${restRule(w)}` : `The other half stays on: stop ${fmtPx(trade.stop)}, trail = close below the 1-day low`,
       ...(slotLine ? ['', slotLine] : []),
     ].join('\n'),
@@ -253,13 +281,13 @@ function openMessage(w, c, trade, advice, slot) {
   const ago = hrs >= 48 ? `${Math.round(hrs / 24)} days` : `${Math.round(hrs)} hours`;
   const pc = (now / trade.entry - 1) * 100;
   return {
-    title: `OPEN TRADE ${coin} ${w.tf}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% (started before this alert)`,
+    title: `OPEN TRADE ${coin} ${w.tf}${tagOf(w)}  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}% (started before this alert)`,
     body: [
       ...(slot ? [slotText(slot), ''] : []),
-      `${STRAT_NAME[w.strategy || 'liqbrk'] || w.strategy} has been long since ${fmtDay(c[trade.entryIdx].time)} (${ago} ago)`,
+      `${STRAT_NAME[w.strategy || 'liqbrk'] || w.strategy} has been long since ${fmtDay(closeAt(w, c[trade.entryIdx].time))} (${ago} ago)`,
       `Entry ${fmtPx(trade.entry)} · now ${fmtPx(now)} (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)`,
       ``,
-      ...(isCycle(w) ? cycleLines(trade, advice) : [`Stop          ${fmtPx(trade.stop)}`]),
+      ...exitLines(w, trade, advice, true),
       trade.scale ? `Half already sold at ${fmtPx(trade.scale.px)}` : trade.tp ? `Take half     at ${isCycle(w) ? '≈ ' : ''}${fmtPx(trade.tp)} (${halfWhy(w)})` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       ``,
@@ -273,11 +301,12 @@ function openMessage(w, c, trade, advice, slot) {
 function rulesMessage(w, cur) {
   const coin = w.symbol.replace(/USDT$/, '');
   return {
-    title: `Rules updated — ${coin} ${w.tf}`,
+    title: `Rules updated — ${coin} ${w.tf}${tagOf(w)}`,
     body: [
       ...(isCycle(w) ? ['BTC Cycle was rebuilt (Oct 2026): a daily system, alts follow BTC\'s cycle,',
         'and half is sold in the sell zone (1.85 × the 200-day MA).']
-        : ['liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)', 'and sells half at +3R.']),
+        : stratOf(w) === 'liqbrk' ? ['liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)', 'and sells half at +3R.']
+        : [`${STRAT_NAME[stratOf(w)] || stratOf(w)}'s rules changed (see ALGORITHM.md).`]),
       '',
       cur.inPosition ? `Under the new rules this coin is LONG since ${fmtDay(cur.entryTime)}.`
         : 'Under the new rules this coin is FLAT — the old rules had it long.',
@@ -338,8 +367,8 @@ async function notify(msg) {
     await notify({ title: 'ScreenerPro signal bot connected',
       body: ['This is a test message — no trade has happened.',
              '',
-             'If you can read this, alerts will reach you here when',
-             'Liquidity Breakout opens or closes a position.',
+             'If you can read this, alerts will reach you here when a',
+             'strategy on your alert list opens or closes a position.',
              `Sent ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`].join('\n'),
       tag: 'win' });
     return;
@@ -388,7 +417,7 @@ async function notify(msg) {
   const items = watch.watch.slice().sort((a, b) => (TF_RANK[a.tf] ?? 9) - (TF_RANK[b.tf] ?? 9));
   const pairOf = (w, entryTime) => {
     const strat = w.strategy || 'liqbrk', otherTf = w.tf === '2h' ? '4h' : w.tf === '4h' ? '2h' : null;
-    if (!otherTf) return null;
+    if (!otherTf || strat !== 'liqbrk') return null;           // the 2h/4h figures were measured for liqbrk only
     const other = items.some((x) => x.symbol === w.symbol && x.tf === otherTf && (x.strategy || 'liqbrk') === strat);
     const s2 = state[`${w.symbol}|2h|${strat}`];
     // compare CLOSE times: a 2h and a 4h signal on the same closing moment count as "with", not "before"
@@ -520,7 +549,9 @@ async function notify(msg) {
   // held = Taken, or alerted and not answered yet (never over-allocates while you are away)
   const holds = (e) => (e.status === 'open' || e.status === 'half') && (answer(e) === 'taken' || (e.alerted && !answer(e)));
   const used = () => [...J.values()].filter(holds).length;
-  const idOf = (x) => `${x.w.symbol}|${x.w.tf}|${x.c[x.trade.entryIdx].time}`;
+  // liqbrk keeps SYMBOL|tf|entryBar (every existing entry and answer uses it); the other strategies add their name,
+  // so two strategies entering one coin on the same candle never share a journal entry or an answer
+  const idOf = (x) => `${x.w.symbol}|${x.w.tf}|${x.c[x.trade.entryIdx].time}` + (stratOf(x.w) === 'liqbrk' ? '' : `|${stratOf(x.w)}`);
   const newEntry = (x, late) => ({ id: idOf(x), symbol: x.w.symbol, tf: x.w.tf, strategy: x.w.strategy || 'liqbrk',
     signalTime: x.c[x.trade.entryIdx].time + x.tfSec, entry: x.trade.entry, stop: x.trade.stop,
     tp: x.trade.scaleTarget || x.trade.tp || null, status: 'open', scale: null, late: !!late, alerted: false, skip: null,
@@ -590,9 +621,9 @@ async function notify(msg) {
     J.set(e.id, e); jChanged = true;
   }
   // 6) a coin removed from the watchlist can never SELL — release its slot instead of holding it forever
-  const listed = new Set(items.map((w) => `${w.symbol}|${w.tf}`));
+  const listed = new Set(items.map((w) => `${w.symbol}|${w.tf}|${stratOf(w)}`));
   for (const e of J.values()) {
-    if ((e.status === 'open' || e.status === 'half') && !listed.has(`${e.symbol}|${e.tf}`)) {
+    if ((e.status === 'open' || e.status === 'half') && !listed.has(`${e.symbol}|${e.tf}|${e.strategy || 'liqbrk'}`)) {
       Object.assign(e, { status: 'dropped', why: 'removed from the watchlist', exitTime: Math.floor(Date.now() / 1000) });
       jChanged = true;
     }

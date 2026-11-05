@@ -299,6 +299,15 @@
   .alAdd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;align-items:end}
   .alAdd label{font-size:11px} .alAdd input,.alAdd select{width:100%}
   .alAdd button{grid-column:1 / -1;padding:9px}
+  .alSecs .alSec{margin-top:10px}
+  .alSec>summary{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+  .alSec .alCnt{color:var(--muted);font-weight:500}
+  .alSec .alPend{color:#e3c34c;font-weight:600;font-size:11.5px}
+  .alSec .alWhat{margin:0 0 2px}
+  .alSec .alSymL{grid-column:1 / -1}
+  .alSec .alAdd input.alSymIn{width:100%}
+  .alSec .alMsg{font-size:11.5px;color:var(--muted);line-height:1.5}
+  .alSec .alMsg:not(:empty){margin-top:8px}
   .alActions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
   .alActions button{padding:11px;font-size:13.5px}
   .pfNote{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:16px;padding:11px 12px;background:#12161d;border:1px solid var(--line);border-radius:10px}
@@ -374,6 +383,8 @@
     .hero .v{font-size:56px}
     .holdAdd{grid-template-columns:1fr 1fr 1fr auto}
     .alAdd{grid-template-columns:repeat(4,1fr) auto}
+    .alSec .alAdd{grid-template-columns:2fr 1fr 1fr auto}
+    .alSec .alSymL{grid-column:auto}
     .ordAdd{grid-template-columns:1.2fr .8fr 1fr 1fr 1.6fr auto}
     .ordAdd .ordWhen,.ordAdd button{grid-column:auto}
     .rvGrid{grid-template-columns:1.1fr .8fr 1fr 1fr 1.6fr}
@@ -566,22 +577,13 @@
 </section>
 <section id="alView">
   <div class="pfHead"><h2>Alert watchlist</h2><span class="pfSub" id="alStatus">—</span></div>
-  <p class="pfSub" style="margin:8px 0 0;line-height:1.6">These are the coin + timeframe combinations the
-    signal bot watches. It runs on GitHub's servers every 15 minutes with your browser closed, so this list
-    lives in the repo — not in your phone. Edit it here, then press <b>Apply</b> to push the change.</p>
+  <p class="pfSub" style="margin:8px 0 0;line-height:1.6">These are the coins the signal bot watches, one list
+    per strategy (tap a strategy to open it). The bot runs on GitHub's servers with your browser closed, so
+    these lists live in the repo, not in your phone. Edit them here, then press <b>Apply</b> to push the change.</p>
 
   <div class="alSync" id="alSync">Loading what the bot is watching…</div>
 
-  <table class="alTable"><thead><tr><th>Coin</th><th>TF</th><th>Bars</th><th>Strategy</th><th></th></tr></thead>
-    <tbody id="alBody"></tbody></table>
-
-  <div class="alAdd">
-    <label>Coin<input id="alSym" class="sym" placeholder="ARB" list="symList" /></label>
-    <label>Timeframe<select id="alTf"><option>15m</option><option>1h</option><option>2h</option><option selected>4h</option><option>1d</option></select></label>
-    <label title="Must comfortably exceed the strategy's warm-up — liqbrk needs 482 bars on 15m before it can fire at all.">Bars<input id="alBars" type="number" value="4500" min="600" step="500" /></label>
-    <label>Strategy<select id="alStrat"></select></label>
-    <button id="alAdd">Add to watchlist</button>
-  </div>
+  <div id="alBody" class="alSecs"></div>
 
   <div class="alActions">
     <button id="alApply">Apply to the bot</button>
@@ -2483,12 +2485,21 @@ async function bkLoad(){
     if(ch) bkSaveLocal(loc);
   }catch(e){ BK.err = 'could not read the journal: ' + e.message; }
 }
+// the radar ranks coins by liqbrk's own conditions, so it reads liqbrk's list only; a coin on just another
+// strategy's list gets its live price from bkFetchPrices when it has an open book entry
 const bkWatchSyms = ()=>{ const out = [];
-  for(const x of (BK.watch.length ? BK.watch.map(w=>w.symbol) : PF_RADAR)) if(out.indexOf(x)<0) out.push(x);
+  const lb = BK.watch.filter((w)=>(w.strategy || 'liqbrk') === 'liqbrk').map((w)=>w.symbol);
+  for(const x of (BK.watch.length ? lb : PF_RADAR)) if(out.indexOf(x)<0) out.push(x);
   return out; };
 // your answer for an entry: this browser's unsaved tap first, then what the repo holds
 const bkAnswer = (e)=>{ const l = bkLocal()[e.id]; if(l) return l.d; const d = BK.decisions[e.id]; return d ? d.d : null; };
 const bkIsOpen = (e)=> e.status === 'open' || e.status === 'half';
+// The book holds every strategy on the alert lists (Nov 2026). Entries name theirs unless it is liqbrk, and each
+// says its own exit: Trend Follow has no stop (it sells when the trend breaks), the others have one.
+const BK_SHORT = { liqbrk:'Breakout', tsmom:'Trend', donch:'Turtle', cycle:'Cycle', gold:'Gold' };
+const bkStrat = (e)=> e.strategy || 'liqbrk';
+const bkTag = (e)=> bkStrat(e) === 'liqbrk' ? '' : ` · ${BK_SHORT[bkStrat(e)] || bkStrat(e)}`;
+const bkNoStop = (e)=> bkStrat(e) === 'tsmom';
 const bkHolds = (e)=> bkIsOpen(e) && (bkAnswer(e) === 'taken' || (e.alerted && !bkAnswer(e)));
 const bkPrice = (sym)=>{ const r = rowFor(sym); return r ? r.c[r.c.length-1].close : (BK.px[sym] || null); };
 async function bkFetchPrices(){
@@ -2675,13 +2686,13 @@ function renderBook(){
     const e = held[k];
     if(!e){ slotHtml.push('<div class="bkSlot free">free</div>'); continue; }
     const a = bkAnswer(e) === 'taken', lv = bkLive(e);
-    slotHtml.push(`<div class="bkSlot ${a?'taken':'await'}"><b>${coin(e.symbol)}</b>${e.tf} · ${a?'taken':'answer?'}<br>${bkPct(bkResult(e))}${lv?`<span class="bkLiveTag">${lv.slot}</span>`:''}</div>`);
+    slotHtml.push(`<div class="bkSlot ${a?'taken':'await'}"><b>${coin(e.symbol)}</b>${e.tf}${bkTag(e)} · ${a?'taken':'answer?'}<br>${bkPct(bkResult(e))}${lv?`<span class="bkLiveTag">${lv.slot}</span>`:''}</div>`);
   }
   $('bkSlots').innerHTML = slotHtml.join('');
   // waiting for your answer: alerted, not answered — open or already closed
   const ask = BK.entries.filter(e=>e.alerted && !bkAnswer(e)).sort((a,b)=>b.signalTime-a.signalTime);
-  $('bkAskBox').innerHTML = ask.map(e=>`<div class="bkAsk"><b>${coin(e.symbol)} ${e.tf}</b> · ${e.late?'OPEN TRADE':'BUY'} at <b>${pfFmt(e.entry)}</b>
-      · ${bkWhen(e.signalTime)}<br>Stop ${pfFmt(e.stop)}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
+  $('bkAskBox').innerHTML = ask.map(e=>`<div class="bkAsk"><b>${coin(e.symbol)} ${e.tf}${bkTag(e)}</b> · ${e.late?'OPEN TRADE':'BUY'} at <b>${pfFmt(e.entry)}</b>
+      · ${bkWhen(e.signalTime)}<br>${bkNoStop(e) ? 'No stop: it sells when the trend breaks' : `Stop ${pfFmt(e.stop)}`}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
       <div style="color:var(--muted)">Did you buy it? This slot stays reserved until you answer.</div>
       <div class="bkBtns"><button data-bk="taken" data-id="${e.id}">Taken</button><button class="ghost" data-bk="skipped" data-id="${e.id}">Skipped</button></div></div>`).join('');
   // your open positions
@@ -2689,12 +2700,12 @@ function renderBook(){
     .map(p=>{ const e = p.e, r = rowFor(e.symbol), lb = r && r.res.advice ? (r.res.advice.lb||{}) : {};
       const res = bkResult(e);
       return `<div class="card" data-sym="${e.symbol}"><div class="cardTop"><span class="sym">${coin(e.symbol)}</span>
-        <span class="badge a-hold">IN YOUR BOOK · ${e.tf}</span><span class="px"><b>${p.now?pfFmt(p.now):'—'}</b><s>${bkPct(res).replace(/<[^>]+>/g,'')}</s></span></div>
+        <span class="badge a-hold">IN YOUR BOOK · ${e.tf}${bkTag(e)}</span><span class="px"><b>${p.now?pfFmt(p.now):'—'}</b><s>${bkPct(res).replace(/<[^>]+>/g,'')}</s></span></div>
         <div class="rowK"><span>Bought</span><b>${pfFmt(e.entry)} · ${bkWhen(e.signalTime)}</b></div>
         ${p.value!=null?`<div class="rowK"><span>Worth now</span><b>${pfMoney(p.value)}</b></div>`:''}
-        <div class="rowK"><span>Stop</span><b style="color:#f85149">${pfFmt(e.stop)}</b></div>
-        <div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>
-        ${lb.trailLow && $('pfTf').value===e.tf ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
+        <div class="rowK"><span>${bkNoStop(e)?'Exit':'Stop'}</span><b style="color:#f85149">${bkNoStop(e)?'when the trend breaks (no stop)':pfFmt(e.stop)}</b></div>
+        ${e.scale||e.tp ? `<div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>`:''}
+        ${bkStrat(e)==='liqbrk' && lb.trailLow && $('pfTf').value===e.tf ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
         ${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
         </div>`; }).join('');
   // journal
@@ -2706,7 +2717,7 @@ function renderBook(){
   $('bkJCount').textContent = `${BK.entries.length} signal${BK.entries.length===1?'':'s'} logged`;
   $('bkJournal').innerHTML = list.map(e=>{ const a = bkAnswer(e), res = bkResult(e), lv = bkLive(e);
     const now = bkIsOpen(e) ? (lv && lv.px != null ? lv.px : bkPrice(e.symbol)) : null;
-    return `<tr class="bkRow" data-id="${e.id}" tabindex="0" title="Open the ${coin(e.symbol)} ${e.tf} chart at this trade"><td><b>${coin(e.symbol)}</b> ${e.tf}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td>
+    return `<tr class="bkRow" data-id="${e.id}" tabindex="0" title="Open the ${coin(e.symbol)} ${e.tf} chart at this trade"><td><b>${coin(e.symbol)}</b> ${e.tf}${bkTag(e)}</td><td>${bkWhen(e.signalTime)}</td><td>${bkYouChip(e)}</td>
       <td>${bkStatus(e)}${lv?`<span class="bkLiveTag">${lv.tag}</span>`:''}</td>
       <td>${pfFmt(e.entry)}</td><td>${e.status==='closed'?pfFmt(e.exitRest!=null?e.exitRest:e.exit):now?pfFmt(now):'—'}</td>
       <td>${bkPct(res)}</td><td>${e.status==='closed'&&e.R!=null?(e.R>=0?'+':'')+(+e.R).toFixed(1):'—'}</td>
@@ -3161,6 +3172,66 @@ $('pfTf').value = lsGet('pfTf','4h');
 // list the bot has never seen and wonders why nothing changed.
 const AL_FILE = 'signals/watchlist.json';
 let alLive = null, alDraft = null, alLoaded = false, alStale = 0, alLiveNote = '';
+// One collapsible list per strategy (user request, Nov 2026), in the style of the token panels below. Each says
+// what the strategy does and has its own add form: the timeframes it suits and a bar count past its warm-up.
+const AL_STRATS = [
+  { s:'liqbrk', name:'Liquidity Breakout', tfs:['15m','1h','2h','4h','1d'], tf:'4h',
+    what:'Breakouts through the 2-day high on strong volume. Holds about 1–2 days: half is sold at +3R and the rest trails. New entries need BTC above its 50-day average, or the coin up 50% in 30 days.' },
+  { s:'tsmom', name:'Trend Follow', tfs:['4h','1d'], tf:'4h',
+    what:'Long while price is above its 200-day average and higher than 90 days ago; sells when either fails. No stop. Holds weeks to months.' },
+  { s:'donch', name:'Turtle', tfs:['4h','1d'], tf:'4h',
+    what:'Buys a close above the 55-day high; sells on a close below the 20-day low, or at its 2×ATR stop. Holds weeks.' },
+  { s:'cycle', name:'BTC Cycle', tfs:['1d'], tf:'1d',
+    what:'BTC\'s halving playbook: buys near the 200-week average and in deep zones, sells half in the sell zone and holds the rest for months or years. Alts follow BTC\'s cycle. A daily system: its alerts come at the daily close (05:30 IST).' },
+];
+// Bars: the default clears each warm-up with room to spare. Trend Follow and Turtle need the 200-day average first
+// (1,200 bars on 4h); the Cycle wants the 200-week average (~1,400 days). The floor stops a watch that could
+// never fire (the bot would report it as an error on every run).
+const alBarsFor = (s, tf)=> s === 'cycle' ? 3000 : s === 'liqbrk' ? 4500 : tf === '1d' ? 1500 : 4500;
+const alMinBars = (s, tf)=> s === 'liqbrk' ? 600 : s === 'cycle' ? 1500 : tf === '1d' ? 400 : 1500;
+const alStratOf = (x)=> x.strategy || 'liqbrk';
+const alInfo = (s)=> AL_STRATS.find((d)=>d.s === s)
+  || { s, name:String(s).replace(/[&<>"']/g, (ch)=>`&#${ch.charCodeAt(0)};`), tfs:[], tf:'', what:'' };
+// a strategy's section, built once and then only refilled, so an open section and a half-typed coin survive edits
+function alSection(s){
+  const box = $('alBody');
+  let el = [...box.querySelectorAll('.alSec')].find((x)=>x.dataset.s === s);
+  if(el) return el;
+  const d = alInfo(s);
+  el = document.createElement('details'); el.className = 'pfPanel alSec'; el.dataset.s = s;
+  el.innerHTML = `<summary><span>${d.name}</span><span class="alCnt"></span><span class="alPend"></span></summary>
+    <div class="pfPanelBody">${d.what ? `<p class="holdHint alWhat">${d.what}</p>` : ''}
+      <table class="alTable"><thead><tr><th>Coin</th><th>TF</th><th>Bars</th><th></th></tr></thead><tbody></tbody></table>
+      ${d.tfs.length ? `<div class="alAdd">
+        <label class="alSymL">Coins (one or several: ARB, SOL, INJ)<input class="sym alSymIn" placeholder="ARB, SOL" list="symList" autocomplete="off" /></label>
+        <label>Timeframe<select class="alTfIn">${d.tfs.map((t)=>`<option${t === d.tf ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label title="Candles the bot reads each run. It must clear the strategy's warm-up, or the watch can never fire.">Bars<input class="alBarsIn" type="number" value="${alBarsFor(s, d.tf)}" min="${alMinBars(s, d.tf)}" step="500" /></label>
+        <button class="alAddBtn">Add to ${d.name}</button></div><div class="alMsg"></div>` : ''}
+    </div>`;
+  box.appendChild(el);
+  const tfIn = el.querySelector('.alTfIn'), barsIn = el.querySelector('.alBarsIn'), symIn = el.querySelector('.alSymIn');
+  if(tfIn) tfIn.onchange = ()=>{ barsIn.value = alBarsFor(s, tfIn.value); barsIn.min = alMinBars(s, tfIn.value); };
+  if(symIn) symIn.onkeydown = (e)=>{ if(e.key === 'Enter') alAddTo(s); };
+  if(el.querySelector('.alAddBtn')) el.querySelector('.alAddBtn').onclick = ()=> alAddTo(s);
+  return el;
+}
+function alAddTo(s){
+  const el = alSection(s), d = alInfo(s), msg = el.querySelector('.alMsg'), symIn = el.querySelector('.alSymIn');
+  const syms = parseSyms(symIn.value);
+  if(!syms.length){ symIn.focus(); return; }
+  const tf = el.querySelector('.alTfIn').value;
+  const bars = Math.max(alMinBars(s, tf), Math.round(+el.querySelector('.alBarsIn').value || alBarsFor(s, tf)));
+  const added = [], have = [];
+  for(const sym of syms){
+    if(alDraft.some((x)=>alKey(x) === `${sym}|${tf}|${s}`)){ have.push(sym); continue; }
+    alDraft.push({ symbol:sym, tf, bars, strategy:s }); added.push(sym);
+  }
+  symIn.value = '';
+  const names = (xs)=> xs.map((x)=>x.replace(/USDT$/, '')).join(', ');
+  msg.textContent = (added.length ? `Added ${names(added)} on ${tf}. Press Apply to the bot below to start the alerts.` : '')
+    + (have.length ? `${added.length ? ' ' : ''}${names(have)} ${tf} ${have.length > 1 ? 'are' : 'is'} already on the ${d.name} list.` : '');
+  if(added.length) alSaveDraft();
+}
 
 // owner/repo from the Pages URL (<owner>.github.io/<repo>/), overridable for local dev
 function alRepo(){
@@ -3211,7 +3282,7 @@ async function alFetchLive(){
 // Unedited stale drafts are dropped; edited ones raise a banner and Apply waits for a choice.
 async function alInit(){
   if(!alLoaded){
-    $('alStrat').innerHTML = CMP_STRATS.map(([v,l])=>`<option value="${v}"${v==='liqbrk'?' selected':''}>${l}</option>`).join('');
+    AL_STRATS.forEach((d)=>alSection(d.s));
     $('alToken').value = lsGet('smb.ghToken','') ? '••••••••••••' : '';
   }
   try{
@@ -3230,8 +3301,8 @@ async function alInit(){
     alDraft = JSON.parse(lsGet('smb.alDraft','[]'));
     $('alStatus').textContent = 'could not reach the repo';
     $('alSync').className = 'alSync err';
-    $('alSync').innerHTML = e.message + ' — you can still edit, but Apply needs the repo reachable. '
-      + '<b>Reopen this tab to retry.</b>';
+    $('alSync').innerHTML = '<span>' + e.message + ' — you can still edit, but Apply needs the repo reachable. '
+      + '<b>Reopen this tab to retry.</b></span>';
   }
   alRender();
 }
@@ -3245,13 +3316,24 @@ function alRender(){
   const dropped = (alLive||[]).filter(x=>!draftKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`));
 
   const row = (x, cls, i)=>`<tr class="${cls}"><td><b>${x.symbol.replace('USDT','')}</b></td><td>${x.tf}</td>
-    <td>${x.bars||4500}</td><td>${(CMP_STRATS.find(s=>s[0]===(x.strategy||'liqbrk'))||[,x.strategy])[1]}</td>
+    <td>${x.bars||4500}</td>
     <td>${cls==='drop' ? '<button class="alUndo ghost" data-k="'+x.symbol+'|'+x.tf+'|'+(x.strategy||'liqbrk')+'">undo</button>'
                        : '<button class="alDel ghost" data-i="'+i+'">✕</button>'}</td></tr>`;
-  $('alBody').innerHTML =
-      alDraft.map((x,i)=>row(x, liveKeys.has(`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`)?'':'add', i)).join('')
-    + dropped.map(x=>row(x,'drop',-1)).join('')
-    || '<tr><td colspan="5" style="color:var(--muted);padding:12px">Nothing watched — add a coin below.</td></tr>';
+  // one section per strategy: the four the bot runs, then any other a hand edit put on the list
+  const strats = AL_STRATS.map((d)=>d.s);
+  for(const x of [...alDraft, ...(alLive||[])]) if(!strats.includes(alStratOf(x))) strats.push(alStratOf(x));
+  for(const st of strats){
+    const sec = alSection(st);
+    const mine = alDraft.map((x,i)=>[x,i]).filter(([x])=>alStratOf(x) === st), gone = dropped.filter((x)=>alStratOf(x) === st);
+    const nAdd = mine.filter(([x])=>!liveKeys.has(alKey(x))).length;
+    const nEdit = mine.filter(([x])=>{ const l = (alLive||[]).find((y)=>alKey(y) === alKey(x)); return l && (+l.bars||4500) !== (+x.bars||4500); }).length;
+    sec.querySelector('.alCnt').textContent = mine.length ? `· ${mine.length} watched` : '· none yet';
+    const bits = []; if(nAdd) bits.push(`+${nAdd}`); if(gone.length) bits.push(`−${gone.length}`); if(nEdit) bits.push(`${nEdit} edited`);
+    sec.querySelector('.alPend').textContent = alLive && bits.length ? `${bits.join(' ')} not applied` : '';
+    sec.querySelector('tbody').innerHTML = mine.map(([x,i])=>row(x, liveKeys.has(alKey(x)) ? '' : 'add', i)).join('')
+      + gone.map((x)=>row(x, 'drop', -1)).join('')
+      || '<tr><td colspan="4" style="color:var(--muted);padding:10px 8px">No coins yet. Add some below.</td></tr>';
+  }
 
   $('alBody').querySelectorAll('.alDel').forEach(b=>b.addEventListener('click',()=>{
     alDraft.splice(+b.dataset.i,1); alSaveDraft(); }));
@@ -3287,20 +3369,25 @@ function alRender(){
     if(dropped.length) bits.push(`${dropped.length} to remove`);
     if(edited) bits.push(`${edited} changed`);
     el.className='alSync pend';
-    el.innerHTML = `<b>Not applied yet.</b> ${bits.join(', ') || 'order changed'} — `
-      + `press <b>Apply to the bot</b> or nothing changes.`;
+    el.innerHTML = `<span><b>Not applied yet.</b> ${bits.join(', ') || 'order changed'} — `
+      + `press <b>Apply to the bot</b> or nothing changes.</span>`;
   }
   $('alApply').disabled = !dirty || !!alStale;            // a stale draft must be chosen, never applied blind
   $('alApply').style.opacity = (dirty && !alStale) ? '1' : '.5';
   $('alJson').value = alFileText();
   const [owner, repo] = alRepo().split('/');
   $('alEdit').href = `https://github.com/${owner}/${repo}/edit/main/${AL_FILE}`;
-  $('alNote').innerHTML = `<b>How this reaches your phone.</b> The bot re-reads this file on every run, so a
-    change takes effect at the next even hour. A newly added coin records a <b>silent baseline</b> on its first
-    run — you are not told about a position it opened before you started watching — then alerts on the next flip.
-    <br><br><b>Only <code>liqbrk</code> is evidenced</b> on ETH, SOL, LINK and BTC (see ALGORITHM.md). The other
-    strategies fire far too rarely on short timeframes to be useful as alerts — Cycle needs a 200-week MA — and
-    any coin outside that four has never been backtested here.`;
+  $('alNote').innerHTML = `<b>How this reaches your phone.</b> The bot re-reads these lists on every run: every
+    15 minutes on paper, though GitHub often starts it hours late (the Portfolio says when it last ran). On a newly
+    added coin, a buy on a candle that closed after the bot's last run is a normal BUY. A position that was already
+    open gets one OPEN TRADE note, and only while price is still within 1R of its entry. After that you hear at
+    every BUY and SELL.
+    <br><br><b>Every strategy shares your 5 trading slots.</b> A BUY from any list takes a free slot; when all 5 are
+    held, a new BUY goes into the journal without an alert. Trend Follow and the Cycle hold for months, so a few of
+    them can keep slots busy for a long time.
+    <br><br><b>Check a coin in Compare before you add it.</b> Everything there is a backtest. Prefer rows with ✓ that
+    beat holding the coin (vs B&amp;H) on a long window. A trade count marked ⚠ means the result rests on a handful
+    of trades.`;
 }
 function alSaveDraft(){
   // the base is the live list this draft departs from — recorded once, at the first edit
@@ -3308,19 +3395,6 @@ function alSaveDraft(){
   lsSet('smb.alDraft', JSON.stringify(alDraft)); alRender();
 }
 
-$('alAdd').addEventListener('click', ()=>{
-  const sym = normSym($('alSym').value);
-  if(!sym){ $('alSym').focus(); return; }
-  const tf = $('alTf').value, strategy = $('alStrat').value;
-  const bars = Math.max(600, +$('alBars').value || 4500);   // below the warm-up the bot can never fire
-  const k = `${sym}|${tf}|${strategy}`;
-  if(alDraft.some(x=>`${x.symbol}|${x.tf}|${x.strategy||'liqbrk'}`===k)){
-    $('alStatus').textContent = sym.replace('USDT','')+' '+tf+' is already on the list'; return;
-  }
-  alDraft.push({ symbol:sym, tf, bars, strategy });
-  $('alSym').value='';
-  alSaveDraft();
-});
 $('alRevert').addEventListener('click', ()=>{
   if(!alLive) return;
   alDraft = alLive.slice(); alStale = 0; lsSet('smb.alDraft',''); lsSet('smb.alBase',''); alRender();

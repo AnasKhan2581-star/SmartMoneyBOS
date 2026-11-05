@@ -774,6 +774,14 @@
         scaleR: p.lbScaleR,
         toBreak: +((lb.hiB[i] / px - 1) * 100).toFixed(2),   // % price must still rise (<0 = already above)
       } : null,
+      // live exit levels for Trend Follow / Turtle, as the NEXT close will be judged (alerts and the Advisor say them):
+      // tsmom sells on a close under the 200-day MA or under the close lookLen bars back; donch on a close under the
+      // lowest low of the last outLen bars (this bar included) or at its stop
+      q: (p.strategy === 'tsmom' || p.strategy === 'donch') ? (() => {
+        let lo = Infinity; for (let j = Math.max(0, i + 1 - outLen); j <= i; j++) if (c[j].low < lo) lo = c[j].low;
+        return { ma: maL[i], maDays: p.tsmomMa, ref: i + 1 - lookLen >= 0 ? closes[i + 1 - lookLen] : null, refDays: p.tsmomLook,
+          chanLow: lo, outDays: p.donchOut, chanHigh: Math.max(hiN[i], c[i].high), inDays: p.donchIn };
+      })() : null,
       z: std20[i] > 0 ? +((px - ma20[i]) / std20[i]).toFixed(2) : 0,
       volAnn: +volA[i].toFixed(2), alloc: +volFrac(i).toFixed(2),
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,

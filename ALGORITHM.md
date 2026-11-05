@@ -769,7 +769,11 @@ Liq Breakout −23%, Trend Follow −4.5%, Turtle −0.4%, BTC Cycle −1.0%.
 
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
-Execution rules on top of liqbrk; they never change which trades the strategy takes, only which ones you are told to take.
+Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
+ones you are told to take. Built for liqbrk (Oct 2026). **Since Nov 2026 (user request) Trend Follow, Turtle and BTC Cycle
+can alert too, and every strategy shares the same 5 slots.** The slot study below is liqbrk's alone: no study has
+mixed the strategies in one book, and Trend Follow and the Cycle hold for months, so a few of them can keep slots
+busy (and liqbrk BUYs journal-only) for a long time.
 - **5 equal slots** (each trade = 20% of the book's value at entry). The research cap above (5 open positions) cut max
   drawdown −51.8% → −39.6%; the v2 study's one-pot runs put 5 slots at about the same return as 10 with a deeper drop
   (2020→: v1 13.5× / −66% at 5 slots vs 7.5× / −50% at 10) — the user chose 5 for bigger positions, knowing that.
