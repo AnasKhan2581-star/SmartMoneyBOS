@@ -767,6 +767,49 @@ Liq Breakout −23%, Trend Follow −4.5%, Turtle −0.4%, BTC Cycle −1.0%.
 - **With the app's trade floor**, 9 of the 4h top 10 are liqbrk (FET +663%, HBAR +489%, XLM +348%, CFX, SOL, BCH, BTC, STX,
   ETH), with a median max DD of −27%. Only 6 of the 15m top 10 are liqbrk, and that list's median max DD is −54%.
 
+## RESEARCH (Nov 2026): liqbrk's BTC gate on 15m — keep it; one refinement measured, NOT shipped
+
+User question: on 15m (Chart, Compare, e.g. the Top 50 gainers over the last 3 months, or Alerts), is "BTC above its
+50-day MA" logical for a trade that lasts about a day, and what would be? Research only: detector.js, the webapp and the
+bot are unchanged. research/liqbrk15m/: `fetch15.js` (full 15m history, 103 coins, to 2026-11-05), `gainers.js` (the Top 50
+gainers button's own list), `lab15.js` (`parity` / `run` / `scenario`), `report15.js` → RESULTS_liqbrk15m_2026-11.md.
+
+Method:
+- The user's 103-coin Compare list, full Binance 15m history (BTC and ETH from 2017-08), the shipped signals and exits.
+  Each variant changes ONE thing: which candles a buy may be taken on.
+- The replica reproduces detector.js trade for trade: 206 coin runs, 27,061 trades (shipped gate and no gate).
+- Stats are the Compare tab's own `pathStats`. Two-year blocks (2018–20, 2021–22, 2023–24, 2025–26), an equal-money basket
+  per block, a year-shifted placebo, and label-shuffle tests inside each block (the count-matched control).
+
+Results:
+- **No gate, 15m breaks even:** 16,265 trades, PF 1.00, median coin −18% at a −66% median drawdown.
+- **The 50-day gate is logical on 15m too.** It is a regime read, not a timing signal, and a breakout's odds depend on
+  the regime at any horizon.
+  - The trades it blocks average −0.42% against +0.24% for the ones it keeps. Chance gives that gap < 0.02% of the
+    time, and kept beat blocked on 75 of 99 coins.
+  - The gain sits in the weak-BTC markets: basket 2021–22 −6% → +22% (max DD −33% → −13%), 2025–26 +4% → +15%. Little
+    change in the 2023–24 bull. It cost money in 2018–20 (thin: 3 coins in that basket).
+  - With it: PF 1.09, median coin +3.6%, more money than no gate on 72 coins and less on 31. The year-shifted placebo
+    does not reproduce the gain.
+- **Faster BTC reads alone are worse** (BTC over its 5-day MA, over its 149-bar MA, up on the day): they let the bear
+  markets through. Loosening the gate (shipped OR BTC over its 149-bar MA) is worse in every block.
+- **Refinement, measured and NOT shipped: ALSO require BTC above its own 149-bar MA** (the MA the coin must clear,
+  ≈37h on 15m).
+  - It blocks another 11% of the trades the gate keeps. Those were worse in all four blocks (0.66 points a trade;
+    chance 0.2%).
+  - +0.22% → +0.29% a trade; more money on 64 coins and less on 34 (+5.8% per coin).
+  - Every short MA from 1 to 5 days helps (a plateau). Coin by coin it is thin (blocked worse on 43 of 73).
+  - Untested on 4h, where 149 bars is ~25 days.
+- **The +50%/30-day leader rescue does nothing on 15m:** 174 trades, no better than the ones blocked (chance 17%). It
+  stays because it is the 2h/4h finding.
+- **15m stays weak even with the best gate:** win rate 29%, PF without the top 2% of trades 0.79, median DD −53%, and
+  the median coin makes −3% after 0.05% slippage. 4h stays the timeframe (the Oct 2026 entry above).
+- **The user's case (today's Top 50 gainers, last 3 months, a 15m Compare in date mode):**
+  - No gate: 22/50 coins profitable (PF 1.24). Shipped gate: 27/50 (PF 1.51). With BTC's 149-bar MA too: 35/50
+    (PF 1.62).
+  - The 73 trades the gate removed averaged −2.69%, most of them in the last two weeks as BTC slid under its 50-day MA.
+  - At ~8 trades a coin, no row clears the 12-trade ✓ floor.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
