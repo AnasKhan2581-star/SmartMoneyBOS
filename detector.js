@@ -335,7 +335,7 @@
     const btcSelf = p.btcD === 'self', src = Array.isArray(p.btcD) && p.btcD.length > 1 ? p.btcD : null;
     if (src) {
       const bd = (src[1].time - src[0].time) < 86400 ? dailyBars(src) : src, BZ = cycleSignals(bd, p.cyclePersist);
-      B = { bull: [], zone2: [], riskOff: [] };
+      B = { bull: [], zone2: [], riskOff: [], ma: [], px: [] };
       let dn = 0;
       const dnAt = bd.map((x, j) => (dn = x.close < 0.97 * BZ.ma280[j] ? dn + 1 : 0));
       for (let k = 0, j = -1; k < days.length; k++) {
@@ -343,6 +343,7 @@
         B.bull[k] = j >= 0 && bd[j].close > BZ.ma280[j];
         B.zone2[k] = j >= 0 && BZ.zone(j) >= 2;
         B.riskOff[k] = j >= 0 && dnAt[j] >= BZ.persist;
+        B.ma[k] = j >= 0 ? BZ.ma280[j] : NaN; B.px[k] = j >= 0 ? bd[j].close : NaN;
       }
     }
     const scaleAt = p.cycleScale > 0 ? p.cycleScale : 0;
@@ -417,6 +418,29 @@
         alloc: [40, 40, 20], fracNow: pos ? pos.frac : 0, avgNow: pos ? pos.entry : null, scaled: !!(pos && pos.scale),
         trendLine: ma280[K], scaleAt },
       btc: btcSelf ? { self: true } : B ? { bull: B.bull[K], zone2: B.zone2[K], riskOff: B.riskOff[K] } : { missing: true } };
+    // NEXT ENTRY (the Portfolio's radar; same shape as runQuant's advice.next): in the buy zone (≥ 2 of the 3 value signs,
+    // not under zone B, BTC bull or in its own zone) a close above the 20-day high starts the tranche program; otherwise
+    // the trend entry needs `persist` daily closes in a row above 1.02 × the 40-week MA, BTC above its own 40-week MA
+    // for alts, and no Pi-cycle cooldown. null while a position opened on an earlier day is held.
+    adv.next = null;
+    if (!pos || pos.k0 === K) {
+      const pct = (t) => (isFinite(t) && x > 0) ? +((t / x - 1) * 100).toFixed(2) : null, entered = !!pos;
+      const zK = zone(K), btcZ = !B || B.bull[K] || B.zone2[K], under = isFinite(ma1400[K]) && x < 0.72 * ma1400[K];
+      if (zK >= 2 && btcZ && !under) {
+        adv.next = { path: 'zone', trig: h20[K], gap: pct(h20[K]), run: 0, need: 1, unit: 'day', blocked: [], entered, zone: zK,
+          conds: [{ name: `In the buy zone (${zK} of 3 value signs)`, ok: true },
+                  { name: 'Close above the 20-day high, or a sweep and reclaim of the 4-month low', ok: x > h20[K] || !!swp[K] }] };
+      } else {
+        const T = 1.02 * ma280[K], blocked = [];
+        if (cool) blocked.push({ why: 'cool' });
+        if (B && !B.bull[K]) blocked.push({ why: 'btcCycle', btcGap: isFinite(B.ma[K] / B.px[K]) ? +((B.ma[K] / B.px[K] - 1) * 100).toFixed(2) : null });
+        adv.next = { path: 'trend', trig: T, gap: pct(T), run: up, need: persist, unit: 'day', blocked, entered, zone: zK,
+          conds: [{ name: 'Close above 1.02 × the 40-week MA', ok: x > T },
+                  { name: `${p.cyclePersist} daily closes in a row above it`, ok: up >= persist },
+                  ...(B ? [{ name: 'BTC above its own 40-week MA', ok: !!B.bull[K] }] : []),
+                  ...(cool ? [{ name: 'Pi-cycle top cooldown over (a close under the 40-week MA)', ok: false }] : [])] };
+      }
+    }
     return { trades, lines, adv };
   }
 
@@ -634,17 +658,18 @@
       // close (two-pointer on close times, so any BTC timeframe works and nothing leaks forward),
       // OR this coin up ≥ lbLeadPump over 30 days. Gate arrays stay all-true when it is off.
       const btcOk = new Array(n).fill(true), leadOk = new Array(n).fill(false);
-      let btcMissing = false;
+      let btcMissing = false, btcRef = null;
       if (p.lbBtcMaDays > 0) {
         const B = p.btc;
         if (B && B.length > 1) {
           const dB = Math.max(60, B[1].time - B[0].time), L = Math.max(2, Math.round(p.lbBtcMaDays * 86400 / dB));
-          const up = new Array(B.length).fill(false);
+          const up = new Array(B.length).fill(false), maB = new Array(B.length).fill(NaN);
           let s = 0;
-          for (let j = 0; j < B.length; j++) { s += B[j].close; if (j >= L) s -= B[j - L].close; if (j >= L - 1) up[j] = B[j].close > s / L; }
+          for (let j = 0; j < B.length; j++) { s += B[j].close; if (j >= L) s -= B[j - L].close; if (j >= L - 1) { maB[j] = s / L; up[j] = B[j].close > maB[j]; } }
           for (let i = 0, j = -1; i < n; i++) {
             while (j + 1 < B.length && B[j + 1].time + dB <= c[i].time + dt) j++;
             btcOk[i] = j >= 0 && up[j];
+            if (i === n - 1 && j >= 0 && isFinite(maB[j])) btcRef = { ma: maB[j], px: B[j].close };   // where BTC stands now
           }
         } else btcMissing = true;
         if (p.lbLeadPump > 0) { const L30 = S(30); for (let i = L30; i < n; i++) leadOk[i] = closes[i] >= (1 + p.lbLeadPump) * closes[i - L30]; }
@@ -652,7 +677,7 @@
       lb = { hiB, loE, rv, maT: sma(S(p.lbTrend)),
              // bar-native 149 MA of THIS chart's timeframe; null when the filter is off
              maBars: lbMaBars >= 2 ? sma(lbMaBars) : null,
-             btcOk, leadOk, btcMissing, gate: (i) => btcMissing || btcOk[i] || leadOk[i] };
+             btcOk, leadOk, btcMissing, btcRef, gate: (i) => btcMissing || btcOk[i] || leadOk[i] };
     }
 
     let pos = null, sigRun = 0;
@@ -786,8 +811,51 @@
       volAnn: +volA[i].toFixed(2), alloc: +volFrac(i).toFixed(2),
       liqUp: b.up, liqDn: b.dn, nearUp: b.nearUp, nearDn: b.nearDn,
     };
+    // NEXT ENTRY (Nov 2026; the Portfolio's radar ranks every strategy by it): what THIS candle's close needs for a buy,
+    // read off the same rules as the loop above. null while a position opened on an earlier candle is held; a position
+    // that opened on this very candle still gets its read, flagged `entered` (on a still-forming candle the app calls
+    // that a buy signal forming). trig = the level the close must clear; gap = % from the last price to it (≤ 0:
+    // already above); run / need = closes in a row so far / needed; blocked = rules that price alone cannot meet on
+    // this close; conds = the strategy's own entry rules as of now.
+    const pct = (t) => (isFinite(t) && px > 0) ? +((t / px - 1) * 100).toFixed(2) : null;
+    advice.next = null;
+    if (!cy && !gd && (!pos || pos.entryIdx === i)) {
+      const entered = !!pos;
+      if (p.strategy === 'tsmom') {
+        const ref = i >= lookLen ? closes[i - lookLen] : NaN, trig = Math.max(maL[i], ref);
+        advice.next = { path: 'trend', trig, gap: pct(trig), run: sigRun, need: persistN, unit: 'bar', blocked: [], entered,
+          levels: { ma: maL[i], ref },
+          conds: [{ name: `Close above the ${p.tsmomMa}-day MA`, ok: px > maL[i] },
+                  { name: `Close above the close ${p.tsmomLook} days back`, ok: px > ref },
+                  { name: `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
+      } else if (p.strategy === 'donch') {
+        advice.next = { path: 'break', trig: hiN[i], gap: pct(hiN[i]), run: 0, need: 1, unit: 'bar', blocked: [], entered,
+          levels: { high: hiN[i] }, conds: [{ name: `Close above the ${p.donchIn}-day high`, ok: px > hiN[i] }] };
+      } else if (lb) {
+        // the close must clear every price rule at once: the 2-day high by lbBrkExt × ATR, the trend average, the 149 MA
+        const brk = lb.hiB[i] + (p.lbBrkExt > 0 ? p.lbBrkExt * a[i] : 0);
+        const base = Math.max(brk, lb.maT[i], lb.maBars ? lb.maBars[i] : -Infinity);
+        let trig = base;
+        const blocked = [], L30 = S(30);
+        // BTC under its MA: only a 30-day leader may buy, so the close must ALSO reach +lbLeadPump over 30 days. `base`
+        // keeps the level that applies once BTC is back above its MA.
+        const btcUnder = p.lbBtcMaDays > 0 && !lb.btcMissing && !lb.btcOk[i];
+        const lead = btcUnder && p.lbLeadPump > 0 && i >= L30 ? (1 + p.lbLeadPump) * closes[i - L30] : null;
+        if (btcUnder) {
+          if (lead != null) trig = Math.max(base, lead);
+          // a coin leading right now may still buy; btcGap = how far BTC must rise to clear its MA again
+          if (!lb.leadOk[i]) blocked.push({ why: 'btc', maDays: p.lbBtcMaDays, lead,
+            btcGap: lb.btcRef ? +((lb.btcRef.ma / lb.btcRef.px - 1) * 100).toFixed(2) : null });
+        }
+        // FIRST close through: the last candle already closed above its own 2-day high, so this one cannot buy
+        if (!(i > 0 && closes[i - 1] <= lb.hiB[i - 1])) blocked.push({ why: 'fresh' });
+        advice.next = { path: 'break', trig, gap: pct(trig), base, baseGap: pct(base), run: 0, need: 1, unit: 'bar', blocked, entered,
+          levels: { high: lb.hiB[i], brk, trend: lb.maT[i], maBars: lb.maBars ? lb.maBars[i] : null },
+          vol: { now: +lb.rv[i].toFixed(2), need: p.lbRelVol }, conds: advice.signals };
+      }
+    }
     let cycleLines = null, goldLines = null;
-    if (cy) { advice.cycle = cy.adv; cycleLines = cy.lines; }   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
+    if (cy) { advice.cycle = cy.adv; advice.next = cy.adv.next || null; cycleLines = cy.lines; }   // UI projects buy band (200w→×1.1) and sell band (1.85–2.4×200d)
     if (gd) { advice.gold = gd.adv; advice.signals = gd.adv.signals; goldLines = gd.lines; }
     return { trades, advice, cycleLines, goldLines };
   }

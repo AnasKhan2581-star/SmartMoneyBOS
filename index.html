@@ -146,6 +146,31 @@
   .pfHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .pfHead h2{font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
   .pfSub{font-size:12px;color:var(--muted)}
+  /* + Add order (Nov 2026, user request): a prominent pill at the top of the Portfolio. The title and the as-of line
+     stack on the left so the button never wraps under them on a phone. It opens the add-order sheet below. */
+  .pfTop{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:12px;row-gap:3px}
+  .pfTop h2{grid-column:1;grid-row:1} .pfTop #pfAsOf{grid-column:1;grid-row:2}
+  .pfTop .pfPlus{grid-column:2;grid-row:1 / span 2}
+  .pfPlus,.ordOpen{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 15px 8px 9px;
+    border-radius:999px;font-size:14px;font-weight:700;box-shadow:0 2px 12px rgba(31,111,235,.35)}
+  .pfPlusIc{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.2);
+    font-size:19px;line-height:1;font-weight:600}
+  .ordOpen{width:100%;padding:10px 15px;box-shadow:none}
+  dialog.sheet{border:1px solid var(--line);padding:0;background:var(--panel);color:var(--txt);width:100%;max-width:560px;
+    margin:auto auto 0;border-radius:16px 16px 0 0;max-height:92vh;overflow-y:auto}
+  dialog.sheet::backdrop{background:rgba(1,4,9,.65)}
+  dialog.sheet[open]{animation:sheetUp .18s ease-out}
+  @keyframes sheetUp{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+  .sheetBody{padding:14px 16px max(16px, env(safe-area-inset-bottom))}
+  .sheetHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .sheetHead h3{margin:0;font-size:17px;letter-spacing:-.2px}
+  .sheetX{padding:6px 10px;font-size:14px;line-height:1}
+  .sheetAlt{display:flex;gap:8px;margin-top:12px}
+  .sheetAlt button{flex:1;padding:9px}
+  /* two columns on every screen inside the sheet, and 16px text so a phone doesn't zoom in on the focused box */
+  .sheet .ordAdd{grid-template-columns:1fr 1fr}
+  .sheet .ordAdd .ordWhen,.sheet .ordAdd button{grid-column:1 / -1}
+  .sheet .ordAdd input,.sheet .ordAdd select{width:100%;font-size:16px}
   /* Portfolio loading: a green bar pinned to the top edge of the screen and a green pill by the heading.
      The old grey "loading 4h… 12/62" beside the title was easy to miss. The bar slides while the book
      loads (no count yet), then fills coin by coin. */
@@ -183,6 +208,8 @@
   .cardTop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
   .cardTop .dots{margin-left:0}
   .cardTop .sym{font-size:16px;font-weight:700;letter-spacing:-.2px}
+  .cardTop .rdTag{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap}   /* a radar card's alert: "4h · Turtle" */
+  .rdSum{margin-top:8px;line-height:1.55} .rdSum b{color:var(--txt);font-weight:600}
   .cardTop .px{margin-left:auto;text-align:right;flex:0 0 auto}
   .cardTop .px b{font-size:15px;font-weight:700;display:block}
   .cardTop .px s{font-size:11px;color:var(--muted);text-decoration:none}
@@ -395,6 +422,7 @@
     .holdAdd button{grid-column:auto}
     .pfEmptyBox button{width:auto}
     #bottomNav{display:none}
+    dialog.sheet{margin:auto;border-radius:14px}
   }
   @media(max-width:699px){
     /* the Cost column is qty x avg — derivable, and dropping it is what lets the remove
@@ -408,6 +436,7 @@
   }
   @media (prefers-reduced-motion: reduce){
     #pfLoadBar>i{transition:none} #pfLoadBar.indet>i{animation:none;width:100%;opacity:.6} .pfLoadPill::before{animation:none}
+    dialog.sheet[open]{animation:none}
   }
 </style>
 </head>
@@ -453,9 +482,10 @@
 <div id="stratInfo"></div>
 <section id="pfView">
   <div id="pfLoadBar" role="progressbar" aria-label="Loading your portfolio" aria-valuemin="0" aria-valuemax="100"><i></i></div>
-  <div class="pfHead">
+  <div class="pfHead pfTop">
     <h2>My portfolio</h2>
     <span class="pfSub" id="pfAsOf">—</span>
+    <button id="pfPlus" class="pfPlus" title="Add a buy or a sell you made"><span class="pfPlusIc" aria-hidden="true">+</span>Add order</button>
   </div>
 
   <div id="pfEmpty" style="display:none">
@@ -528,8 +558,9 @@
     </details>
   </div>
 
-  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the 5 alert coins closest to a buy signal</span></div>
+  <div class="pfHead" style="margin-top:22px"><h2>On the radar</h2><span class="pfSub">the 5 alerts closest to a buy, from every strategy's list</span></div>
   <div class="cards" id="pfRadar"></div>
+  <div class="pfSub rdSum" id="pfRadarSum"></div>
 
   <details class="pfPanel" id="pfEditor">
     <summary>Holdings &amp; orders</summary>
@@ -539,17 +570,9 @@
       <div id="holdList"></div>
 
       <h4 class="ordH">Add an order</h4>
-      <div class="ordAdd">
-        <label>Coin<input id="oSym" class="sym" placeholder="INJ" list="symList" autocomplete="off" /></label>
-        <label>Side<select id="oSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
-        <label>Quantity<input id="oQty" type="number" step="any" inputmode="decimal" placeholder="20.39" /></label>
-        <label>Price (USDT)<input id="oPx" type="number" step="any" inputmode="decimal" placeholder="6.03" /></label>
-        <label class="ordWhen">Date &amp; time<input id="oTime" type="datetime-local" step="1" /></label>
-        <button id="oAdd">Add order</button>
-      </div>
-      <div class="ordMsg" id="oMsg"></div>
+      <button id="oAddOpen" class="ordOpen"><span class="pfPlusIc" aria-hidden="true">+</span>Add a buy or a sell</button>
 
-      <h4 class="ordH">Import from screenshots</h4>
+      <h4 class="ordH" id="oImpH">Import from screenshots</h4>
       <div class="holdHint" style="margin:0 0 9px">Pick screenshots of your Binance <b>order history</b> or
         <b>trade history</b> — as many as you like, in any order. Each one is read <b>on this phone</b>
         (nothing is uploaded), then you check every order before it is added. Overlapping screenshots
@@ -574,6 +597,30 @@
   </div>
 
   <div class="pfNote" id="pfNote"></div>
+
+  <!-- ADD AN ORDER (Nov 2026, user request: a prominent + at the top instead of a form at the bottom of the page).
+       One form, opened from the + Add order button, the empty state and the Holdings & orders panel. A modal sheet:
+       it slides up from the bottom on a phone and sits centred on a wide screen. -->
+  <dialog id="ordSheet" class="sheet" aria-labelledby="ordSheetH">
+    <div class="sheetBody">
+      <div class="sheetHead"><h3 id="ordSheetH">Add an order</h3><button id="ordSheetX" class="ghost sheetX" aria-label="Close">✕</button></div>
+      <div class="holdHint" style="margin:0 0 10px">A buy or a sell you made. Your holdings, average cost and profit are
+        worked out from your orders, oldest first. Kept in this browser only.</div>
+      <div class="ordAdd">
+        <label>Coin<input id="oSym" class="sym" placeholder="INJ" list="symList" autocomplete="off" /></label>
+        <label>Side<select id="oSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+        <label>Quantity<input id="oQty" type="number" step="any" inputmode="decimal" placeholder="20.39" /></label>
+        <label>Price (USDT)<input id="oPx" type="number" step="any" inputmode="decimal" placeholder="6.03" /></label>
+        <label class="ordWhen">Date &amp; time<input id="oTime" type="datetime-local" step="1" /></label>
+        <button id="oAdd">Add order</button>
+      </div>
+      <div class="ordMsg" id="oMsg"></div>
+      <div class="sheetAlt">
+        <button id="ordSheetShots" class="ghost">Import from screenshots</button>
+        <button id="ordSheetAll" class="ghost">Holdings &amp; orders</button>
+      </div>
+    </div>
+  </dialog>
 </section>
 <section id="alView">
   <div class="pfHead"><h2>Alert watchlist</h2><span class="pfSub" id="alStatus">—</span></div>
@@ -2028,15 +2075,16 @@ $('cmpGo').addEventListener('click',()=>runCompare(true));
 // user had actually made.
 //
 // Coin coverage: your holdings (deep history, for their action lines), BTC (deep — the regime tile
-// needs its 200-day MA), and every coin on the ALERT LIST (signals/watchlist.json, shallow — the
-// radar only needs today's conditions). PF_RADAR is the fallback bench when the list can't be read.
+// needs its 200-day MA), and every alert on the ALERT LISTS (signals/watchlist.json, each on its own
+// timeframe and strategy, only as deep as the radar needs — rdItems). PF_RADAR is the fallback bench
+// when the list can't be read.
 const PF_RADAR = ['BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
 const PF_REGIME_SYM = 'BTCUSDT';          // BTC's own 200d MA is the gate validated out of sample
 const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
 // radar depth: the 149-candle MA, the 30-day leader check and a 1-day volume average all fit well inside
 const PF_RBARS = { '1h':1500, '2h':1500, '4h':1200,  '1d':600 };
 const pfCache = {};                 // sym|tf|bars -> { c: candles, at: when fetched }
-let pfRows = [], pfBusy = false;
+let pfRows = [], rdRows = [], pfBusy = false;   // rdRows: one per alert, on its own timeframe and strategy (the radar)
 let pfOldest = Infinity, pfLoadedAt = 0;   // the oldest price data on screen — the "as of" the screen must admit
 
 const lsGet = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
@@ -2195,16 +2243,155 @@ function bindCard(el){
 }
 // A journal row opens its coin on the trade's own timeframe and zooms to the trade, with enough bars to
 // reach back past the entry (double-click the chart for the whole history).
+// It also reads at least the bars the bot reads for that alert, so the chart sees the same history (the Cycle on 4h
+// reads 18,000: its 200-week MA wants ~1,400 days).
 async function openJournalChart(e){
   const tfS = (TF_MS[e.tf] || 144e5)/1000, nowS = Date.now()/1000;
+  const w = BK.watch.find((x)=>x.symbol === e.symbol && x.tf === e.tf && (x.strategy || 'liqbrk') === (e.strategy || 'liqbrk'));
   $('sym').value = e.symbol; $('strategy').value = e.strategy || 'liqbrk'; $('tf').value = e.tf;
   $('rangeMode').value = 'bars'; syncRangeMode();
-  $('bars').value = Math.min(60000, Math.max(+$('bars').value || 4500, Math.ceil((nowS - e.signalTime)/tfS) + 120));
+  $('bars').value = Math.min(60000, Math.max(+$('bars').value || 4500, Math.ceil((nowS - e.signalTime)/tfS) + 120, +(w && w.bars) || 0));
   stratInfo();
   await chartRun();
   if(chart && candlesSym === e.symbol && candles.length){
     try{ chart.timeScale().setVisibleRange({ from: e.signalTime - 60*tfS, to: (e.exitTime || nowS) + 25*tfS }); }catch(err){}
   }
+}
+// a radar card opens its alert's chart: coin, timeframe and strategy, with at least the bars the bot reads for it
+async function openAlertChart(sym, tf, strat, minBars){
+  $('sym').value = sym; $('strategy').value = strat; $('tf').value = tf;
+  $('rangeMode').value = 'bars'; syncRangeMode();
+  $('bars').value = Math.min(60000, Math.max(+$('bars').value || 4500, minBars || 0));
+  stratInfo();
+  await chartRun();
+}
+
+// ---------- THE RADAR (Nov 2026, user request: the top 5 from every strategy, not only liqbrk) ----------
+// Each alert is judged by its own strategy's rules (detector.js advice.next): the level this candle's close must clear,
+// how far price is from it, and how many closes in a row are still needed.
+// Order, one card per coin and strategy: a buy forming on this very candle first, then by HOW FAR THE MARKET MUST MOVE for
+// the alert to buy (above its level already = 0; ties go to the fewest closes still needed). A paused alert counts the
+// pause too: under BTC's MA it needs BTC back above it AND its own level, so its distance is the larger of the two (alts
+// move with BTC), or the leader level if that is nearer; a Pi-cycle cooldown has no distance and goes last. Measured in
+// Nov 2026: with BTC under its 50-day MA a pure "unpaused first" order put a Turtle coin 36% away above Breakout coins
+// 3% from their level.
+// Left out: coins you hold, and alerts whose strategy is already in that coin (the engine's own trade, or an open journal
+// entry on any timeframe).
+const rdCmp = (a, b)=>{ for(let k = 0; k < a.length; k++) if(a[k] !== b[k]) return a[k] - b[k]; return 0; };
+// what an alert is right now: 'held' (you own the coin), 'trade' (its strategy is in that coin), 'short' (too little
+// history to judge) or 'flat' (a radar candidate)
+function rdClass(x, held, inBook){
+  if(held.has(x.sym)) return 'held';
+  if(inBook.has(`${x.sym}|${x.strat}`)) return 'trade';
+  const ad = x.res && x.res.advice, nx = ad ? ad.next : null;
+  if(!ad) return 'short';
+  if(!nx || nx.gap == null) return 'trade';
+  if(nx.entered && formingOf(x.c, x.loadTf).idx !== x.c.length - 1) return 'trade';   // bought on a closed candle
+  return 'flat';
+}
+const rdSets = ()=> ({ held: new Set(holdings.map(h=>h.sym)), inBook: new Set(BK.entries.filter(bkIsOpen).map(e=>`${e.symbol}|${bkStrat(e)}`)) });
+function rdRank(){
+  const { held, inBook } = rdSets();
+  const best = new Map();
+  for(const x of rdRows){
+    if(rdClass(x, held, inBook) !== 'flat') continue;
+    const nx = x.res.advice.next;
+    const forming = !!nx.entered;                                   // rdClass kept only a buy on the forming candle
+    const paused = !forming && nx.blocked.length > 0;
+    const unitH = nx.unit === 'day' ? 24 : (TF_MS[x.loadTf] || 864e5) / 36e5;
+    const left = forming ? 0 : (nx.gap <= 0 ? Math.max(1, nx.need - nx.run) : nx.need) * unitH;   // hours of closes still needed
+    const r = Object.assign({}, x, { nx, forming, paused, dist: forming ? 0 : rdDist(nx), left });
+    r.key = [forming ? 0 : 1, r.dist, paused ? 1 : 0, left];
+    const k = x.sym + '|' + x.strat;
+    if(!best.has(k) || rdCmp(r.key, best.get(k).key) < 0) best.set(k, r);
+  }
+  return [...best.values()].sort((a, b)=>rdCmp(a.key, b.key));
+}
+// how far the market must move for this alert to buy, in % (0 = it would buy on this close)
+function rdDist(nx){
+  const own = Math.max(0, nx.baseGap != null ? nx.baseGap : nx.gap);
+  if(!nx.blocked.length) return Math.max(0, nx.gap);
+  if(nx.blocked.some((b)=>b.why === 'cool')) return 999;
+  const btc = nx.blocked.find((b)=>b.why === 'btc' || b.why === 'btcCycle');
+  if(!btc) return own;                                            // a break that happened without a buy: wait a candle
+  let d = Math.max(own, btc.btcGap != null ? Math.max(0, btc.btcGap) : 50);
+  if(btc.why === 'btc' && btc.lead != null) d = Math.min(d, Math.max(0, nx.gap));   // or buy as a 30-day leader
+  return d;
+}
+// one line under the cards: where each strategy's list stands, so five cards from one strategy never hide that the others
+// were read (Nov 2026: six of the eight new Trend / Turtle / Cycle alerts were already in trades)
+function rdSummary(ranked){
+  const { held, inBook } = rdSets(), by = {};
+  for(const x of rdRows){
+    const b = by[x.strat] || (by[x.strat] = { n:0, trade:0, held:0, short:0 }), k = rdClass(x, held, inBook);
+    b.n++; if(k !== 'flat') b[k]++;
+  }
+  const parts = Object.keys(RD_STRATS).filter((s)=>by[s]).map((s)=>{
+    const b = by[s], near = ranked.find((x)=>x.strat === s), all = (k)=> b[k] === b.n;
+    const bits = [];
+    if(all('trade')) bits.push(b.n === 1 ? 'in a trade' : b.n === 2 ? 'both in a trade' : `all ${b.n} in a trade`);
+    else {
+      if(b.trade) bits.push(`${b.trade} in a trade`);
+      if(b.held) bits.push(`${b.held} you hold`);
+      if(b.short) bits.push(`${b.short} too new to judge`);
+      if(near) bits.push(`nearest ${coin(near.sym)}${near.forming ? ' (buy forming)' : ` (+${near.dist.toFixed(1)}%)`}`);
+    }
+    return `<b>${RD_STRATS[s]}</b> ${b.n}${bits.length ? ': ' + bits.join(', ') : ''}`;
+  });
+  return parts.length ? `Every list is read. ${parts.join(' · ')}. The % is how far the market must move for a buy, BTC's own recovery included when a strategy waits on it.` : '';
+}
+const rdDur = (h)=> h < 48 ? `${Math.max(1, Math.round(h))} hours` : `${(h/24).toFixed(1)} days`;
+const rdAway = (g)=> g <= 0 ? 'already above' : `+${g.toFixed(1)}% away`;
+// what each strategy does once it is in, so a card never promises a stop Trend Follow doesn't have
+const RD_EXIT = { liqbrk:'Then: half sells at +3R, the rest on a close below the 1-day low.',
+  tsmom:'No stop: it sells when the trend breaks.', donch:'Then: a 2×ATR stop, and it sells on a close below the 20-day low.',
+  cycle:'It holds for months: half sells in the sell zone.' };
+function rdCard(x, i){
+  const nx = x.nx, last = x.c[x.c.length - 1].close, L = nx.levels || {}, ad = x.res.advice;
+  const conds = nx.conds || [], met = conds.filter(s=>s.ok).length, tot = conds.length || 1;
+  const closeW = x.strat === 'cycle' ? 'daily close' : `${x.tf} close`, T = `<b>${pfFmt(nx.trig)}</b>`;
+  const near = !x.paused && (x.forming || nx.gap <= 3);
+  let tag = near ? 'NEXT TRADE' : 'WATCH', cls = near ? 'a-next' : 'a-wait', line = '';
+  if(x.forming){
+    tag = 'BUY FORMING';
+    line = `Buy signal forming: if this ${closeW} (at ${bkHM(formingOf(x.c, x.loadTf).end)}) stays above ${T}, it's a BUY. The bot alerts after the close.`;
+  } else if(x.paused){
+    tag = 'PAUSED';
+    const b = nx.blocked[0];
+    const btcAway = b.btcGap != null ? ` (it needs +${Math.max(0, b.btcGap).toFixed(1)}%)` : '';
+    if(b.why === 'btc') line = `BTC is below its ${b.maDays}-day MA${btcAway}, so Breakout only buys coins up 50% in 30 days`
+      + (b.lead != null ? `: here a ${closeW} above <b>${pfFmt(b.lead)}</b> (${rdAway(nx.gap)}).` : '.')
+      + ` Once BTC is back above it, the buy level is <b>${pfFmt(nx.base)}</b> (${rdAway(nx.baseGap)}).`;
+    else if(b.why === 'fresh') line = `It already closed above its 2-day high without a buy (volume or the 1×ATR margin fell short), so this candle can't buy. It needs to dip back under the 2-day high and break out again.`;
+    else if(b.why === 'btcCycle') line = `BTC is below its own 40-week MA${btcAway}, and alts follow BTC's cycle, so there is no trend entry for now. Once BTC recovers, it buys after ${nx.need} daily closes above ${T} (${rdAway(nx.gap)}).`;
+    else if(b.why === 'cool') line = `After a Pi-cycle top it waits for a close under the 40-week MA before it trades again (now ${pfFmt(nx.trig / 1.02)}).`;
+  } else if(x.strat === 'liqbrk'){
+    const lbLen = (ad.lb || {}).maBarsLen || 149;
+    const bind = nx.trig === L.brk ? 'the 2-day high plus 1×ATR' : (L.maBars != null && nx.trig === L.maBars) ? `the ${lbLen} MA of the ${x.tf} chart` : 'the 5-day average';
+    line = `Buys on a ${closeW} above ${T} (${rdAway(nx.gap)}: ${bind}) with volume at least ${nx.vol.need}× its daily average (${nx.vol.now}× so far).`;
+  } else if(x.strat === 'tsmom'){
+    const days = Math.round(nx.need / perDayOf(x.loadTf)), both = `its 200-day MA (<b>${pfFmt(L.ma)}</b>) and its close 90 days back (<b>${pfFmt(L.ref)}</b>)`;
+    line = nx.gap <= 0
+      ? `Above both of its lines now: ${both}. It buys once that holds ${days} days in a row: ${nx.run} of ${nx.need} ${x.tf} closes so far, about ${rdDur(x.left)} to go.`
+      : `Buys after ${days} days of ${x.tf} closes above ${T} (${rdAway(nx.gap)}), the higher of ${both}.`;
+  } else if(x.strat === 'donch'){
+    line = `Buys on a ${closeW} above the 55-day high, ${T} (${rdAway(nx.gap)}).`;
+  } else if(x.strat === 'cycle'){
+    line = nx.path === 'zone'
+      ? `In the cycle's buy zone (${nx.zone} of 3 value signs). It starts buying on a daily close above the 20-day high, ${T} (${rdAway(nx.gap)}), or on a sweep and reclaim of its 4-month low.`
+      : nx.gap <= 0
+        ? `Above 1.02× its 40-week MA (${T}). It buys after ${nx.need} daily closes in a row there: ${nx.run} so far, counting today if it holds.`
+        : `Buys after ${nx.need} daily closes in a row above ${T} (${rdAway(nx.gap)}), 1.02× its 40-week MA.`;
+  }
+  const crown = i === 0 && near ? '<span class="badge a-next">Most likely next</span>' : '';
+  const sub = x.forming ? 'buy forming' : x.paused ? 'paused' : nx.gap <= 0 ? 'at the buy level' : `+${nx.gap.toFixed(1)}% to buy`;
+  return `<div class="card" data-rd="${i}" data-sym="${x.sym}" title="Open the ${coin(x.sym)} ${x.tf} chart on ${RD_STRATS[x.strat]}">
+    <div class="cardTop"><span class="sym">${coin(x.sym)}</span><span class="rdTag">${x.tf} · ${RD_STRATS[x.strat]}</span>
+      <span class="badge ${cls}">${tag}</span>${crown}
+      <span class="dots">${Array.from({length:tot},(_,k)=>`<i class="${k<met?'on':''}"></i>`).join('')}</span>
+      <span class="px"><b>${pfFmt(last)}</b><s>${sub}</s></span></div>
+    <div class="actLine ${cls}">${line} ${RD_EXIT[x.strat] || ''}</div>
+    ${condList({ signals: conds })}</div>`;
 }
 
 async function pfLoad(sym, tf, bars){
@@ -2235,46 +2422,91 @@ function pfProgress(label, done, total){
 async function pfRun(force){
   if(pfBusy) return;
   pfBusy = true;
-  const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000, rbars = PF_RBARS[tf] || 2500;
+  const tf = $('pfTf').value, bars = PF_BARS[tf] || 6000;
   try{
-    if(force) Object.keys(pfCache).forEach(k=>{ if(k.split('|')[1]===tf) delete pfCache[k]; });
+    // a refresh re-reads every timeframe on screen: the radar reads each alert on its own (4h, 1h, daily for the cycle)
+    if(force) Object.keys(pfCache).forEach(k=>{ delete pfCache[k]; });
     renderHoldEditor();                                        // usable while 60+ coins load (or Binance is down)
     pfOldest = Infinity;
     pfProgress('Reading your trading book…');
     await bkLoad();                                             // book, journal, your answers, the alert list
     renderBook();                                              // the book needs no candles to show its slots
-    const heldSyms = holdings.map(h=>h.sym);
-    const deep = heldSyms.concat([PF_REGIME_SYM]);             // holdings and BTC get real depth
-    const syms = [];
-    for(const x of heldSyms.concat(bkWatchSyms(), [PF_REGIME_SYM])) if(syms.indexOf(x)<0) syms.push(x);
-    const out = []; let done = 0;
-    const queue = syms.slice();
-    pfProgress(`Loading ${tf} prices · 0 of ${syms.length} coins`, 0, syms.length);
+    // ONE load per coin and timeframe, as deep as its deepest use: your holdings and BTC get real depth on the
+    // Portfolio's timeframe; every alert on the lists is read on its own timeframe, as deep as its strategy needs
+    // (rdItems). An alert on liqbrk at the Portfolio's timeframe also fills pfRows, as the whole list did before.
+    const loads = new Map();
+    const want = (sym, ltf, n)=>{ const k = sym+'|'+ltf; let L = loads.get(k);
+      if(!L) loads.set(k, L = { sym, tf:ltf, bars:0, pf:false, items:[] });
+      L.bars = Math.max(L.bars, n); return L; };
+    for(const s of holdings.map(h=>h.sym).concat([PF_REGIME_SYM])) want(s, tf, bars).pf = true;
+    for(const it of rdItems()){
+      const L = want(it.sym, it.loadTf, it.depth); L.items.push(it);
+      if(it.strat === 'liqbrk' && it.loadTf === tf) L.pf = true;
+    }
+    const out = [], rd = []; let done = 0;
+    const queue = [...loads.values()], total = queue.length;
+    pfProgress(`Loading prices · 0 of ${total}`, 0, total);
     await Promise.all([0,1,2,3,4,5].map(async ()=>{
       while(queue.length){
-        const sym = queue.shift();
+        const L = queue.shift();
         try{
-          const c = await pfLoad(sym, tf, deep.indexOf(sym)>=0 ? bars : rbars);
+          const c = await pfLoad(L.sym, L.tf, L.bars);
           if(c && c.length >= 60){
-            const btc = await btcFor(tf, c, sym);
-            const res = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
-            out.push({ sym, tf, c, res });
+            let lbRes = null;
+            if(L.pf || L.items.some(it=>it.strat === 'liqbrk')){
+              const btc = await btcFor(L.tf, c, L.sym);
+              lbRes = SMC.detectAll(c, { strategy:'liqbrk', longOnly:true, useLiq:false, btc });
+              if(L.pf) out.push({ sym:L.sym, tf:L.tf, c, res:lbRes });
+            }
+            for(const it of L.items){
+              // the bot's own call for each strategy (signal-bot.js): the cycle gets BTC's daily history
+              const res = it.strat === 'liqbrk' ? lbRes : SMC.detectAll(c, { strategy:it.strat, longOnly:true, useLiq:false,
+                btcD: it.strat === 'cycle' ? await btcDailyFor(L.sym) : undefined });
+              rd.push(Object.assign({}, it, { c, res }));
+            }
           }
         }catch(e){ /* a dead or unlisted pair just drops out of the view */ }
-        ++done; pfProgress(`Loading ${tf} prices · ${done} of ${syms.length} coins`, done, syms.length);
+        ++done; pfProgress(`Loading prices · ${done} of ${total}`, done, total);
       }
     }));
-    pfRows = out;
-    if(out.length && isFinite(pfOldest)) pfLoadedAt = pfOldest;
+    pfRows = out; rdRows = rd;
+    if((out.length || rd.length) && isFinite(pfOldest)) pfLoadedAt = pfOldest;
     await bkFetchPrices().catch(()=>{});                       // book positions on coins outside the alert list
   } finally {                                                  // never leave the bar running, or the screen locked
     pfBusy = false;
     pfProgress(null);
   }
   renderPf();
-  if(!pfRows.length) $('pfAsOf').textContent = 'no prices loaded — tap ↻ Refresh prices';
+  if(!pfHasPrices()) $('pfAsOf').textContent = 'no prices loaded — tap ↻ Refresh prices';
 }
 const rowFor = (sym)=> pfRows.find(r=>r.sym===sym);
+const pfHasPrices = ()=> pfRows.length > 0 || rdRows.length > 0;
+// any loaded chart of this coin, for its latest price: the Portfolio's own row first, then the radar's
+const pxRowFor = (sym)=> rowFor(sym) || rdRows.find(r=>r.sym===sym);
+
+// THE RADAR'S LIST (Nov 2026, user request: "top 5 from all", not just liqbrk). Every alert on every strategy's list,
+// read on its OWN timeframe and as deep as its strategy needs, never deeper than the watch itself (the bot cannot see
+// more): liqbrk PF_RBARS; Trend Follow / Turtle the 200-day MA plus ~130 days (1,980 bars on 4h); the Cycle on DAILY
+// candles whatever the watch's timeframe (it is a daily system on every chart, so the trades are the same), as many
+// days as the watch reads, up to 3,000. PF_RADAR stands in, as liqbrk on the Portfolio's timeframe, when the list
+// can't be read. Gold is not on the alert lists, so the radar has no reader for it.
+const RD_STRATS = { liqbrk:'Breakout', tsmom:'Trend Follow', donch:'Turtle', cycle:'BTC Cycle' };
+const perDayOf = (tf)=> 864e5 / (TF_MS[tf] || 864e5);
+function rdItems(){
+  const pfTf = $('pfTf').value;
+  const list = BK.watch.length ? BK.watch : PF_RADAR.map((s)=>({ symbol:s, tf:pfTf, strategy:'liqbrk' }));
+  const out = [];
+  for(const w of list){
+    const strat = w.strategy || 'liqbrk', tf = w.tf || pfTf, wb = +w.bars || 4500;
+    // a Binance ticker only: the list is a file anyone with the repo can edit, and the cards print the symbol as HTML
+    if(!RD_STRATS[strat] || !/^[A-Z0-9]{2,30}$/.test(String(w.symbol || '')) || !TF_MS[tf]) continue;
+    const plan = strat === 'cycle' ? { loadTf:'1d', depth: Math.min(3000, Math.ceil(wb / perDayOf(tf))) }
+      : strat === 'liqbrk' ? { loadTf:tf, depth: Math.min(wb, PF_RBARS[tf] || 1500) }
+      : { loadTf:tf, depth: Math.min(wb, Math.ceil(330 * perDayOf(tf))) };
+    out.push(Object.assign({ w, sym:w.symbol, tf, strat }, plan));
+  }
+  return out;
+}
 // A phone keeps this page alive for days, so "loaded once" goes stale without anyone noticing. Oct 2026: a 5-day-old
 // journal showed two closed trades as still open, marked to today's price (INIT +71% instead of its real +11%), and
 // hid the newest signal. Whenever the Portfolio comes back into view: prices older than 15 minutes reload in full
@@ -2290,7 +2522,7 @@ async function bkRefresh(){
 }
 function pfFreshen(){
   if(pfBusy || $('pfView').style.display === 'none' || document.visibilityState === 'hidden') return;
-  if(!pfRows.length) return pfRun(false);
+  if(!pfHasPrices()) return pfRun(false);
   if(Date.now() - pfLoadedAt > PF_STALE_MS) return pfRun(true);
   if(Date.now() - (BK.loadedAt || 0) > BK_STALE_MS) bkRefresh();
 }
@@ -2299,10 +2531,11 @@ window.addEventListener('pageshow', (e)=>{ if(e.persisted) pfFreshen(); });   //
 
 function renderPf(){
   const has = orders.length > 0;      // live once ANY order exists — a fully sold book still has history
-  if(!pfRows.length){
+  if(!pfHasPrices()){
     // No prices loaded. Still show the right panel and a working editor — being offline must not
     // strand someone with saved holdings they cannot see or remove.
     $('pfRadar').innerHTML = '<div class="card">No prices loaded — tap ↻ Refresh prices.</div>';
+    $('pfRadarSum').innerHTML = '';
     $('pfEmpty').style.display = has ? 'none' : 'block';
     $('pfLive').style.display  = has ? 'block' : 'none';
     if(has) $('pfCards').innerHTML = '<div class="card">Waiting for prices…</div>';
@@ -2383,40 +2616,17 @@ function renderPf(){
   $('kRegS').textContent = reg==='UNKNOWN' ? 'not enough BTC history on this TF'
     : `BTC ${rg.vsMa>=0?'+':''}${rg.vsMa}% vs its 200d MA · ~${rg.heldDays}d in this state`;
 
-  // ---------- radar: the 5 ALERT-LIST coins closest to a buy ----------
-  // "About to" excludes what already happened: coins you hold, coins the strategy is already long,
-  // and coins with an open journal entry. Ranked by conditions met, then by how far price is from
-  // the breakout level.
-  const heldSet = holdings.map(h=>h.sym);
-  const watch = bkWatchSyms();
-  const bookOpen = new Set(BK.entries.filter(e=>e.status==='open'||e.status==='half').map(e=>e.symbol));
-  const radar = pfRows.filter(r=>watch.indexOf(r.sym)>=0 && heldSet.indexOf(r.sym)<0 && !bookOpen.has(r.sym))
-    .filter(r=>!(r.res.trades||[]).some(t=>t.outcome==='open'))
-    .map(r=>{ const ad=r.res.advice || {}, sigs=ad.signals||[];   // advice is null below the warm-up
-      return { r, met:sigs.filter(x=>x.ok).length, tot:sigs.length||1,
-               gap:(ad.lb && isFinite(ad.lb.toBreak)) ? ad.lb.toBreak : 999 }; })
-    .sort((a,b)=> (b.met-a.met) || (a.gap-b.gap))
-    .slice(0, 5);
-  $('pfRadar').innerHTML = radar.map((x,i)=>{
-    const last = x.r.c[x.r.c.length-1].close;
-    const act = actionFor(x.r, false);
-    // only crown the top card when it is ACTUALLY close — at 2/5 conditions "most likely next"
-    // overstates a coin that is nowhere near firing
-    // crown only a genuine candidate: nearly triggering AND not already held by the system,
-    // and never INSTEAD of the action badge — the two said opposite things on the same card
-    const crown = (i===0 && x.met >= x.tot-1 && act.tag !== 'SYSTEM IS LONG')
-      ? '<span class="badge a-next">Most likely next</span>' : '';
-    return `<div class="card" data-sym="${x.r.sym}">
-      <div class="cardTop"><span class="sym">${x.r.sym.replace('USDT','')}</span>
-        <span class="badge ${act.cls}">${act.tag}</span>${crown}
-        <span class="dots">${Array.from({length:x.tot},(_,k)=>`<i class="${k<x.met?'on':''}"></i>`).join('')}</span>
-        <span class="px"><b>${pfFmt(last)}</b><s>${x.met}/${x.tot} conditions</s></span></div>
-      <div class="actLine ${act.cls}">${act.line}</div>
-      ${condList(x.r.res.advice)}</div>`;
-  }).join('') || '<div class="card">Nothing on the bench right now.</div>';
+  // ---------- radar: the 5 alerts closest to a buy, from EVERY strategy's list (Nov 2026) ----------
+  const ranked = rdRank(), radar = ranked.slice(0, 5);
+  $('pfRadarSum').innerHTML = rdSummary(ranked);
+  $('pfRadar').innerHTML = radar.map(rdCard).join('')
+    || `<div class="card">${rdRows.length ? 'Every alert on your lists is in a trade or held by you right now.' : 'Nothing on the bench right now.'}</div>`;
+  $('pfRadar').querySelectorAll('.card[data-rd]').forEach((el)=>{
+    const x = radar[+el.dataset.rd];
+    el.addEventListener('click', (ev)=>{ if(!ev.target.closest('button,input')) openAlertChart(x.sym, x.tf, x.strat, +x.w.bars || 0); });
+  });
 
   $('pfCards').querySelectorAll('.card[data-sym]').forEach(bindCard);
-  $('pfRadar').querySelectorAll('.card[data-sym]').forEach(bindCard);
   renderHoldEditor();
   renderBook();
   $('pfAsOf').textContent = new Date(pfLoadedAt || Date.now()).toLocaleString()+' · '+$('pfTf').value+' bars';
@@ -2485,12 +2695,10 @@ async function bkLoad(){
     if(ch) bkSaveLocal(loc);
   }catch(e){ BK.err = 'could not read the journal: ' + e.message; }
 }
-// the radar ranks coins by liqbrk's own conditions, so it reads liqbrk's list only; a coin on just another
-// strategy's list gets its live price from bkFetchPrices when it has an open book entry
-const bkWatchSyms = ()=>{ const out = [];
-  const lb = BK.watch.filter((w)=>(w.strategy || 'liqbrk') === 'liqbrk').map((w)=>w.symbol);
-  for(const x of (BK.watch.length ? lb : PF_RADAR)) if(out.indexOf(x)<0) out.push(x);
-  return out; };
+// the engine's read of a book entry's own alert: its radar row (same coin, timeframe and strategy, read on that
+// timeframe), else the Portfolio's row when that is the same chart
+const bkRowFor = (e)=> rdRows.find((x)=>x.sym === e.symbol && x.tf === e.tf && x.loadTf === e.tf && x.strat === bkStrat(e))
+  || (()=>{ const r = rowFor(e.symbol); return r && r.tf === e.tf && bkStrat(e) === 'liqbrk' ? r : null; })();
 // your answer for an entry: this browser's unsaved tap first, then what the repo holds
 const bkAnswer = (e)=>{ const l = bkLocal()[e.id]; if(l) return l.d; const d = BK.decisions[e.id]; return d ? d.d : null; };
 const bkIsOpen = (e)=> e.status === 'open' || e.status === 'half';
@@ -2501,9 +2709,9 @@ const bkStrat = (e)=> e.strategy || 'liqbrk';
 const bkTag = (e)=> bkStrat(e) === 'liqbrk' ? '' : ` · ${BK_SHORT[bkStrat(e)] || bkStrat(e)}`;
 const bkNoStop = (e)=> bkStrat(e) === 'tsmom';
 const bkHolds = (e)=> bkIsOpen(e) && (bkAnswer(e) === 'taken' || (e.alerted && !bkAnswer(e)));
-const bkPrice = (sym)=>{ const r = rowFor(sym); return r ? r.c[r.c.length-1].close : (BK.px[sym] || null); };
+const bkPrice = (sym)=>{ const r = pxRowFor(sym); return r ? r.c[r.c.length-1].close : (BK.px[sym] || null); };
 async function bkFetchPrices(){
-  const need = [...new Set(BK.entries.filter(bkIsOpen).map(e=>e.symbol))].filter(s=>!rowFor(s));
+  const need = [...new Set(BK.entries.filter(bkIsOpen).map(e=>e.symbol))].filter(s=>!pxRowFor(s));
   if(!need.length) return;
   for(const base of ENDPOINTS){
     try{
@@ -2585,7 +2793,7 @@ function bkBotLag(){
 // (BK.seen): if the bot has read the exit candle and still says open, the bot's file wins and no note is shown.
 function bkLive(e){
   if(!bkIsOpen(e) || (e.strategy || 'liqbrk') !== 'liqbrk') return null;
-  const r = rowFor(e.symbol); if(!r || r.tf !== e.tf || !r.res || !Array.isArray(r.res.trades)) return null;
+  const r = bkRowFor(e); if(!r || !r.res || !Array.isArray(r.res.trades)) return null;
   const c = r.c, n = c.length, eb = +String(e.id).split('|')[2], tfS = tfSecOf(e.tf);
   const t = r.res.trades.find(x=>c[x.entryIdx] && c[x.entryIdx].time === eb); if(!t) return null;
   const seen = BK.seen[`${e.symbol}|${e.tf}|${e.strategy || 'liqbrk'}`] || 0;
@@ -2697,7 +2905,7 @@ function renderBook(){
       <div class="bkBtns"><button data-bk="taken" data-id="${e.id}">Taken</button><button class="ghost" data-bk="skipped" data-id="${e.id}">Skipped</button></div></div>`).join('');
   // your open positions
   $('bkOpen').innerHTML = (R ? R.open : BK.entries.filter(e=>bkIsOpen(e) && bkAnswer(e)==='taken').map(e=>({ e, now:bkPrice(e.symbol), value:null })))
-    .map(p=>{ const e = p.e, r = rowFor(e.symbol), lb = r && r.res.advice ? (r.res.advice.lb||{}) : {};
+    .map(p=>{ const e = p.e, r = bkRowFor(e), lb = r && r.res.advice ? (r.res.advice.lb||{}) : {};
       const res = bkResult(e);
       return `<div class="card" data-sym="${e.symbol}"><div class="cardTop"><span class="sym">${coin(e.symbol)}</span>
         <span class="badge a-hold">IN YOUR BOOK · ${e.tf}${bkTag(e)}</span><span class="px"><b>${p.now?pfFmt(p.now):'—'}</b><s>${bkPct(res).replace(/<[^>]+>/g,'')}</s></span></div>
@@ -2705,7 +2913,7 @@ function renderBook(){
         ${p.value!=null?`<div class="rowK"><span>Worth now</span><b>${pfMoney(p.value)}</b></div>`:''}
         <div class="rowK"><span>${bkNoStop(e)?'Exit':'Stop'}</span><b style="color:#f85149">${bkNoStop(e)?'when the trend breaks (no stop)':pfFmt(e.stop)}</b></div>
         ${e.scale||e.tp ? `<div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>`:''}
-        ${bkStrat(e)==='liqbrk' && lb.trailLow && $('pfTf').value===e.tf ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
+        ${bkStrat(e)==='liqbrk' && lb.trailLow ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
         ${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
         </div>`; }).join('');
   // journal
@@ -3152,8 +3360,26 @@ $('oTime').value = toLocalInput(Date.now());
 $('oFiles').addEventListener('change', e=>{ importShots([...e.target.files]); e.target.value=''; });
 $('oExport').addEventListener('click', exportOrders);
 $('oRestore').addEventListener('change', e=>{ if(e.target.files[0]) restoreOrders(e.target.files[0]); e.target.value=''; });
-$('pfAddFirst').addEventListener('click', ()=>{ $('pfEditor').open = true;
-  $('pfEditor').scrollIntoView({behavior:'smooth', block:'start'}); setTimeout(()=>$('oSym').focus(), 350); });
+// the add-order sheet: one form, opened from + Add order (top of the Portfolio), the empty state and the Holdings &
+// orders panel. It stays open after an add, so a run of orders can go in one after another.
+const ordSheet = $('ordSheet');
+function openOrderSheet(){
+  if(!$('oQty').value && !$('oPx').value) $('oTime').value = toLocalInput(Date.now());   // an empty form starts at now
+  $('oMsg').textContent = ''; $('oMsg').className = 'ordMsg';
+  if(typeof ordSheet.showModal === 'function'){ if(!ordSheet.open) ordSheet.showModal(); } else ordSheet.setAttribute('open', '');
+  $('oSym').focus();                                         // straight to the coin, not the ✕ a modal focuses first
+}
+function closeOrderSheet(){ if(typeof ordSheet.close === 'function' && ordSheet.open) ordSheet.close(); else ordSheet.removeAttribute('open'); }
+const toEditor = (el)=>{ closeOrderSheet(); $('pfEditor').open = true;
+  setTimeout(()=>(el || $('pfEditor')).scrollIntoView({ behavior:'smooth', block:'start' }), 60); };
+$('pfPlus').addEventListener('click', openOrderSheet);
+$('oAddOpen').addEventListener('click', openOrderSheet);
+$('pfAddFirst').addEventListener('click', openOrderSheet);
+$('ordSheetX').addEventListener('click', closeOrderSheet);
+ordSheet.addEventListener('click', (e)=>{ if(e.target === ordSheet) closeOrderSheet(); });   // a tap on the dimmed backdrop
+$('ordSheetAll').addEventListener('click', ()=>toEditor());
+// the file picker must open inside this tap (browsers allow it only from a user gesture); the review lands in the panel
+$('ordSheetShots').addEventListener('click', ()=>{ toEditor($('oImpH')); $('oFiles').click(); });
 $('pfTf').addEventListener('change', ()=>{ lsSet('pfTf', $('pfTf').value); pfRun(false); });
 $('pfGo').addEventListener('click', ()=>pfRun(true));
 $('pfTf').value = lsGet('pfTf','4h');
