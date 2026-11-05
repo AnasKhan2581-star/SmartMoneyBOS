@@ -390,6 +390,60 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "RAYUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "tsmom"
+    },
+    {
+      "symbol": "ARUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "tsmom"
+    },
+    {
+      "symbol": "STXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "tsmom"
+    },
+    {
+      "symbol": "STXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
+    },
+    {
+      "symbol": "INJUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
+    },
+    {
+      "symbol": "CFXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
+    },
+    {
+      "symbol": "RAYUSDT",
+      "tf": "1d",
+      "bars": 3000,
+      "strategy": "cycle"
+    },
+    {
+      "symbol": "TRXUSDT",
+      "tf": "1d",
+      "bars": 3000,
+      "strategy": "cycle"
+    },
+    {
+      "symbol": "ARUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
     }
   ]
 }
