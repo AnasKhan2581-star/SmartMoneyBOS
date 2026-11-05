@@ -798,6 +798,10 @@ async function fetchKlines(symbol, interval, spec, onPage){
 // intraday gold. Weeks open on Monday 00:00 UTC (Binance's convention), months on the 1st.
 const XAU = { rows: null, at: 0, err: '' };
 const isXau = (s) => String(s || '').trim().toUpperCase() === 'XAUUSD';
+// The chart Gold replaced when it opened XAUUSD: {sym, tf, bars}. Picking any other strategy brings it back (user
+// request, Nov 2026). Charting any other symbol meanwhile (typed, a journal row, a holding card, a Compare row: they
+// all go through run()) forgets it, so a later switch never jumps away from a chart you chose.
+let preGold = null;
 async function xauDaily(){
   if(XAU.rows && Date.now() - XAU.at < 5*60e3) return XAU.rows;
   const r = await fetch('data/xauusd_1d.csv', { cache:'no-cache' });
@@ -1380,6 +1384,7 @@ async function run(){
   ensureChart();
   if(!chart) return;
   const sym=$('sym').value.trim().toUpperCase(), tf=$('tf').value;
+  if(preGold && !isXau(sym)) preGold = null;          // another chart was chosen while on Gold: keep it
   const byDate = $('rangeMode').value==='dates';
   let spec, label;
   if(byDate){
@@ -1440,7 +1445,7 @@ const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — a <b>daily</b> system on every chart (4h shows exactly the trades 1d shows). BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout, while price is still above the deep-zone floor (0.72×200w). Accumulation is staged: 40% in zone A (200w→×1.1), 40% on a deep-zone recovery day (0.72–1.0×200w), the rest when price reclaims the 40-week MA; stop 0.65×200w. Or a trend entry after 5 days above the 40-week MA. <b>Half is sold in the red SELL ZONE</b> (first close ≥1.85× the 200-day MA, never below the entry); the rest exits on the Pi-Cycle top or 5 days under the 40-week MA. <b>Alts follow BTC\'s cycle:</b> they only buy while BTC is above its 40-week MA or in its own buy zone, and a trend hold is sold when BTC loses its 40-week MA. Rebuilt Oct 2026 — the old version showed impossible profits on alts (ADA 4h: 49 of 60 trades sold above the candle). 209 coins, full history: median drawdown −67% vs −98% holding; on the median alt it still loses a little (−7% vs −85% holding). See ALGORITHM.md.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
   liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
-  gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: XAUUSD, spot gold in dollars per ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on XAUUSD\'s daily candles 2003–2026, ×5.6 against ×11.4 for holding, with a −31% worst fall against −45%. Choosing it opens <b>XAUUSD</b> (daily candles from 2003, Dukascopy; today\'s candle follows the live price) on 1d; 1w and 1M show the same trades. PAXGUSDT works too. See ALGORITHM.md.',
+  gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: XAUUSD, spot gold in dollars per ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on XAUUSD\'s daily candles 2003–2026, ×5.6 against ×11.4 for holding, with a −31% worst fall against −45%. Choosing it opens <b>XAUUSD</b> (daily candles from 2003, Dukascopy; today\'s candle follows the live price) on 1d; 1w and 1M show the same trades, and picking another strategy brings back the chart you had before. PAXGUSDT works too. See ALGORITHM.md.',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
 const stratInfo=()=>{ $('stratInfo').innerHTML = STRAT_INFO[$('strategy').value] || ''; };
@@ -3608,10 +3613,19 @@ $('strategy').addEventListener('change', async ()=>{
   stratInfo();
   // the gold system is built for gold: picking it opens spot gold (XAUUSD) with all its daily history (2003-)
   if($('strategy').value === 'gold' && !isXau($('sym').value)){
+    preGold = $('sym').value.trim() ? { sym: $('sym').value, tf: $('tf').value, bars: $('bars').value } : null;
     $('sym').value = 'XAUUSD';
     if(!['1d','1w','1M'].includes($('tf').value)) $('tf').value = '1d';
     if($('rangeMode').value === 'bars' && +$('bars').value < 9000) $('bars').value = 9000;
     await run(); return;
+  }
+  // leaving Gold: bring back the chart it replaced (see preGold)
+  if($('strategy').value !== 'gold' && preGold){
+    const back = preGold; preGold = null;
+    if(isXau($('sym').value)){
+      $('sym').value = back.sym; $('tf').value = back.tf; $('bars').value = back.bars;
+      await run(); return;
+    }
   }
   await ensureBtcD(); recalc();
 });
