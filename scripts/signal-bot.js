@@ -293,7 +293,8 @@ function openMessage(w, c, trade, advice, slot) {
       ``,
       inR <= 1 ? 'Still within 1R of the entry — joining now is close to the system\'s own trade.'
                : 'Already well past the entry — joining now takes more risk than the system did; usually better to wait for the next BUY.',
-      'You will get TAKE HALF / SELL for this position as normal.',
+      stratOf(w) === 'tsmom' || stratOf(w) === 'donch' ? 'You will get the SELL for this position as normal.'
+        : 'You will get TAKE HALF / SELL for this position as normal.',
     ].filter((x) => x !== null).join('\n'),
     tag: 'buy',
   };
