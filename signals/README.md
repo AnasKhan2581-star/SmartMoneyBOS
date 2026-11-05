@@ -98,10 +98,11 @@ once: `RAY, STX, AR`), the timeframes that strategy suits and a bar count past i
 | --- | --- | --- | --- |
 | `liqbrk` | 15m, 1h, 2h, 4h, 1d | 4500 | 600 |
 | `tsmom`, `donch` | 4h, 1d | 4500 on 4h, 1500 on 1d | 1500 on 4h, 400 on 1d (the 200-day MA comes first) |
-| `cycle` | 1d | 3000 | 1500 (the 200-week MA needs ~1,400 days) |
+| `cycle` | 4h, 1d | 3000 days: 18000 on 4h, 3000 on 1d | 1500 days: 9000 on 4h, 1500 on 1d (the 200-week MA needs ~1,400 days) |
 
-`cycle` (BTC Cycle) is a daily system: on an intraday watch it acts on **finished UTC days only**, and on
-alts it follows BTC's cycle (it fetches BTC's daily history for that). The 2h/4h heads-up pairing above
+`cycle` (BTC Cycle) is a daily system: on a 4h watch it acts on **finished UTC days only**, so 4h and 1d
+give the same trades and the alert comes after the daily close (00:00 UTC). On alts it follows BTC's cycle
+(it fetches BTC's daily history for that). The 2h/4h heads-up pairing above
 applies to liqbrk only; it was measured there. A watch with fewer bars than its strategy's warm-up can
 never fire, and the bot reports it as an error on every run.
 

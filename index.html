@@ -3181,14 +3181,16 @@ const AL_STRATS = [
     what:'Long while price is above its 200-day average and higher than 90 days ago; sells when either fails. No stop. Holds weeks to months.' },
   { s:'donch', name:'Turtle', tfs:['4h','1d'], tf:'4h',
     what:'Buys a close above the 55-day high; sells on a close below the 20-day low, or at its 2×ATR stop. Holds weeks.' },
-  { s:'cycle', name:'BTC Cycle', tfs:['1d'], tf:'1d',
-    what:'BTC\'s halving playbook: buys near the 200-week average and in deep zones, sells half in the sell zone and holds the rest for months or years. Alts follow BTC\'s cycle. A daily system: its alerts come at the daily close (05:30 IST).' },
+  { s:'cycle', name:'BTC Cycle', tfs:['4h','1d'], tf:'4h',
+    what:'BTC\'s halving playbook: buys near the 200-week average and in deep zones, sells half in the sell zone and holds the rest for months or years. Alts follow BTC\'s cycle. A daily system on either timeframe (4h and 1d give the same trades): its alerts come after the daily close (05:30 IST).' },
 ];
 // Bars: the default clears each warm-up with room to spare. Trend Follow and Turtle need the 200-day average first
-// (1,200 bars on 4h); the Cycle wants the 200-week average (~1,400 days). The floor stops a watch that could
-// never fire (the bot would report it as an error on every run).
-const alBarsFor = (s, tf)=> s === 'cycle' ? 3000 : s === 'liqbrk' ? 4500 : tf === '1d' ? 1500 : 4500;
-const alMinBars = (s, tf)=> s === 'liqbrk' ? 600 : s === 'cycle' ? 1500 : tf === '1d' ? 400 : 1500;
+// (1,200 bars on 4h); the Cycle wants the 200-week average (~1,400 days), so it is counted in DAYS: 3,000 days is
+// 3,000 bars on 1d and 18,000 on 4h. The floor stops a watch that could never fire (the bot would report it as an
+// error on every run).
+const alPerDay = (tf)=> Math.max(1, Math.round(864e5 / (TF_MS[tf] || 864e5)));
+const alBarsFor = (s, tf)=> s === 'cycle' ? 3000 * alPerDay(tf) : s === 'liqbrk' ? 4500 : tf === '1d' ? 1500 : 4500;
+const alMinBars = (s, tf)=> s === 'liqbrk' ? 600 : s === 'cycle' ? 1500 * alPerDay(tf) : tf === '1d' ? 400 : 1500;
 const alStratOf = (x)=> x.strategy || 'liqbrk';
 const alInfo = (s)=> AL_STRATS.find((d)=>d.s === s)
   || { s, name:String(s).replace(/[&<>"']/g, (ch)=>`&#${ch.charCodeAt(0)};`), tfs:[], tf:'', what:'' };

@@ -429,14 +429,14 @@
     },
     {
       "symbol": "RAYUSDT",
-      "tf": "1d",
-      "bars": 3000,
+      "tf": "4h",
+      "bars": 18000,
       "strategy": "cycle"
     },
     {
       "symbol": "TRXUSDT",
-      "tf": "1d",
-      "bars": 3000,
+      "tf": "4h",
+      "bars": 18000,
       "strategy": "cycle"
     },
     {
