@@ -810,6 +810,51 @@ Results:
   - The 73 trades the gate removed averaged −2.69%, most of them in the last two weeks as BTC slid under its 50-day MA.
   - At ~8 trades a coin, no row clears the 12-trade ✓ floor.
 
+## RESEARCH (Nov 2026): a 15m strategy that makes money — the 4h breakout read on 15m candles (NOT shipped)
+
+User request: "there must be some strategy which actually makes money on 15m". Research only: detector.js, the webapp
+and the bot are unchanged. research/s15/: `s15_lab.js` (`selftest` / `run` / `ROBUST=1 run` / `scenario`), `flow.js`
+(order flow), `s15_report.js` → RESULTS_s15_2026-11.md. Data: the 103-coin list, full 15m history to 2026-11-05
+(research/cache/lb15, and lb15t with taker-buy volume via research/liqbrk15m/fetch15t.js).
+
+Checks:
+- `selftest`: the 15m machines reproduce liqbrk_lab's shipped indicators and trades exactly.
+- The 4h system run on 15m candles, buying only at 4h closes (`H4c`), reproduces the 4h chart: 2,930 trades each,
+  PF 1.72 each.
+
+Why the shipped 15m Breakout is weak: three rules count CANDLES, so on 15m they are different and jumpier than the 4h
+rules that carry the edge.
+- The volume test reads ONE 15m candle against its daily average.
+- The stop is 4× the 15m range, inside ordinary intraday noise.
+- The trail sells on any 15m close under the prior day's low.
+- Shipped: median coin +3.6% (−11% at 0.10% slippage a side), win rate 28%, PF 1.09.
+- Judging volume over the last 4 hours alone: +10.1%, better in every block.
+- Converting the decisive break to 4h ATR as well starves it: a 15m first close through the high almost never clears
+  it by a 4h ATR.
+
+Results (whole history, median coin net / at 0.10% slippage / coins profitable / win rate / PF / median DD at 4h marks):
+- **`H4e`, the 4h rules on 15m, buying at the first 15m close where the forming 4h candle already qualifies** (exits
+  stay 4h): +23.8% / +18.0% / 65 of 103 / 38% / 1.52 / −47%.
+  - Positive in all four two-year blocks and both coin halves; a 3–5×ATR stop barely changes it.
+  - The 4h chart itself: +24.7% / +20.8% / 69 of 103 / 40% / 1.72 / −39%.
+  - So it makes about the 4h money with 43% more trades, entries up to 3¾h earlier, and a deeper drawdown.
+- `Vsxb`, the 15m rules with volume over 4 hours, a 4h-ATR stop, the trail judged at 4h closes and BTC also above its
+  149-bar MA: +21.5% / +3.4% / 55 of 103 / 37% / 1.47 / −51%, ✓ on 23 coins.
+  - It trades twice as often as 4h, so slippage hurts it, and it is weakest in 2025–26.
+  - Slower settings (8h volume, an 8h-close trail) do better: the edge sits at the 4h-to-daily scale.
+- Retest entries (a limit buy at or halfway back to the broken level) give better-priced trades but miss the runners.
+  Halfway back, else at market after 24h: +18.2%.
+- REJECTED:
+  - Order flow, Binance taker-buy share (entry candle, 4h, 1 day), plus trade count and trade size: nothing rises
+    steadily by quintile. The one hint (the most seller-heavy fifth over 4h doing worst) is chance in a within-block
+    shuffle (10–19%, before allowing for ~20 tries).
+  - Buying a sweep-and-reclaim of the prior day's low in an uptrend: 26,428 trades, PF 0.95, median coin −26%.
+
+Verdict:
+- 15m makes money only when it trades the 4h-scale breakout; the 15m chart times the entry but adds no edge of its own.
+- Holds that make money last ~2½ days. Minutes-to-hours trades lose to the ~0.2–0.3% round trip.
+- If shipped, `H4e` is the candidate (or `H4c`, which on a 15m chart is exactly the 4h system).
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
