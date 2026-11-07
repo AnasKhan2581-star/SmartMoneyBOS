@@ -895,6 +895,34 @@ Limits:
 - 15m candles cannot show a crash's order book.
 - Everything here is a backtest.
 
+### Follow-up (Nov 2026): the layered version, run as a real portfolio (NOT shipped)
+
+User: "make a deep logical layered strategy like a world-class trader would … and give actual backtested results".
+`research/flush/pro_lab.js` (`prep` / `run` / `walk` / `final`) → RESULTS_pro_2026-11.md; `gen_dash.js` writes the
+visual report's data files.
+- **The backtest.**
+  - One pot, simulated as a portfolio: cash and coin quantities, valued every 15 minutes from 2017-09-01 to 2026-11-05.
+  - The 274 coins, dead ones included.
+  - A limit order fills at its price, never better, and the stop comes first inside a candle.
+  - 0.1% fees; 0.15% slippage on market orders, stops and timed exits.
+  - Drawdown is read from the 15-minute marks, which is stricter than the first study's.
+- **Seven layers from the trading logic:** regime, event, β-dislocation selection with a news filter, a 3-order ladder,
+  risk sizing, scale-out with breakeven and a 6h hold, and a kill switch.
+  - Together: +2.25% a trade but only ×1.30, because the sizing kept 18% of the pot at work.
+  - Ablations: the regime split and the flush carry the edge. Mode A everywhere makes +1.21% a trade, random coins
+    +1.27%, random times −0.18%.
+  - Ranking by dislocation does worse than the plain drop.
+- **Layers chosen on 2017–2021 only**, one at a time, kept only if they raised both the average trade and CAGR ÷ max DD.
+  - Only the **scale-out** passed: ½ at +½ ATR, stop to breakeven, the rest at +1 ATR.
+  - Dropped: the news filter, dislocation, the ladder, a wider mode-B stop, a 6h hold, the kill switch and risk sizing.
+- **Final** (the simple playbook plus the scale-out):
+  - 89 flushes, 374 trades, +2.35% a trade, 75% winners, PF 3.17.
+  - ×5.36 (+20.1% a year), max DD −12.3%.
+  - 2022–2026, never seen: +12.2% a year, DD −9.3% (simple version: +11.1%, −8.6%).
+  - Stress: 1% slippage ×2.18 (DD −21.8%); the 103 coins only ×4.88; random times ×0.38.
+  - Bootstrap of whole flush paths: CAGR +13.4% / +19.0% / +30.2% (5th / 50th / 95th percentile), no losing runs.
+  - BTC buy & hold over the same span: ×16.1, DD −84%.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
