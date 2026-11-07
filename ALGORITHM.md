@@ -855,6 +855,46 @@ Verdict:
 - Holds that make money last ~2½ days. Minutes-to-hours trades lose to the ~0.2–0.3% round trip.
 - If shipped, `H4e` is the candidate (or `H4c`, which on a 15m chart is exactly the 4h system).
 
+## RESEARCH (Nov 2026): the BTC flush playbook — buy the alts' flush, in two modes (NOT shipped)
+
+User idea: "in bad markets BTC suddenly drops hard (big red 15m candles), then from a POI it jumps a little, and smaller
+coins and recent gainers jump up more". Research only: detector.js, the webapp and the bot are unchanged.
+research/flush/: `flush_lab.js` (`events` / `run [grid]` / `bid` / `bidgrid`, with `GOOD=1` for the good-market leg and
+`UNIV=dead` for the dead coins), `flush_report.js` → RESULTS_flush_2026-11.md. Data: the 103 coins plus 171 delisted or
+collapsed coins (research/cache/lb15dead via `fetch15.js DIR=lb15dead`, LUNA cut at 2022-05-14), full 15m history.
+
+The flush (set from the trading logic before any result was seen):
+- BTC's 15m close ≥ 1 daily ATR under its 2-hour high, on a red candle.
+- A 15m volume ≥ 3× the day's average.
+- The low takes out the 3-day low.
+- About 8 a year in each market regime.
+
+Results (0.1% fee + 0.15% slippage a side; a limit fills at its own price; a fill candle that also reaches the stop
+counts as stopped):
+- **Buying once BTC "jumps a little" is too late.** The trigger was a green close above the prior high, ≥ 25% back up.
+  - By then BTC is a median 2.3% off its low and the alts 3.6%; afterwards they drift sideways and down.
+  - −0.6 to −1% a trade, for BTC itself, recent gainers, the coins that fell most, the smallest, and every nudge.
+- **Bad market (BTC under its 50-day MA): bid deep.** Limit buys ¾ of each coin's daily ATR under its price, valid 2h,
+  on the 5 liquid coins that fell most in the flush (20% of the pot each). Take-profit +½ ATR, stop −1 ATR, out after 4h.
+  - +2.39% a trade, 80% winners, 18 of 20 flushes positive; +3.40% with the dead coins.
+  - Bids of ½ ATR or shallower, and market buys (+0.05%), make nothing.
+  - The same bids at random bad-market times: −0.48%.
+- **Good market (BTC over its 50-day MA): buy at once.** Market buys at the flush close on the same 5 coins, same exits.
+  - +1.79% a trade, 73% winners, 50 of 68 flushes positive.
+  - Positive under every nudge (flush size, volume, POI, take-profit, stop, hold), in both halves, with the dead coins.
+  - +1.42% at 0.5% slippage a side.
+  - The same buys at random good-market times: −0.18%.
+- **Both modes together** (103 coins, 2017–2026):
+  - 88 flushes, +1.88% a trade, the pot ×3.87 (+16% a year), max drawdown −8.5%.
+  - With the dead coins: ×4.41, −11.8%. At 0.5% slippage: ×2.79.
+  - Every year positive but 2022 (−3%).
+
+Limits:
+- About 10 flushes a year, so the pot is idle more than 99% of the time.
+- It needs a reaction within minutes of a 15m close; GitHub's scheduler starts the bot hours late.
+- 15m candles cannot show a crash's order book.
+- Everything here is a backtest.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which

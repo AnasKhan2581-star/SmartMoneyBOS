@@ -3,12 +3,16 @@
 // (fetched the same way); only the older part and the last week are downloaded.
 //   NODE_USE_ENV_PROXY=1 node research/liqbrk15m/fetch15.js            # the 103 coins
 //   NODE_USE_ENV_PROXY=1 node research/liqbrk15m/fetch15.js FROM=2026-06-01 ARB SOL ...   # extra coins, from a date
+//   NODE_USE_ENV_PROXY=1 node research/liqbrk15m/fetch15.js DIR=lb15dead SRM FTT …            # into another cache folder
 // Writes research/cache/lb15/<SYM>_15m.json as [[timeSec, o, h, l, c, v], ...] (git-ignored).
 'use strict';
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..'), MID = path.join(ROOT, 'research', 'cache', 'tfcmp');
-// a dated pull (FROM=…) goes to its own folder so it can never stand in for a full-history file
-const OUT = path.join(ROOT, 'research', 'cache', 'lb15', process.argv.some((a) => a.startsWith('FROM=')) ? 'recent' : '');
+// a dated pull (FROM=…) goes to its own folder so it can never stand in for a full-history file; DIR=name picks another
+// folder under research/cache (the flush study's delisted coins go to DIR=lb15dead)
+const dirArg = process.argv.find((a) => a.startsWith('DIR='));
+const OUT = dirArg ? path.join(ROOT, 'research', 'cache', dirArg.slice(4))
+  : path.join(ROOT, 'research', 'cache', 'lb15', process.argv.some((a) => a.startsWith('FROM=')) ? 'recent' : '');
 fs.mkdirSync(OUT, { recursive: true });
 const END = Date.UTC(2026, 10, 5, 16, 0);          // 2026-11-05 16:00 UTC: the same last bar for every coin
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -68,7 +72,7 @@ async function pull(sym, from) {
 (async () => {
   const args = process.argv.slice(2), fa = args.find((a) => a.startsWith('FROM='));
   const from = fa ? Date.parse(fa.slice(5) + 'T00:00:00Z') : 0;
-  const syms = args.filter((a) => !a.startsWith('FROM=')).map((s) => s.toUpperCase().endsWith('USDT') ? s.toUpperCase() : s.toUpperCase() + 'USDT');
+  const syms = args.filter((a) => !a.startsWith('FROM=') && !a.startsWith('DIR=')).map((s) => s.toUpperCase().endsWith('USDT') ? s.toUpperCase() : s.toUpperCase() + 'USDT');
   const jobs = (syms.length ? syms : LIST).slice();
   let done = 0; const t0 = Date.now(), miss = [];
   await Promise.all(Array.from({ length: 6 }, async () => {
