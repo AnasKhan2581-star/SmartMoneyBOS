@@ -583,6 +583,8 @@ XRP and ETH. At 10,000 bars (identical windows) the pick is AVAX at +1,067%.
 - **Compression-fade and sweep-displacement intraday strategies** (S2/S3 in
   `pytester/session_bt.py`). S3 has a **negative edge before fees** (−0.028R gross). This
   reproduces the three earlier sweep-fade rejections — that is six now. Do not build a seventh.
+  **Nov 2026: a seventh was built at the user's request** (ICT's New York Judas swing, research/nyopen/, below). It lost
+  before costs too (−0.26% a trade on 772) and did no better than the same rules at other hours. Seven now.
 - **Cross-symbol breadth filter** ("trade only when ≥4 of 5 symbols signal the same way").
   Showed +120% CAGR / Sharpe 2.41. It was **look-ahead** — the daily count included symbols
   that signalled later. Causally it is −4.0% CAGR / Sharpe −0.26.
@@ -922,6 +924,44 @@ visual report's data files.
   - Stress: 1% slippage ×2.18 (DD −21.8%); the 103 coins only ×4.88; random times ×0.38.
   - Bootstrap of whole flush paths: CAGR +13.4% / +19.0% / +30.2% (5th / 50th / 95th percentile), no losing runs.
   - BTC buy & hold over the same span: ×16.1, DD −84%.
+
+## RESEARCH (Nov 2026): three 15m strategies around the New York open — none worth adding (NOT shipped)
+
+User: "make 3 new ones … best for 15 mins … people trade before or in the first hour of the New York open with SMC,
+try one that way, backtest and check if any give consistent results". Research only: detector.js, the webapp and the
+bot are unchanged. research/nyopen/: `ny_lab.js` (`run`, with `gross` / `fut` / `slip2` cost modes; `diag`),
+`ny_report.js` → RESULTS_nyopen_2026-11.md.
+- **Setup.**
+  - 274 coins (103 + 171 dead), full 15m history, 2018–2026.
+  - New York clock with US daylight saving, weekdays, long only.
+  - Rules fixed before any result was seen; each variant changes one thing.
+  - Fills as in the flush study. 0.1% fee, plus 0.05% slippage (coins ≥ $100M a day) or 0.15% (the rest).
+- **S1 Judas swing (ICT New York morning model) — REJECTED.**
+  - The rule: the overnight low (00:00–08:30 ET) is swept in the 08:30–11:00 kill zone. A 15m close then breaks the last
+    swing high before the low, with a bullish FVG. Limit buy at the gap's midpoint, stop under the sweep low, target
+    the overnight high if ≥ 2R away, out at 16:00 ET, daily bias up.
+  - 772 trades, 29% winners, −0.58% a trade (−0.26% before costs).
+  - All 13 variants lose after costs: London/Asia lows, 09:30–11:00 / 07:00–10:00 / Silver Bullet windows, gap-top or
+    shift-close entry, 2R/3R targets, BTC bias, out at 12:00.
+  - The same rules 6/12/18h later do as well or better.
+- **S2 opening-range breakout on the coins in play (Zarattini & Aziz) — REJECTED.**
+  - The rule: the top 5 coins by relative volume of the 09:30–09:45 ET candle; green ones get a stop-buy at its high,
+    stop at its low, out at 16:00.
+  - 4,139 trades, −0.65% a trade (−0.18% before costs).
+  - Worse than 5 random coins (−0.52%), and no better at the 00:00 UTC or London opens.
+- **S3 the 08:30 ET macro candle — real-looking, too small.**
+  - The rule: BTC's 08:30 candle is ≥ 2 × the 15m ATR on ≥ 3 × the slot's volume, green, closing in its upper half. Buy
+    at its close, out at 11:00 ET.
+  - 41 events in 8.8 years.
+  - Before costs ETH makes +0.72% and the 5 most liquid alts +0.59% a trade. The same candle at random times makes
+    +0.17% / +0.16% (permutation p 0.010 / 0.033). BTC is not significant (p 0.17).
+  - It shows again at 10:00 ET (never used to design it; p ≈ 0.045, 19 events). It does not show at 14:00 ET (FOMC).
+  - After spot costs ETH makes +0.39% a trade: about +1.8% a year with the whole pot on it.
+- **The clock.** BTC and ETH move less than ±6 bp in each New York half-hour from 08:30 to 11:00 ET. None is
+  significant, and the signs flip between 2018–21, 2022–23 and 2024–26. The open adds volatility, not direction, so
+  daily NY-open routines pay 20–50 bp a round trip for nothing.
+- **The 15m edges found so far are events:** the flush playbook (~10 a year) and this macro candle (~5 a year). `H4e`
+  (research/s15/) is the 4h breakout read on 15m candles.
 
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
