@@ -991,6 +991,56 @@ bot are unchanged. research/nyopen/: `ny_lab.js` (`run`, with `gross` / `fut` / 
 - **The 15m edges found so far are events:** the flush playbook (~10 a year) and this macro candle (~5 a year). `H4e`
   (research/s15/) is the 4h breakout read on 15m candles.
 
+## RESEARCH (Nov 2026): the user's 15m SMC continuation pattern — real, but flat on the user's coins (NOT shipped)
+
+User, with a chart: "major higher highs then sudden drop and sudden up move and close above the last major highest
+high … comes back to a POI in sudden up move … less stop loss and high RR … the liquidity on HTF will be the context …
+would not have very less trades". Research only: detector.js, the webapp and the bot are unchanged.
+research/smcpoi/poi_lab.js (`run [round2…round8|final] [gross|slip2]`, `report`) → RESULTS_smcpoi_2026-11.md.
+- **Setup.**
+  - 273 coins (103 + 171 dead, LUNA cut at its collapse), full 15m history, 2018–2026. A coin counts on days it
+    trades ≥ $5M (30-day average).
+  - Fills: a limit buy fills only when price trades below it, and the stop counts first on the fill candle.
+  - Costs: 0.1% fee a side, plus 0.05% / 0.15% slippage on stops and timed exits.
+  - Control: each trade's exact order (depth, stop, target) placed at 20 random times on the same coin.
+  - 8 rounds, about 80 variants. Both halves (2018–21 / 2022–26) were printed every round, so 2022–26 is not a
+    pristine test.
+- **The final rules (round 8).**
+  - Structure: a 3-ATR zigzag on 15m, with the last two highs and lows rising.
+  - The drop trades below the last higher low within 8h of the high. A 15m close above that high follows within 6h of
+    the sweep low.
+  - HTF liquidity: the drop took the previous day's low, or the previous day's high is untaken above the up move.
+  - POI: going down from the top of the up move, the first FVG whose middle still pays ≥ 2R to the move's high. A
+    limit buy rests there for 12h.
+  - Stop 0.1 ATR under the sweep low, traded only if it is 1–5% below the entry. Target the move's high; out after 24h.
+- **Results (spot costs).**
+  - 459 trades (52 a year), 36% winners, +0.40% a trade (+0.70% before costs, +0.31% at double slippage).
+  - 2018–21 +0.34% (146), 2022–26 +0.43% (313).
+  - Its orders at random times make −0.22% (bootstrap p < 0.001).
+  - A 5-slot pot at 20% a trade: ×1.37 in 8.8 years (+3.6% a year), max drawdown −8%.
+  - **On the user's 103 coins: 237 trades at −0.03%.** The coins later delisted made 222 at +0.87%. No stop size
+    rescues the user's coins.
+  - The selective version (the shallowest gap ≥ 2R, stop 1–5%): 10 trades a year at +1.06%. On the user's coins it
+    made +0.44% on 35 trades (p 0.25).
+- **What made it pay:**
+  - the HTF context;
+  - a V-shaped up move bought at its first gap;
+  - a stop of at least 1%. Under 1%, fees and slippage are a third of the stop or more, and those trades lost in both
+    halves in every version.
+- **Rejected along the way:**
+  - the stop under the gap (stopped out ~80% of the time);
+  - deep POIs (the order block, 79% of the move);
+  - fixed 2R / 3R / 5R targets;
+  - the New York morning only;
+  - 4h pools as the context;
+  - a confirmation close above the gap;
+  - selling half at +1R (win rate 56–63%, less money).
+- **Why not shipped:**
+  - it is flat on the coins the user trades;
+  - it is small (+3.6% a year on all coins);
+  - about 80 variants were tried;
+  - it needs a limit order within minutes of a 15m close, which the hours-late GitHub bot can't place.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
