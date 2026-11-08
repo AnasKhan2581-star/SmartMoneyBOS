@@ -925,6 +925,34 @@ visual report's data files.
   - Bootstrap of whole flush paths: CAGR +13.4% / +19.0% / +30.2% (5th / 50th / 95th percentile), no losing runs.
   - BTC buy & hold over the same span: ×16.1, DD −84%.
 
+### Follow-up (Nov 2026): the flush playbook vs the 4h liqbrk book (NOT shipped)
+
+User: "compare this with our 4H liqbrk". `research/flush/vs_liqbrk4h.js` (`parity` / `run` / `report`) →
+RESULTS_vs_liqbrk4h_2026-11.md.
+- **Setup.**
+  - liqbrk is liqbrk_lab.js (shipped rules, honest next-open fills) in the trading book: 5 slots of 20%, the highest
+    relative volume first.
+  - The book reproduces the v2 study's one-pot result exactly (×13.52 / −66.2% / 1,068 trades from 2020).
+  - Same $1M-a-day floor and 0.15% slippage for both strategies; 1 Sep 2017 → 5 Nov 2026.
+- **Results.**
+
+  | | pot | a year | max DD |
+  |---|---|---|---|
+  | Flush | ×5.36 | +20.1% | −12% |
+  | liqbrk, the 65 alert coins | ×15.1 | +34.6% | −70% |
+  | liqbrk, the 103 Compare coins | ×39 | +49% | −65% |
+  | BTC held | ×17.1 | +36% | −84% |
+
+  Per unit of drawdown the flush earns about 3× liqbrk (1.63 vs 0.49).
+- **liqbrk needs survivors.**
+  - On every coin that traded, the 171 that later died included, the same book ends at ×0.02: −87% / −60% / −90% in
+    2022–24.
+  - 47% of its signals were on coins that later died, and the loudest breakout goes first.
+  - The flush barely notices dead coins (×5.36 with, ×4.88 without).
+- **They hardly overlap.** Monthly correlation 0.09 with the alert-list book; the flush vs BTC is 0.00.
+- **One pot works best.** liqbrk is in the market 41% of the time, and with the flush on its idle cash (87% of full size on
+  average) the alert-list pot goes ×15.1 → ×57.6 at −69% instead of −70%. A 50/50 split instead: ×12.0 at −41%.
+
 ## RESEARCH (Nov 2026): three 15m strategies around the New York open — none worth adding (NOT shipped)
 
 User: "make 3 new ones … best for 15 mins … people trade before or in the first hour of the New York open with SMC,
