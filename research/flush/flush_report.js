@@ -41,6 +41,14 @@ function playbook(Gb, Gg, n = 5, sl = SLIP) {
   const tr = arms.flatMap((a) => a.tr), span = (arms[arms.length - 1].t - arms[0].t) / 31557600;
   return { arms: arms.filter((a) => a.tr.length), tr, eq, dd, worst, Y, cagr: eq ** (1 / span) - 1, span };
 }
+// section 7's numbers: the same buys at the flushes and at random moments of the same market (5 coins that fell most)
+const netOf = (x, m) => (1 + x.ret) * (1 - (x.why === 'TP' ? FEE : FEE + SLIP)) / (1 + (m > 0 ? FEE : FEE + SLIP)) - 1;
+function sec7(set, di, m) {
+  const by = {}; for (const r of BID.recs) if (r.set === set && r.dv >= 1e6) (by[r.ei] = by[r.ei] || []).push(r);
+  const T = []; let arms = 0, pos = 0;
+  for (const L of Object.values(by)) { const S = L.slice().sort((a, b) => a.fallSoFar - b.fallSoFar).slice(0, 5), N = S.map((r) => r.d[di]).filter(Boolean).map((x) => netOf(x, m)); if (N.length) { arms++; if (N.reduce((a, b) => a + b, 0) > 0) pos++; } T.push(...N); }
+  return { T, arms, pos };
+}
 if (GRID && GG) {
   const A = playbook(GRID, GG), Bd = DEAD && GGD ? playbook(DEAD, GGD) : null, A5 = playbook(GRID, GG, 5, 0.005);
   say(`## Verdict: a two-mode flush playbook that makes money\n`);
@@ -54,7 +62,10 @@ if (GRID && GG) {
   if (Bd) say(`   - With 171 delisted or collapsed coins added (LUNA, FTT and the rest): ×${Bd.eq.toFixed(2)} (${pct(Bd.cagr, 1)} a year), drawdown −${(Bd.dd * 100).toFixed(1)}%.`);
   say(`   - At 0.5% slippage a side: ×${A5.eq.toFixed(2)}.`);
   say(`   - Year by year (103 coins): ${Object.entries(A.Y).map(([y, m]) => `${y} ${pct(m - 1, 0)}`).join(' · ')}.`);
-  say(`4. **It is the flush, not the coins.** The same buys at random moments of the same market lose (section 7): good-market market buys −0.18% a trade, bad-market deep bids −0.48%.`);
+  if (BID && BID.sets.placeboGood) {
+    const gF = sec7('good', 0, 0).T, gR = sec7('placeboGood', 0, 0).T, bF = sec7('bad', 3, 0.75).T, bR = sec7('placebo', 3, 0.75).T;
+    say(`4. **It is the flush, not the coins.** The same buys at random moments of the same market do far worse (section 7): good-market market buys ${pct(mean(gR))} a trade (${pct(mean(gF))} at the flushes), bad-market deep bids ${pct(mean(bR))} on ${bR.length} trades (${pct(mean(bF))} at the flushes).`);
+  }
   say(`5. **Honest limits:**`);
   say(`   - Only ~10 flushes a year, each lasting ≤ 6 hours, so the pot sits in cash > 99% of the time.`);
   say(`   - It needs a fast reaction (minutes after a 15m close). GitHub's scheduler starts the bot hours late, so alerts for it would need the punctual outside trigger.`);
@@ -194,11 +205,8 @@ if (BID && BID.sets.placeboGood) {
   say(`## 7. Is it the flush? The same buys at random moments of the same market\n`);
   say(`1,500 random 15m closes in each market (away from any flush), the same 5 coins (fell most over the 2 hours before), the same orders and exits.\n`);
   row(['market', 'when', 'order', 'trades', 'net a trade', 'win rate', 'positive moments']); hr(7);
-  const netOf = (x, m) => (1 + x.ret) * (1 - (x.why === 'TP' ? FEE : FEE + SLIP)) / (1 + (m > 0 ? FEE : FEE + SLIP)) - 1;
   for (const [set, mk, when] of [['good', 'good', 'flush'], ['placeboGood', 'good', 'random'], ['bad', 'bad', 'flush'], ['placebo', 'bad', 'random']]) for (const [di, m] of [[0, 0], [3, 0.75]]) {
-    const by = {}; for (const r of BID.recs) if (r.set === set && r.dv >= 1e6) (by[r.ei] = by[r.ei] || []).push(r);
-    const T = []; let arms = 0, pos = 0;
-    for (const L of Object.values(by)) { const S = L.slice().sort((a, b) => a.fallSoFar - b.fallSoFar).slice(0, 5), N = S.map((r) => r.d[di]).filter(Boolean).map((x) => netOf(x, m)); if (N.length) { arms++; if (N.reduce((a, b) => a + b, 0) > 0) pos++; } T.push(...N); }
+    const { T, arms, pos } = sec7(set, di, m);
     row([mk, when, m ? 'bid ¾ ATR under' : 'market buy', T.length, pct(mean(T)), pp(T.filter((x) => x > 0).length / Math.max(1, T.length)), `${pos} of ${arms}`]);
   }
   say();

@@ -798,11 +798,11 @@ Results:
 - **Refinement, measured and NOT shipped: ALSO require BTC above its own 149-bar MA** (the MA the coin must clear,
   ≈37h on 15m).
   - It blocks another 11% of the trades the gate keeps. Those were worse in all four blocks (0.66 points a trade;
-    chance 0.2%).
+    chance 0.3%).
   - +0.22% → +0.29% a trade; more money on 64 coins and less on 34 (+5.8% per coin).
   - Every short MA from 1 to 5 days helps (a plateau). Coin by coin it is thin (blocked worse on 43 of 73).
   - Untested on 4h, where 149 bars is ~25 days.
-- **The +50%/30-day leader rescue does nothing on 15m:** 174 trades, no better than the ones blocked (chance 17%). It
+- **The +50%/30-day leader rescue does nothing on 15m:** 174 trades, no better than the ones blocked (chance 15%). It
   stays because it is the 2h/4h finding.
 - **15m stays weak even with the best gate:** win rate 29%, PF without the top 2% of trades 0.79, median DD −53%, and
   the median coin makes −3% after 0.05% slippage. 4h stays the timeframe (the Oct 2026 entry above).
@@ -912,7 +912,7 @@ visual report's data files.
   risk sizing, scale-out with breakeven and a 6h hold, and a kill switch.
   - Together: +2.25% a trade but only ×1.30, because the sizing kept 18% of the pot at work.
   - Ablations: the regime split and the flush carry the edge. Mode A everywhere makes +1.21% a trade, random coins
-    +1.27%, random times −0.18%.
+    +1.85%, random times −0.21%.
   - Ranking by dislocation does worse than the plain drop.
 - **Layers chosen on 2017–2021 only**, one at a time, kept only if they raised both the average trade and CAGR ÷ max DD.
   - Only the **scale-out** passed: ½ at +½ ATR, stop to breakeven, the rest at +1 ATR.
@@ -921,8 +921,11 @@ visual report's data files.
   - 89 flushes, 374 trades, +2.35% a trade, 75% winners, PF 3.17.
   - ×5.36 (+20.1% a year), max DD −12.3%.
   - 2022–2026, never seen: +12.2% a year, DD −9.3% (simple version: +11.1%, −8.6%).
-  - Stress: 1% slippage ×2.18 (DD −21.8%); the 103 coins only ×4.88; random times ×0.38.
-  - Bootstrap of whole flush paths: CAGR +13.4% / +19.0% / +30.2% (5th / 50th / 95th percentile), no losing runs.
+  - Stress: 1% slippage ×2.18 (DD −21.8%); the 103 coins only ×4.88; random times ×0.39.
+  - Bootstrap of whole flush paths: CAGR +12.5% / +19.9% / +28.0% (5th / 50th / 95th percentile), no losing runs. Max
+    drawdown −8.4% / −14.2% / −23.4%, so the real −12.3% is a fairly kind draw.
+  - Corrected Nov 2026: the first bootstrap, random coins and random times were drawn from a looping generator
+    (CLAUDE.md, `research/rng.js`). They showed a −12.5% worst-5% drawdown and random coins at +1.27%.
   - BTC buy & hold over the same span: ×16.1, DD −84%.
 
 ### Follow-up (Nov 2026): the flush playbook vs the 4h liqbrk book (NOT shipped)
@@ -976,14 +979,15 @@ bot are unchanged. research/nyopen/: `ny_lab.js` (`run`, with `gross` / `fut` / 
   - The rule: the top 5 coins by relative volume of the 09:30–09:45 ET candle; green ones get a stop-buy at its high,
     stop at its low, out at 16:00.
   - 4,139 trades, −0.65% a trade (−0.18% before costs).
-  - Worse than 5 random coins (−0.52%), and no better at the 00:00 UTC or London opens.
+  - Worse than 5 random coins (−0.51%), and no better at the 00:00 UTC or London opens.
 - **S3 the 08:30 ET macro candle — real-looking, too small.**
   - The rule: BTC's 08:30 candle is ≥ 2 × the 15m ATR on ≥ 3 × the slot's volume, green, closing in its upper half. Buy
     at its close, out at 11:00 ET.
   - 41 events in 8.8 years.
   - Before costs ETH makes +0.72% and the 5 most liquid alts +0.59% a trade. The same candle at random times makes
-    +0.17% / +0.16% (permutation p 0.010 / 0.033). BTC is not significant (p 0.17).
-  - It shows again at 10:00 ET (never used to design it; p ≈ 0.045, 19 events). It does not show at 14:00 ET (FOMC).
+    +0.17% / +0.16% (permutation p 0.023 / 0.058; first reported as 0.010 / 0.033 from a looping generator). BTC is
+    not significant (p 0.16).
+  - It shows again at 10:00 ET (never used to design it; p ≈ 0.03, 19 events). It does not show at 14:00 ET (FOMC).
   - After spot costs ETH makes +0.39% a trade: about +1.8% a year with the whole pot on it.
 - **The clock.** BTC and ETH move less than ±6 bp in each New York half-hour from 08:30 to 11:00 ET. None is
   significant, and the signs flip between 2018–21, 2022–23 and 2024–26. The open adds volatility, not direction, so

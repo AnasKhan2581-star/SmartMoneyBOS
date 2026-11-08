@@ -196,7 +196,7 @@ if (mode === 'run') {
   );
   const EV = {}; for (const [name, o] of CFG) EV[name] = findEvents(B, ctx, o);
   // placebo: random 15m times in the same market (BTC under its 50-day MA), away from any flush, same coins, same rules
-  let seed = 4242; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(4242);
   const flushT = new Set(); for (const e of EV.base) for (let q = -96; q <= 96; q++) flushT.add(e.t + q * BAR);
   const PL = [];
   while (PL.length < 1500) {
@@ -273,7 +273,7 @@ if (mode === 'bid') {
   fs.mkdirSync(OUT, { recursive: true });
   const B = load('BTCUSDT'), ctx = btcContext(B);
   const SETS = { bad: findArms(B, ctx, { regime: 'bad' }), any: findArms(B, ctx, { regime: 'any' }), good: findArms(B, ctx, { regime: 'good' }) };
-  let seed = 99; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(99);
   const near = new Set(); for (const e of SETS.any) for (let q = -96; q <= 96; q++) near.add(e.t + q * BAR);
   const PL = [];
   while (PL.length < 1500) { const i = 5000 + Math.floor(rnd() * (B.length - 5200));

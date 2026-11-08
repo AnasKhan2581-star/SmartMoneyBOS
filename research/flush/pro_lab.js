@@ -100,7 +100,7 @@ function pick(e, cfg) {
   const L = e.coins.filter((x) => x.w[0] && isFinite(x.P) && x.P > 0 && !(cfg.noDead && x.dead));
   const news = (x) => cfg.idio > 0 && isFinite(x.beta) && x.drop < cfg.idio * x.beta * e.btc.drop && x.drop < -0.05;   // fell > idio× its β: its own news
   if (cfg.select === 'fell') return L.filter((x) => !news(x)).sort((a, b) => a.drop - b.drop).slice(0, cfg.K);
-  if (cfg.select === 'random') { let s = cfg.seed + Math.round(e.t / 900); const r = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
+  if (cfg.select === 'random') { const r = require('../rng.js').mulberry32(cfg.seed + Math.round(e.t / 900));
     return L.map((x) => [r(), x]).sort((a, b) => a[0] - b[0]).slice(0, cfg.K).map((p) => p[1]); }
   const bd = e.btc.drop;
   const ok = L.filter((x) => isFinite(x.beta) && x.beta > 0.2 && (!(cfg.idio > 0) || !(x.drop < cfg.idio * x.beta * bd && x.drop < -0.05)));
@@ -197,7 +197,7 @@ if (mode === 'prep') {
   const B = load('BTCUSDT'), ctx = btcContext(B);
   const arms = findArms(B, ctx, { regime: 'any', gap: 24 });
   // the control: random 15m closes in either market, ≥ 1 day from any flush
-  let seed = 31337; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(31337);
   const near = new Set(); for (const e of arms) for (let q = -96; q <= 96; q++) near.add(e.t + q * BAR);
   const PL = [];
   while (PL.length < 400) { const i = 5000 + Math.floor(rnd() * (B.length - 5200));
@@ -238,7 +238,7 @@ if (mode === 'run') {
   const P = simulate(PL, {}); res.placebo = { desc: 'the layered strategy at 400 random times (no flush)', stats: stats(P), events: P.events.length };
   // bootstrap: resample the layered strategy's events (with replacement) 2,000 times
   const ev = res.layered.events.filter((e) => !e.skipped);
-  let seed = 2026; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(2026);
   const span = (Date.UTC(2026, 10, 5) - Date.UTC(2017, 8, 1)) / 31557600e3, C = [], DD = [];
   for (let r = 0; r < 2000; r++) { const S = walkPaths(Array.from(ev, () => ev[Math.floor(rnd() * ev.length)])); C.push(S.eq ** (1 / span) - 1); DD.push(S.dd); }
   const pc = (a, q) => a.slice().sort((x, y) => x - y)[Math.floor(q * (a.length - 1))];
@@ -308,7 +308,7 @@ if (mode === 'final') {
   for (const [k, c] of [['slip 0.5%', { slip: 0.005 }], ['slip 1%', { slip: 0.01 }], ['fill only 0.1% through', { margin: 0.001 }], ['103 coins only', { noDead: true }], ['10% a coin', { equalW: 0.1 }], ['30% a coin (capped at 100%)', { equalW: 0.3 }]])
     out.stress[k] = stats(simulate(D.arms, merge(F, c)));
   out.stress['placebo (random times)'] = stats(simulate(D.placebo, F));
-  const ev = R.events.filter((e) => !e.skipped); let seed = 99; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const ev = R.events.filter((e) => !e.skipped); const rnd = require('../rng.js').mulberry32(99);
   const span = (Date.UTC(2026, 10, 5) - Date.UTC(2017, 8, 1)) / 31557600e3, C = [], DD = [];
   for (let r = 0; r < 5000; r++) { const S = walkPaths(Array.from(ev, () => ev[Math.floor(rnd() * ev.length)])); C.push(S.eq ** (1 / span) - 1); DD.push(S.dd); }
   const pc = (a, q) => a.slice().sort((x, y) => x - y)[Math.floor(q * (a.length - 1))];

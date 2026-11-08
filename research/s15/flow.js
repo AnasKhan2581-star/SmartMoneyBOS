@@ -53,7 +53,7 @@ for (const k of KEYS) {
   const cut = qs(F.map((t) => t.tb16), [0.2])[0], lab = F.map((t) => t.tb16 <= cut);
   const gap = (L) => { const a = [], b = []; F.forEach((t, i) => (L[i] ? b : a).push(t.net)); return mean(a) - mean(b); };
   const idx = BL.map(([, a, z]) => F.map((t, i) => (t.t >= a && t.t < z ? i : -1)).filter((i) => i >= 0));
-  let seed = 777; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(777);
   const g0 = gap(lab); let ge = 0;
   for (let r = 0; r < 5000; r++) { const L = lab.slice(); for (const I of idx) for (let i = I.length - 1; i > 0; i--) { const j = I[Math.floor(rnd() * (i + 1))], a = I[i]; [L[a], L[j]] = [L[j], L[a]]; } if (gap(L) >= g0) ge++; }
   SAVE[k].bottom4h = { cut, bottom: mean(F.filter((t, i) => lab[i]).map((t) => t.net)), rest: mean(F.filter((t, i) => !lab[i]).map((t) => t.net)), p: ge / 5000 };

@@ -247,7 +247,7 @@ function s2select(recs, sel, btcUp) {
   for (const [D, L0] of byD) {
     if (sel.btc && !btcUp(D)) continue;
     let L = L0.filter((r) => r.rv >= sel.minRV && (!sel.up20 || r.up20));
-    if (sel.random) { let s = D * 7919 + 13; const rnd = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296); L = L.map((r) => [rnd(), r]).sort((a, b) => a[0] - b[0]).map((p) => p[1]); }
+    if (sel.random) { const rnd = require('../rng.js').mulberry32(D * 7919 + 13); L = L.map((r) => [rnd(), r]).sort((a, b) => a[0] - b[0]).map((p) => p[1]); }
     else L.sort((a, b) => b.rv - a.rv);
     for (const r of L.slice(0, sel.N)) if (r.trade) out.push(r.trade);
   }

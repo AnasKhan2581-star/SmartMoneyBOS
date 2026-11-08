@@ -30,7 +30,7 @@ const e = row('spot', 'S3 News', 'base · ETH'), eg = row('gross', 'S3 News', 'b
 const ctl = 'CONTROL: the same candle at any other time of day';
 
 // permutation test: per-event mean (before costs) of the news candle vs random draws of the same candle at other times
-let seed = 42; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+const rnd = require('../rng.js').mulberry32(42);
 // one event = one candle (its open time); the coins bought on it share it
 const perEvent = (tr) => { const m = new Map(); for (const x of tr) if (x.t >= T0 && x.t < T1) { const a = m.get(x.t) || m.set(x.t, []).get(x.t); a.push(x.ret); } return [...m.values()].map((v) => v.reduce((s, y) => s + y, 0) / v.length); };
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;

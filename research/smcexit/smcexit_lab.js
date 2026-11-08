@@ -56,8 +56,7 @@ function levels(c, a) {
   }
   // PLACEBO for the reaction tests: every major FVG moved 1–2 ATR up or down (seeded), so the fake levels
   // keep the real ones' count, timing and rough distance but sit where no supply zone is
-  let seed = 12345 + n;
-  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const rnd = require('../rng.js').mulberry32(12345 + n);
   const fake = fvg.map((q) => {
     const px = q.price + (rnd() < 0.5 ? -1 : 1) * (1 + rnd()) * a[q.conf];
     let tap = n; for (let j = q.conf + 1; j < n; j++) if (c[j].high >= px) { tap = j; break; }

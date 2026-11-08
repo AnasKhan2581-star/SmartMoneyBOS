@@ -57,18 +57,18 @@ drawdown. Risk sizing and the ladders kept only 18% of the pot at work. Ablation
 | −regime: mode A everywhere | 138 | 665 | +1.21% | 67% | 1.66 | ×1.30 | +2.9% | −4.9% | 21% |
 | −regime: mode B everywhere | 35 | 81 | +3.21% | 79% | 1.81 | ×1.06 | +0.6% | −3.4% | 12% |
 | the 5 that fell most, not dislocation | 89 | 368 | +2.51% | 78% | 2.89 | ×1.34 | +3.2% | −3.9% | 17% |
-| 5 random liquid coins | 84 | 370 | +1.27% | 66% | 1.45 | ×1.12 | +1.3% | −4.5% | 22% |
+| 5 random liquid coins | 86 | 368 | +1.85% | 71% | 2.02 | ×1.22 | +2.2% | −5.2% | 21% |
 | −news filter | 94 | 370 | +2.20% | 75% | 2.13 | ×1.27 | +2.6% | −4.5% | 17% |
 | −ladder (one order a coin) | 93 | 366 | +1.97% | 73% | 2.23 | ×1.81 | +6.7% | −12.5% | 44% |
 | −risk sizing (20% a coin) | 93 | 366 | +2.25% | 75% | 2.84 | ×1.93 | +7.4% | −5.3% | 32% |
 | −scale-out (all at +½ ATR) | 93 | 366 | +1.86% | 75% | 2.14 | ×1.24 | +2.3% | −4.1% | 18% |
 | −breakeven | 93 | 366 | +2.28% | 72% | 2.28 | ×1.30 | +2.9% | −4.7% | 18% |
 | −kill switch | 93 | 367 | +2.28% | 76% | 2.51 | ×1.31 | +3.0% | −4.5% | 18% |
-| same rules at 400 random times | 215 | 1025 | −0.18% | 44% | 0.79 | ×0.89 | −1.2% | −11.4% | 19% |
+| same rules at 400 random times | 219 | 1048 | −0.21% | 43% | 0.76 | ×0.87 | −1.5% | −13.6% | 18% |
 
 What the ablations say:
 - **The regime split matters.** Mode A everywhere drops to +1.21% a trade.
-- **The flush matters.** Random coins drop to +1.27%, and random times lose money.
+- **The flush matters.** Random coins drop to +1.85% a trade, and random times lose money.
 - **The "smart" selection doesn't help.** Ranking by the plain drop beats ranking by dislocation.
 - **Kill switch and breakeven change almost nothing.**
 - **Ladders and risk sizing look worse only because they hold money back.** With them switched off, growth rises along
@@ -146,13 +146,17 @@ Only the scale-out earned its place.
 | the user's 103 coins only (no dead coins) | +2.22% | ×4.88 | +18.9% | −11.2% |
 | 10% of the pot a coin | +2.35% | ×2.36 | +9.8% | −6.2% |
 | 30% of the pot a coin (capped at 100%) | +2.35% | ×5.81 | +21.1% | −12.3% |
-| the same rules at 400 random times | −0.43% | ×0.38 | −9.9% | −62.8% |
+| the same rules at 400 random times | −0.42% | ×0.39 | −9.7% | −64.0% |
 
 - **Luck check.** The 89 flushes were resampled with replacement 5,000 times, whole 15-minute paths, not just
   results.
-  - CAGR: +13.4% / +19.0% / +30.2% at the 5th / 50th / 95th percentile.
-  - Max drawdown: −6.2% / −9.5% / −12.5%.
+  - CAGR: +12.5% / +19.9% / +28.0% at the 5th / 50th / 95th percentile.
+  - Max drawdown: −8.4% / −14.2% / −23.4% (the mildest 5%, the median, the worst 5%). The −12.3% of the real order
+    of flushes is a fairly kind draw: plan on about −14% as normal and −23% as the 1-in-20 case.
   - No resampled run lost money.
+  - Corrected Nov 2026: the first version drew the resamples, the random coins and the random times from a generator
+    that loops after a few thousand draws. It reported a −6.2% / −9.5% / −12.5% drawdown range, random coins at
+    +1.27% and random times at −0.18% / ×0.38. The strategy's own trades never used it and are unchanged.
 - **Dead coins helped a little** (×5.36 against ×4.88 without them). A coin's later death doesn't matter to a trade
   that lasts hours.
 

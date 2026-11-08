@@ -186,7 +186,7 @@ function placebo(D, pos, from, to, n = 2000){
   let inM = 0, outM = 0, ent = 0, ex = 0;
   for(let k = k0 + 1; k <= k1; k++){ if(pos[k-1]){ inM++; if(!pos[k]) ex++; } else { outM++; if(pos[k]) ent++; } }
   const p01 = ent / Math.max(1, outM), p10 = ex / Math.max(1, inM);
-  let seed = 12345; const rnd = ()=>{ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const rnd = require('../rng.js').mulberry32(12345);
   const res = [];
   for(let t = 0; t < n; t++){
     const q = pos.slice(); let st = rnd() < inM / (inM + outM) ? 1 : 0;

@@ -59,7 +59,7 @@ function vsGate(g, base, p) {
 const NSH = 5000;
 let SEED = 12345;
 function perm(inSet, blocked) {
-  let seed = (SEED += 7919); const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = require('../rng.js').mulberry32(SEED += 7919);
   const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
   const trim = (a) => { const q = a.slice().sort((x, y) => x - y), k = Math.floor(q.length * 0.02); return mean(q.slice(k, q.length - k)); };
   const U = (byG.none || []).filter((t) => t.ctx && t.t >= PER['2018–20'][0] && inSet(t.ctx)), lab = U.map((t) => !!blocked(t.ctx));
@@ -107,7 +107,7 @@ say(`- The basket puts equal money in every coin listed ≥ 31 days before the b
   const P = (g, p = 'all') => pooled((byG[g] || []).filter((t) => inP(t.t, p))), M = (g, k, p = 'all') => med(rowsOf(g, p).map((r) => r[k]));
   const n0 = P('none'), s0 = P('ship'), b0 = P('both'), v = vsNone('ship', 'all'), vb = vsGate('both', 'ship', 'all');
   const k21 = [basketStats('2021–22', 'none'), basketStats('2021–22', 'ship')], k25 = [basketStats('2025–26', 'none'), basketStats('2025–26', 'ship')];
-  const A = PT.A[2], C = PT.C[2], E = PT.E[2], F = PT.F[2], pv = (x) => x.p < 1 / NSH ? `< ${(100 / NSH).toFixed(2)}%` : (x.p * 100).toFixed(1) + '%';
+  const A = PT.A[2], C = PT.C[2], E = PT.E[2], F = PT.F[2], pv = (x) => x.p < 1 / NSH ? `< ${(100 / NSH).toFixed(2)}%` : x.p < 0.01 ? (x.p * 100).toFixed(2) + '%' : (x.p * 100).toFixed(1) + '%';
   say(`## Verdict\n`);
   say(`1. **Yes, keep the 50-day BTC gate on 15m. It is logical there, and it is the biggest single improvement 15m has.** With no gate, 15m Liquidity Breakout is break-even: `
     + `${n0.n.toLocaleString('en-US')} trades, PF ${f2(n0.pf)}, ${pct(n0.avg, 2)} a trade, median coin ${big(M('none', 'net'))} at a ${'−' + pp(M('none', 'dd'))} median drawdown. `
@@ -182,7 +182,7 @@ say(`For each split, the "blocked" and "kept" labels are shuffled ${NSH.toLocale
   + `The 2%-trimmed mean drops the top and bottom 2% of trades first, so one moonshot cannot carry it.\n`);
 row(['rule: block a trade when…', 'base', 'trades', 'blocked', 'kept − blocked, a trade', 'chance', 'trimmed gap · chance', ...BLOCKS.map((p) => `${p}: kept · blocked`), 'coins kept > blocked']); hr(7 + BLOCKS.length + 1);
 for (const [k, [nm, base, r]] of Object.entries(PT)) {
-  const pv = (x) => x.p < 1 / NSH ? `< ${(100 / NSH).toFixed(2)}%` : (x.p * 100).toFixed(1) + '%';
+  const pv = (x) => x.p < 1 / NSH ? `< ${(100 / NSH).toFixed(2)}%` : x.p < 0.01 ? (x.p * 100).toFixed(2) + '%' : (x.p * 100).toFixed(1) + '%';
   row([`**${k}.** ${nm}`, base, r.n, `${r.nb} (${pp(r.nb / r.n)})`, pct(r.mean.gap, 2), pv(r.mean), `${pct(r.trim.gap, 2)} · ${pv(r.trim)}`,
     ...r.blocks.map((b) => `${pct(b.k, 2)} · ${pct(b.b, 2)}${b.nb < 50 ? ` (${b.nb})` : ''}`), `${r.coins.better}/${r.coins.of}`]);
 }

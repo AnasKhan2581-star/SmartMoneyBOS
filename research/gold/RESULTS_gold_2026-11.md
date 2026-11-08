@@ -183,10 +183,10 @@ Each strategy against 2,000 random in/out paths that switch at its own pace and 
 |---|---|---|---|---|
 | 10-month average (Faber) *(retail)* | +7.3% | 100% | 0.25 | 100% |
 | 12-month momentum *(retail)* | +6.3% | 98% | 0.14 | 96% |
-| G1 Seasonal tide | +4.6% | 96% | 0.15 | 97% |
+| G1 Seasonal tide | +4.6% | 96% | 0.15 | 98% |
 | G2 52-week-high anchor | +7.0% | 100% | 0.18 | 99% |
 | G3 Dollar tide | +5.1% | 92% | 0.15 | 97% |
-| G4 Secular breakout | +6.8% | 99% | 0.18 | 99% |
+| G4 Secular breakout | +6.8% | 98% | 0.18 | 98% |
 | G5 Clean trend (efficiency ratio) | +7.1% | 100% | 0.30 | 100% |
 
 ## The lag assumption
