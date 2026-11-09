@@ -444,6 +444,18 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PROMUSDT",
+      "tf": "1h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "PROMUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
     }
   ]
 }
