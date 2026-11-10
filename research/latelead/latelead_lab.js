@@ -184,7 +184,9 @@ function caseOf(sym, nBars = 12) {
       open: o ? { sig: o.sigT + H4, entry: o.entry, stop: o.stop, late: o.late, now: last.close / o.entry - 1 } : null }; });
   // what the NEXT close needs under the shipped rules (the engine's own read)
   const adv = L.SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false, btc }).advice;
-  return { sym, to: last.time + H4, last: last.close, candles, variants, next: adv && adv.next ? { trig: adv.next.trig, gap: adv.next.gap, blocked: adv.next.blocked, vol: adv.next.vol } : null,
+  return { sym, to: last.time + H4, last: last.close, candles, variants,
+    next: adv && adv.next ? { trig: adv.next.trig, gap: adv.next.gap, blocked: adv.next.blocked, vol: adv.next.vol, entered: !!adv.next.entered, high: adv.next.levels && adv.next.levels.high, failing: (adv.next.conds || []).filter((x) => !x.ok).map((x) => x.name) } : null,
+    nextCanBeFresh: !(last.close > ind.hiB[c.length - 1]),
     btcGap: (() => { const m = sma(btc.map((b) => b.close), 300); return btc[btc.length - 1].close / m[m.length - 1] - 1; })() };
 }
 if (mode === 'case') {
@@ -261,7 +263,7 @@ if (mode === 'report') {
   p('**Short answer.**');
   p('- The Breakout rule did detect INIT\'s run. The BTC filter kept it out, on purpose.');
   p('- Every way of buying such runs was tested on all history, and each adds losing trades.');
-  p('- The rule already buys some sudden runs, late, through its "leader" exception. Those trades lose too. The data argues for buying fewer of them, not more.');
+  p('- The rule already buys some sudden runs, late, through its "leader" exception. Those trades lost too, on average. The data argues for buying fewer of them, not more.');
   p();
   p('## What happened on INIT');
   p();
@@ -276,7 +278,11 @@ if (mode === 'report') {
     p(`1. **${istF(blk.close)} IST, close ${blk.px.toFixed(4)}.** The ${pc(blk.chg, 0)} candle passed every chart rule: over the 2-day high by more than 1 ATR, over the 5-day and 149-candle averages, volume over 1.3× the day's.`);
     p(`   - The market filter blocked it. BTC was under its 50-day average, and INIT was ${pc(blk.lead30, 0)} over 30 days, short of the +50% that makes a coin a "leader".`);
     p('2. **One candle later** INIT was a leader, so the filter opened. But that close was no longer the FIRST close above the 2-day high, and the rule only buys a fresh breakout.');
-    p('3. **After that** the rule waits for a new breakout over the new 2-day high plus 1 ATR. It buys that one through the leader exception: a late buy, far above where the run began.');
+    const lc = K.candles[K.candles.length - 1], nx = K.next;
+    if (nx && lc.close > blk.close + 2 * H4 && !nx.entered && lc.broke && lc.gate && nx.failing.length) {
+      p(`3. **${istF(lc.close)} IST, close ${lc.px.toFixed(4)}.** The filter was open (leader) and the close was over the 2-day high (${nx.high.toFixed(4)}), but not by a full ATR: it needed ${nx.trig.toFixed(4)}. No buy.${K.nextCanBeFresh ? '' : ' The candle after it cannot buy either, because it would not be a fresh breakout.'}`);
+      p('4. **From here** the rule needs a close back at or under the 2-day high, then a new breakout over it by 1 ATR. While INIT stays a "leader" it would buy that one: a late buy, far above where the run began.');
+    } else p('3. **After that** the rule waits for a new breakout over the new 2-day high plus 1 ATR. It buys that one through the leader exception: a late buy, far above where the run began.');
   }
   p();
   p('The other strategies are slow by design and not built for this: Turtle buys a 55-day high, Trend Follow needs the 200-day average, the Cycle reads weekly averages.');
@@ -289,12 +295,12 @@ if (mode === 'report') {
   p('- Three coin sets: the 65 liqbrk 4h coins on the alert list (Binance 4h candles to today); the 103-coin Compare list; the same plus 171 delisted or collapsed coins (a buy needs ≥ $1M a day there). The last two end 5 Nov 2026.');
   p('- **What matters is the trades a change ADDS.** Each cell is: added trades · winners · average per trade.');
   p();
-  p('| change | INIT this time | ' + UK.map((u) => UN[u]).join(' | ') + ' |');
+  p(`| change | INIT this time (to the ${istF(K.to)} IST close) | ` + UK.map((u) => UN[u]).join(' | ') + ' |');
   p('|---|---|---|---|---|');
   const MORE = [['late 1', 'Buy one candle later if the filter has opened by then'], ['late 2', '…within 2 candles'], ['late 3', '…within 3 candles'], ['late 6', '…within 6 candles (a day)'],
     ['day +20%', 'Count a +20% day as a leader'], ['day +30%', 'Count a +30% day as a leader'], ['no gate', 'No market filter at all']];
   for (const [k, lab] of MORE) { const v = K.variants.find((x) => x.name === k), op = v && v.open;
-    p(`| ${lab} | ${op ? `in at ${op.entry.toFixed(4)} (${istF(op.sig)})` : '—'} | ${UK.map((u) => cell(R[u].rows[k].added)).join(' | ')} |`); }
+    p(`| ${lab} | ${op ? `in at ${op.entry.toFixed(4)} (${istF(op.sig)}), now ${pc(op.now, 0)}` : '—'} | ${UK.map((u) => cell(R[u].rows[k].added)).join(' | ')} |`); }
   p();
   { const a = R.alert.rows, d30 = a['day +30%'].added, ng = a['no gate'].added;
     p(`- **Buying the breakout candle itself loses badly.** On the alert coins, a breakout after a +30% day with the filter shut happened ${d30.n} times: ${(d30.wr * 100).toFixed(0)}% won, ${pc(d30.avg)} a trade. INIT is one of the few that ran.`);
@@ -302,7 +308,7 @@ if (mode === 'report') {
     p(`- **Buying one candle later** is positive on the alert coins (${a['late 1'].added.n} trades, ${pc(a['late 1'].added.avg)}) and negative on both wider sets (${pc(R.u103.rows['late 1'].added.avg)} and ${pc(R.u274.rows['late 1'].added.avg)}). The alert list was hand-picked in 2026, so the wider sets are the fairer judge.`);
     p('- A pump in a weak market has a 4×ATR stop that is 20–25% away, so each failure costs a lot.'); }
   p();
-  p('## 2. The rule already buys some sudden runs, and those lose');
+  p('## 2. The rule already buys some sudden runs, late, and those lost');
   p();
   p('The market filter lets a trade in for one of three reasons. Each cell is: trades · winners · average per trade (the shipped rules, all history).');
   p();
@@ -314,7 +320,7 @@ if (mode === 'report') {
   { const g = (u) => R[u].groups['leader ONLY through the last day (a pump)'];
     p(`- **A coin that becomes a "leader" through one day's pump is not a leader.** Those buys lose in all three sets (${UK.map((u) => pc(g(u).all.avg)).join(', ')} a trade).`);
     p(`- By period: before 2022 ${UK.map((u) => `${pc(g(u).h1.avg)} (${g(u).h1.n || 0})`).join(', ')}; from 2022 ${UK.map((u) => `${pc(g(u).h2.avg)} (${g(u).h2.n || 0})`).join(', ')}. The loss is all since 2022.`);
-    p(`- **How sure:** resampling these trades 10,000 times, their average is at or above zero in ${UK.map((u) => (g(u).odds.ge0 * 100).toFixed(0) + '%').join(' / ')} of draws, and at or above the average of the ordinary (BTC-gated) trades in ${UK.map((u) => (g(u).odds.geBase * 100).toFixed(1) + '%').join(' / ')}. So "they lose outright" is likely but not certain; "they are worse than the ordinary trades" is firm.`); }
+    p(`- **How sure:** resampling these trades 10,000 times, their average is at or above zero in ${UK.map((u) => (g(u).odds.ge0 * 100).toFixed(0) + '%').join(' / ')} of draws, and at or above the average of the ordinary (BTC-gated) trades in ${UK.map((u) => (g(u).odds.geBase * 100).toFixed(1) + '%').join(' / ')}. On the alert coins alone that is weak evidence; with the delisted coins it is fairly strong. Likely, not proven.`); }
   p();
   p('**INIT\'s case exactly: a buy within a day after a breakout the filter blocked.**');
   p();
@@ -341,7 +347,7 @@ if (mode === 'report') {
     p();
   }
   { const h = (u) => R[u].rows['rescue: leader a day earlier too'];
-    p(`- **"A leader a day earlier too" drops ${UK.map((u) => h(u).removed.n).join(' / ')} trades that averaged ${UK.map((u) => pc(h(u).removed.avg)).join(' / ')}.** The average trade, both profit factors and the pot improve in all three sets, and 3–5 times as many coins gain as lose.`);
+    p(`- **"A leader a day earlier too" drops ${UK.map((u) => h(u).removed.n).join(' / ')} trades that averaged ${UK.map((u) => pc(h(u).removed.avg)).join(' / ')}.** The average trade, both profit factors and the pot improve in all three sets, and four to five times as many coins gain as lose.`);
     p('- It has no number to tune: it reads the same +50%/30-day test one day back.');
     p(`- **The pot figures are noisy.** Buying every shipped trade one candle late moves the alert-list pot from ×${R.alert.rows.shipped.book.mult.toFixed(1)} to ×${R.alert.rows['shipped · bought a candle late'].book.mult.toFixed(1)}, only because different trades find a free slot. The per-trade columns are the evidence.`);
     p('- Dropping the exception altogether does about as well. Leaders that were already leaders are roughly break-even: positive on the two lists, negative with the delisted coins.'); }
@@ -351,9 +357,9 @@ if (mode === 'report') {
   p('- **The system saw INIT and stayed out because BTC was weak.** That filter is right on average: the breakouts it blocks lose as a group, and the pump-day ones lose most.');
   p('- **No rule that buys these runs earlier holds up** across the three coin sets.');
   p('- **One change is worth proposing, in the other direction:** the leader exception should need the coin to have been a leader a day earlier too. It stops the late chase after a one-day pump, which is what the rule would have done on INIT next.');
-  p('- **Limits.** The dropped trades are 37–128 in nine years, so the gain per year is small. Both ideas were written after looking at INIT. The Oct 2026 study that shipped the leader exception used 32 coins; this one uses 65–272.');
+  p('- **Limits.** The dropped trades are 37–128 in nine years, so the gain per year is small, and on the alert coins alone the odds that they are no worse than ordinary trades are about 1 in 5. Both ideas were written after looking at INIT. The Oct 2026 study that shipped the leader exception used 32 coins; this one uses 65–272.');
   p('- **Nothing is changed.** ALGORITHM.md first, then the engine and the bot\'s rule version, only on approval.');
   process.stdout.write(o.join('\n') + '\n');
 }
 
-module.exports = { VARIANTS, entries, runCoin, tstats, compare, universes, load4h, alertCoins, groupsOf, afterOf };
+module.exports = { VARIANTS, entries, runCoin, tstats, compare, universes, load4h, alertCoins, groupsOf, afterOf, caseOf };

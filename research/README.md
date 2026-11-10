@@ -8,6 +8,7 @@ bot. A result reaches `detector.js` only after the user approves it, and its rul
 
 | Folder | Question | Verdict |
 |---|---|---|
+| [`latelead/`](latelead/) | Why didn't the Breakout rule buy INIT's +79% day, and should it buy such sudden runs? | **Not shipped; one change proposed.** It saw the run and the BTC filter blocked it. Buying such runs loses on all three coin sets. Proposed: the "leader" exception should need a day of leadership first. |
 | [`smcpoi/`](smcpoi/) | The user's 15m pattern: a sweep of the higher low, a close above the major high, a buy back in the up move's fair value gap | **Not shipped.** Real (it beats the same orders at random times), but it breaks even on the user's 103 coins. [README](smcpoi/README.md) |
 | [`nyopen/`](nyopen/) | Three 15m strategies around the New York open: ICT's Judas swing, the opening-range breakout, the 08:30 ET candle | **Rejected.** Only the 08:30 ET candle hints at an edge (p 0.02), about 5 times a year. |
 | [`flush/`](flush/) | Buy the alts that fell most when BTC flushes on 15m; a layered version; the comparison with the 4h liqbrk book | **Not shipped.** It makes money: ×5.36, +20% a year, −12% max drawdown (bootstrap −14% typical, −23% in a bad case). It needs alerts within minutes. |
@@ -48,4 +49,5 @@ The caches live in `research/cache/` (git-ignored, so a fresh clone has to fetch
 - **15m candles for the 103-coin list:** `node research/liqbrk15m/fetch15.js` → `cache/lb15`. It reuses the middle
   years from `cache/tfcmp` (`node research/tfcmp/fetch.js`).
 - **The 171 delisted or collapsed coins:** `node research/liqbrk15m/fetch15.js DIR=lb15dead <coins>` → `cache/lb15dead`.
+- **The alert list's 4h candles to now:** `node research/latelead/latelead_lab.js fetch` → `cache/latelead`.
 - **Gold:** `node research/gold/gold_lab.js` keeps its own cache in `cache/gold`.

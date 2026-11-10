@@ -1045,6 +1045,55 @@ research/smcpoi/poi_lab.js (`run [round2…round8|final] [gross|slip2]`, `report
   - about 80 variants were tried;
   - it needs a limit order within minutes of a 15m close, which the hours-late GitHub bot can't place.
 
+## RESEARCH (Nov 2026): sudden runs and liqbrk's market gate — the INIT case (NOT shipped; one change proposed)
+
+User, with INIT/USDT 4h at +79% in 24 hours: "No strategy out of all still are able to detect and alerts and trade for
+these kind of sudden runs". Research only: detector.js, the webapp and the bot are unchanged.
+research/latelead/latelead_lab.js (`fetch`, `case INIT`, `run`, `report`) → RESULTS_latelead_2026-11.md.
+- **What happened on INIT (4h, on the alert list).**
+  - The +30% breakout candle passed every chart rule at its close (0.1694). The market gate blocked it: BTC was −8%
+    against its 50-day MA and INIT was +44% over 30 days, short of the +50% leader rescue.
+  - One candle later INIT was a leader, but that close was no longer the first close above the 2-day high, so the
+    fresh-breakout rule blocked it.
+  - Two candles on (13:30 IST, 10 Nov) the close was over the 2-day high but not by 1 ATR (0.2228 against 0.2323): no
+    buy.
+  - From there the rule buys the next fresh breakout through the leader rescue: a late buy, far above where the run
+    began.
+- **Setup.**
+  - The shipped rules (research/liqbrk_lab.js; parity with detector.js re-checked on the 65 alert coins, 1,814 trades)
+    with one entry change each. Signal at a 4h close, bought at the next open; 0.1% fee, 0.15% slippage.
+  - Three coin sets: the 65 liqbrk 4h alert coins (Binance 4h to 2026-11-10); the 103-coin list; the 103 plus 171
+    delisted coins (4h from the 15m files, to 5 Nov 2026, ≥ $1M a day). Numbers below are in that order.
+  - A change is judged by the trades it ADDS or DROPS, not by the pot: buying every shipped trade one candle late
+    moves the alert-list pot from ×12.6 to ×28.7, only through which trades find a free slot.
+- **Buying more of the sudden runs: REJECTED.** Trades each change adds (average per trade, count):
+  - a +30% day counts as a leader (buys INIT's breakout candle): −11.14% (53) / −3.33% (33) / −8.64% (194).
+  - a +20% day counts as a leader: −8.07% (108) / −2.72% (84) / −7.59% (409).
+  - no market gate: −2.91% (529) / −1.21% (755) / −3.39% (1649).
+  - a gate-blocked breakout may buy one candle later if the gate has opened: +4.73% (19) / −0.78% (35) / −7.88% (63).
+  - …within 3 candles: −0.44% (49) / −1.52% (90) / −4.20% (164).
+  - Only "one candle later" on the hand-picked alert list is positive, on 19 trades; both wider sets say no. After a
+    pump the 4×ATR stop is 20–25% away, so each failure is expensive.
+- **The shipped leader rescue already buys some sudden runs, late, and they lost on average.** Shipped trades by why
+  the gate let them in:
+  - BTC over its 50-day MA: +1.84% (1749) / +2.29% (2702) / +0.79% (5022).
+  - leader, and already one a day earlier: +1.51% (25) / +0.68% (27) / −2.18% (87).
+  - leader only through the last day's move (a pump): −2.67% (37) / −2.15% (39) / −4.19% (128); from 2022 −4.92% /
+    −2.43% / −5.61%. Bootstrap: at or above the ordinary trades' average in 19.8% / 10.0% / 5.3% of draws.
+  - A buy within a day after a gate-blocked breakout (INIT's next signal): 9 trades, −14.43% / 12 trades, −9.49% / 22
+    trades, −13.26%. On the alert coins after a blocked +20% day: INJ −32%, SAND −15%, PHA −25%, BICO −29%.
+- **PROPOSED, not shipped: the leader rescue needs the coin to have been a leader one day earlier too** (the same
+  +50%/30-day test read 1 day back; no new threshold).
+  - Drops 37 / 39 / 128 trades averaging −2.67% / −2.15% / −4.19%.
+  - Every trade: +1.75% → +1.90% / +2.22% → +2.28% / +0.62% → +0.74%. PF without the best 2%: 0.97 → 1.01 / 1.17 →
+    1.19 / 0.80 → 0.83. Coins better / worse: 22 / 4, 27 / 7, 81 / 21.
+  - "No rescue after a +15% / +20% / +30% day" does about the same (a plateau), and so does no rescue at all.
+  - Limits: 37–128 dropped trades in nine years, and before 2022 they were about break-even. On the alert coins alone
+    the evidence is weak (the bootstrap above). Both ideas were written after looking at INIT. The Oct 2026 study that
+    shipped the rescue used 32 coins.
+  - If approved: ALGORITHM.md's liqbrk block first, then one line in detector.js's `leadOk`, lab parity, and
+    `RULES.liqbrk` in signal-bot.js bumped so positions re-baseline with one note.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
