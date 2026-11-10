@@ -246,6 +246,28 @@
    "R": -0.54,
    "why": "TRAIL",
    "logged": 1793817694
+  },
+  {
+   "id": "INITUSDT|4h|1794312000",
+   "symbol": "INITUSDT",
+   "tf": "4h",
+   "strategy": "liqbrk",
+   "signalTime": 1794326400,
+   "entry": 0.273,
+   "stop": 0.15953409683868622,
+   "tp": 0.6133977094839415,
+   "status": "open",
+   "scale": null,
+   "late": false,
+   "alerted": true,
+   "skip": null,
+   "exit": null,
+   "exitRest": null,
+   "exitTime": null,
+   "ret": null,
+   "R": null,
+   "why": null,
+   "logged": 1794335874
   }
  ]
 }
