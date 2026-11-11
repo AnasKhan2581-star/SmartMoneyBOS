@@ -100,6 +100,7 @@ function marketGate(c, btc, days = P.lbBtcMaDays, pump = P.lbLeadPump) {
 // cfg.be:    R multiple — once a close reaches entry+be·R the stop moves up to entry (breakeven)
 // cfg.cool:  days — ignore signals on this coin for this long after a STOP exit
 // cfg.closeOpen: close a still-open trade at the last bar (for delisted coins, so a collapse counts)
+// cfg.stopCap: fraction of the entry — the initial stop is never further away than this (research/stopcap; off by default)
 function simulate(c, ind, cfg = {}) {
   const { a, loE, sig, warm, p } = ind, n = c.length;
   const fill = cfg.fill || 'close', slip = cfg.slip ?? 0.0005, exit = cfg.exit || 'base';
@@ -146,11 +147,12 @@ function simulate(c, ind, cfg = {}) {
         }
       }
     } else if (!pos && sig[i] && (!cfg.veto || cfg.veto[i]) && i - lastStop >= coolBars) {
+      const dist = (e) => (cfg.stopCap ? Math.min(p.lbStop * a[i], cfg.stopCap * e) : p.lbStop * a[i]);
       if (fill === 'close') {
-        const e = b.close; pos = { entry: e, stop: e - p.lbStop * a[i], entryIdx: i + 1 };   // exits from next bar
+        const e = b.close; pos = { entry: e, stop: e - dist(e), entryIdx: i + 1 };   // exits from next bar
       } else if (i + 1 < n) {
         const e = c[i + 1].open * (1 + slip);
-        pos = { entry: e, stop: e - p.lbStop * a[i], entryIdx: i + 1 };
+        pos = { entry: e, stop: e - dist(e), entryIdx: i + 1 };
       } else continue;
       pos.stop0 = pos.stop; pos.R = pos.entry - pos.stop; pos.hiC = pos.entry; pos.w = 1; pos.legs = [];
       pos.realEntryIdx = fill === 'close' ? i : i + 1; pos.sigIdx = i;

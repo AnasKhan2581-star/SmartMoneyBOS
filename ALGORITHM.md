@@ -1132,6 +1132,71 @@ RESULTS_weekgate_2026-11.md. Set-up and coin sets as research/latelead/ (the 65 
 - **Verdict: keep the 50-day gate.** A weekly 9 is the same gate made slightly slower. Don't re-test weekly MAs of BTC
   or of the coin as the gate.
 
+## RESEARCH (Nov 2026): liqbrk after INIT's −41.7% stop-out — the leader rescue and a stop with no limit (NOT shipped; two changes proposed)
+
+User: "The last trade that happened actually got stopped out at -41% no trader would trade like that ig, there are
+things still wrong in the strategy". Research only: detector.js, the webapp and the bot are unchanged.
+research/stopcap/stopcap_lab.js (`run`, `report`) → RESULTS_stopcap_2026-11.md. Set-up and coin sets as
+research/latelead/ (the 65 alert coins on Binance 4h to 2026-11-11 / the 103-coin list / the 103 plus 171 delisted;
+numbers below are in that order).
+- **The trade.** INIT 4h, bought at the 21:30 IST close of 10 Nov 2026 at 0.273 after +120% in three days, stopped out
+  a day later at −41.7% (journal).
+  - The entry: BTC was under its 50-day MA, so only the leader rescue could buy. INIT was +131% over 30 days, and +10%
+    a day earlier.
+  - The stop: 4 × ATR with the ATR at 10.4% of the price, so 42% under the entry. No rule limits that distance.
+  - BTC last closed over its 50-day MA on 2026-10-23. So all 4 liqbrk 4h buys on the alert list since the journal
+    began (24 Oct) came through the rescue, and all lost: INIT −2.0%, PARTI −26.5%, PARTI −11.1%, INIT −41.8% (this
+    lab's fills).
+- **The leader rescue loses.** It lets in 63 / 66 / 215 trades averaging −1.63% / −0.99% / −3.38%.
+  - Before 2022: +0.76% / −1.72% / −0.79%. From 2022: −3.10% / −0.74% / −4.43%. Every shipped trade, for scale: +0.74%
+    / +3.05% / +2.23% and +2.07% / +1.90% / −0.09%.
+  - On the alert coins by year (trades, average): 2020: 9, +4.9% · 2021: 15, −1.7% · 2022: 8, −5.0% · 2023: 2, +28.6%
+    · 2024: 1, −21.6% · 2025: 12, −7.3% · 2026: 16, −1.8%. It catches the early-cycle leaders it was shipped for
+    (2023) and loses more on the rest.
+  - "Leader a day earlier too" (research/latelead's proposal) drops 38 / 39 / 128 trades averaging −3.70% / −2.15% /
+    −4.19%. The leaders it keeps are about break-even on the live lists and lose with the delisted coins.
+- **Shipped trades by the stop's distance** (average per trade, trades):
+  - 0–8%: +3.90% (288) / +2.83% (576) / +2.69% (677). 8–12%: +2.08% (543) / +2.05% (934) / +1.61% (1422). 12–16%:
+    +1.06% (445) / +1.28% (657) / +0.12% (1278). 16–20%: +1.40% (264) / +3.05% (344) / +1.00% (831). 20–25%: +3.41%
+    (163) / +3.25% (166) / −1.83% (576).
+  - 25–30%: −6.18% (66) / +3.86% (67) / +0.59% (269). The alert coins lose in both halves (−4.12%, −8.00%) and the
+    103-coin list wins in both (+4.56%, +3.17%): undecided.
+  - Over 30%: −2.77% (43) / −4.13% (24) / −5.27% (184). Negative on all three sets and in 5 of the 6 halves.
+  - The 12 worst alert-list trades (−41.8% to −25.7%) all had a stop over 25% away, after +48% or more in 3 days. 7 of
+    them came with BTC over its 50-day MA, so the rescue is not the only way in.
+- **Skipping the buy when the stop would be more than K under the entry** (trades dropped, their average; bootstrap
+  odds of being no worse than shipped):
+  - 30%: 44 / 24 / 184 trades averaging −3.32% / −4.13% / −5.27%; 72% / 87% / 98%. Worst trade −30% / −25% / −29%.
+  - 25%: 112 / 91 / 458 trades averaging −4.72% / +1.75% / −1.91%; 94% / 26% / 93%. Worst trade −25% / −25% / −25%.
+  - 20%: 274 / 259 / 1034 trades averaging +0.03% / +2.75% / −1.76%; 58% / 5% / 99%. Worst trade −20% / −20% / −20%.
+  - 15%: 633 / 739 / 2139 trades averaging +1.00% / +2.88% / −0.33%; 18% / 0% / 74%. Worst trade −15% / −15% / −15%.
+  - 30% costs nothing on any set. 25% is right on the alert coins and with the delisted coins, and drops mildly
+    profitable trades on the 103-coin list. 20% and 15% drop good trades on the 103-coin list.
+- **Keeping the trade does not do the same.**
+  - The stop clamped to 20% under the entry: average trade +1.72% → +1.74% / +2.22% → +2.20% / +0.62% → +0.70%; trades
+    losing over 20%: 50 → 65 / 15 → 24 / 167 → 207. A coin moving 10% a candle touches a 20% stop easily.
+  - A smaller buy (size = 15% ÷ the stop's distance of a slot, so a stop-out costs at most 15% of a slot), in slot
+    units: +1.72% → +1.74% / +2.22% → +2.07% / +0.62% → +0.76%, worst −15%. With no rescue +1.83% / +2.13% / +0.86%,
+    under the skip rule below on all three. It would also need sizes in the alerts and the book.
+- **PROPOSED, not shipped: (1) no leader rescue (`lbLeadPump` 0), (2) no entry when the stop would be more than 25%
+  under the close (a new `lbMaxStop` 0.25: `lbStop` × ATR ÷ close).**
+  - Together: average trade +1.72% → +2.16% / +2.22% → +2.29% / +0.62% → +0.95%; PF 1.36 → 1.51 / 1.59 → 1.64 / 1.12 →
+    1.21; PF without the best 2% 0.96 → 1.09 / 1.17 → 1.21 / 0.80 → 0.88.
+  - Trades losing over 20%: 50 → 17 / 15 → 7 / 167 → 58. Worst trade: −42% → −25% / −32% → −25% / −46% → −25%.
+  - It drops 145 / 144 / 579 trades averaging −3.15% / +0.97% / −1.92% (no worse than shipped in 91% / 35% / 96% of
+    draws). By half, the dropped trades: before 2022 −4.94% / +2.06% / +1.00%, from 2022 −1.85% / +0.22% / −4.53%.
+  - The 5-slot pot (noisy, see research/latelead): ×11.55 → ×43.12 / ×39.02 → ×31.04 / ×0.02 → ×0.17, max drawdown
+    −71% → −56% / −65% → −55% / −100% → −99%.
+  - Alternatives. 30% in place of 25%: the sum of all trade results changes by +5% / +1% / +32% against +16% / −2% /
+    +37% at 25%, worst trade about −30%. "Leader a day earlier" in place of no rescue: average trade +2.19% / +2.28% /
+    +0.95%, the same within noise; of the 4 recent losers it skips 2.
+  - Limits. Both ideas were written after looking at losing trades, INIT's first, with both halves in view. The stop
+    limit is a risk rule: only the over-30% trades lose on every set. Trades with a stop over 25% away are 3–9% of all
+    and fat-tailed. The rule still loses about 6 trades in 10, and the pot still draws down more than 50%.
+  - If approved: this file's liqbrk block first; detector.js (`lbLeadPump` 0, `lbMaxStop` in the entry test and in
+    `advice.next`); research/liqbrk_lab.js parity; `RULES.liqbrk` in signal-bot.js bumped so positions re-baseline
+    with one note; the gate texts in the bot and the radar.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which

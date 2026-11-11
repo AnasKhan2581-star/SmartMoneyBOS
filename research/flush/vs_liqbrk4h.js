@@ -85,7 +85,7 @@ function book(trades, ser, axis, N, start, end = Infinity, overlay = null) {
     }
     for (const x of (ents.get(T) || []).sort((a, b) => b.t.rv - a.t.rv)) {
       if (open.length >= N || open.some((o) => o.x.coin === x.coin)) continue;
-      const E = cash + open.reduce((s, o) => s + o.val, 0) + (fl ? fl.lock : 0), alloc = Math.min(cash, E / N); if (alloc <= 1e-12) continue;
+      const E = cash + open.reduce((s, o) => s + o.val, 0) + (fl ? fl.lock : 0), alloc = Math.min(cash, (E / N) * (x.size ?? 1)); if (alloc <= 1e-12) continue;   // x.size: a fraction of a slot (research/stopcap), 1 when absent
       cash -= alloc; open.push({ x, alloc, val: alloc }); taken.push({ coin: x.coin, tIn: x.tIn, tOut: x.tOut, ret: x.t.ret, w: alloc / E });
     }
     for (const o of open) {
