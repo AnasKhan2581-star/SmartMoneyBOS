@@ -1094,6 +1094,44 @@ research/latelead/latelead_lab.js (`fetch`, `case INIT`, `run`, `report`) → RE
   - If approved: ALGORITHM.md's liqbrk block first, then one line in detector.js's `leadOk`, lab parity, and
     `RULES.liqbrk` in signal-bot.js bumped so positions re-baseline with one note.
 
+## REJECTED (Nov 2026): the weekly 9 MA as liqbrk's market gate — BTC's, or the coin's own
+
+User: "Instead of btc daily MA rule, backtest if we change condition to above 9MA on weekly chart". Research only:
+detector.js, the webapp and the bot are unchanged. research/weekgate/weekgate_lab.js (`run`, `report`) →
+RESULTS_weekgate_2026-11.md. Set-up and coin sets as research/latelead/ (the 65 alert coins on Binance 4h to
+2026-11-11 / the 103-coin list / the 103 plus 171 delisted; numbers below are in that order).
+- **The gate.**
+  - Weeks run Monday 00:00 UTC. Live reading (what the chart shows): BTC's price over (price + the last 8 weekly
+    closes) ÷ 9. Finished-weeks reading: the last weekly close over the MA of the last 9, changing once a week.
+  - Nothing later than the candle's own close is read; checked against a brute-force weekly table on 19,908 BTC
+    candles.
+  - It is nearly the 50-day gate: open 51% of 4h candles since 2018 (the 50-day 52%), and the two differ on 4%.
+- **The swap (live reading, leader rescue kept).**
+  - Average trade: +1.72% → +1.57% / +2.22% → +2.22% / +0.62% → +0.49%.
+  - It adds 42 / 57 / 118 trades averaging −1.22% / +1.22% / −3.65% and drops 46 / 70 / 106 averaging +4.80% / +1.38%
+    / +2.04%.
+  - Bootstrap on the added and dropped trades: no worse than shipped in 5% / 42% / 0% of draws.
+  - By half: before 2022 +0.74% → +0.86% / +3.05% → +3.19% / +2.23% → +2.15% (level); from 2022 +2.07% → +1.83% /
+    +1.90% → +1.84% / −0.09% → −0.25% (the 50-day ahead on all three).
+- **Finished weeks only** is worse (no worse than shipped in 2% / 1% / 1% of draws): it reacts up to a week late and
+  drops 303 / 477 / 730 trades averaging +1.58% / +1.51% / +0.19%.
+- **Other lengths** (average trade on the alert coins): weekly 5 / 7 / 9 / 12 / 20 → +1.51% / +1.72% / +1.57% / +1.61%
+  / +1.36%, against +1.72% shipped. A flat top at 7 weeks, which is the 50-day's length; everything is within about 0.4
+  points a trade, on all three sets. Both gates at once, or either, change nothing.
+- **The other reading: the COIN over its own weekly 9 MA.**
+  - In place of any BTC rule: +1.72% → +1.26% / +2.22% → +1.94% / +0.62% → −0.18% (no worse than shipped in 2% / 1% /
+    0% of draws).
+  - In place of the leader rescue (BTC over its 50-day MA, or the coin over its own weekly 9): it adds 254 / 355 / 829
+    trades averaging −2.09% / −1.15% / −4.02%.
+  - This is the own-asset trend gate again (REJECTED above), and the same trades research/latelead/ found the BTC gate
+    right to block.
+- **INIT.** At its blocked breakout BTC was −7.2% against its weekly 9 MA and −8.4% against its 50-day MA: both gates
+  shut. Only INIT's own weekly 9 MA (+32%) would have opened.
+- **Caveat.** The 50-day length was chosen in Oct 2026 on 32 of these coins, so part of its small lead is hindsight.
+  That argues against reading the gap as proof, not for switching.
+- **Verdict: keep the 50-day gate.** A weekly 9 is the same gate made slightly slower. Don't re-test weekly MAs of BTC
+  or of the coin as the gate.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which

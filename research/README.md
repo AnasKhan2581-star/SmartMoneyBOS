@@ -8,6 +8,7 @@ bot. A result reaches `detector.js` only after the user approves it, and its rul
 
 | Folder | Question | Verdict |
 |---|---|---|
+| [`weekgate/`](weekgate/) | Should the Breakout market filter be "BTC above the 9 MA on the weekly chart" instead of the 50-day average? | **Rejected.** It is nearly the same filter (they differ on 4% of candles) and slightly worse where they differ. The coin's own weekly 9 MA loses clearly. |
 | [`latelead/`](latelead/) | Why didn't the Breakout rule buy INIT's +79% day, and should it buy such sudden runs? | **Not shipped; one change proposed.** It saw the run and the BTC filter blocked it. Buying such runs loses on all three coin sets. Proposed: the "leader" exception should need a day of leadership first. |
 | [`smcpoi/`](smcpoi/) | The user's 15m pattern: a sweep of the higher low, a close above the major high, a buy back in the up move's fair value gap | **Not shipped.** Real (it beats the same orders at random times), but it breaks even on the user's 103 coins. [README](smcpoi/README.md) |
 | [`nyopen/`](nyopen/) | Three 15m strategies around the New York open: ICT's Judas swing, the opening-range breakout, the 08:30 ET candle | **Rejected.** Only the 08:30 ET candle hints at an edge (p 0.02), about 5 times a year. |
