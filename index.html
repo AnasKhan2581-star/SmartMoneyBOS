@@ -938,8 +938,8 @@ function finishKlines(collected){
   const seen = new Set();
   return collected.filter(c => !seen.has(c.time) && seen.add(c.time)).sort((a,b)=>a.time-b.time);
 }
-// BTC candles for liqbrk's market gate (Oct 2026: enter only while BTC > its 50-day MA, or the coin
-// is a +50%/30d leader). Same timeframe as the coin, reaching 51 days before the coin's first bar
+// BTC candles for liqbrk's market gate (enter only while BTC > its 50-day MA; the "+50% in 30 days
+// leader" exception was removed in Nov 2026). Same timeframe as the coin, reaching 51 days before the coin's first bar
 // so the MA is warm. One fetch per timeframe is shared by every caller (Compare runs 3 coins at
 // once); it is reused for 5 minutes, then refreshed so the live gate reads the latest BTC close.
 // A failed fetch returns null — the engine then skips the gate and SAYS so in its conditions list.
@@ -1493,7 +1493,7 @@ function recalc(){
 const STRAT_INFO = {
   cycle: '<b>BTC Cycle (halving playbook)</b> — a <b>daily</b> system on every chart (4h shows exactly the trades 1d shows). BUY when ≥2 of {price at the 200-week MA, Mayer&lt;0.8, weekly RSI&lt;35} + a sweep-reclaim or 20-day breakout, while price is still above the deep-zone floor (0.72×200w). Accumulation is staged: 40% in zone A (200w→×1.1), 40% on a deep-zone recovery day (0.72–1.0×200w), the rest when price reclaims the 40-week MA; stop 0.65×200w. Or a trend entry after 5 days above the 40-week MA. <b>Half is sold in the red SELL ZONE</b> (first close ≥1.85× the 200-day MA, never below the entry); the rest exits on the Pi-Cycle top or 5 days under the 40-week MA. <b>Alts follow BTC\'s cycle:</b> they only buy while BTC is above its 40-week MA or in its own buy zone, and a trend hold is sold when BTC loses its 40-week MA. Rebuilt Oct 2026 — the old version showed impossible profits on alts (ADA 4h: 49 of 60 trades sold above the candle). 209 coins, full history: median drawdown −67% vs −98% holding; on the median alt it still loses a little (−7% vs −85% holding). See ALGORITHM.md.',
   tsmom: '<b>Trend Follow (CTA momentum)</b> — long while price closes above its 200-day average AND the 90-day return is positive; 100% in cash otherwise. Rides bull markets, sits out bears. Low win rate, huge winners — the core system of trend funds like AQR and Man AHL.',
-  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate (Oct 2026):</b> new entries only while <b>BTC is above its 50-day MA</b> — unless the coin itself is up ≥50% in 30 days (a leader running on its own). <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
+  liqbrk: '<b>Liquidity Breakout</b> — a <b>swing</b> system that runs on 15m bars: it holds <b>~1–2 days</b> and takes ~6 trades/month, so it is <i>not</i> a day-trading setup. Buy-side liquidity (short stops + resting breakout orders) piles up above recent highs. When price <b>closes through the 2-day high on above-average volume, in an uptrend</b>, that pool gets taken and the move usually <b>continues</b> — so we join the raid instead of fading it. An entry also has to print <b>above the 149 MA of whichever timeframe you have selected</b> (149 bars of the chart on screen, not 149 days) — breakouts that fire while price is still under that average are skipped. The close must also clear that high by <b>≥1×ATR</b> — a decisive break, not a one-tick one (set Brk×ATR to 0 for the old behaviour). <b>Market gate:</b> new entries only while <b>BTC is above its 50-day MA</b>. Until Nov 2026 a coin up ≥50% in 30 days could still be bought in a weak market; those trades lost, so that exception is gone. <b>Half the position is sold at +3R</b> (3× the stop distance above entry); the other half stays on. Stop 4×ATR (scales with volatility, never a fixed %); we trail out on a close below the 1-day low. <b>Stop limit (Nov 2026):</b> when that stop would sit <b>more than 25% under the entry</b> the breakout is skipped — after a pump the ATR is so wide that the trade risks too much (the last one before this rule lost 41.7%). ZEC 15m net of fees (measured <i>before</i> the 149 MA filter was added, and on a 2-year bull window — see ALGORITHM.md): <b>WR 34%</b>, PF 2.7, +251% at 1% risk/trade, max drawdown <b>13%</b> — versus buy &amp; hold +1086% at <b>74%</b> drawdown, and only 24% time in market. <b>Why not day trading:</b> three genuine day-trade variants (intraday breakout, momentum pullback, squeeze expansion) were built and all lost to this — best PF 1.28 vs 2.66. At a 0.6% average move, the 0.2% round-trip fee eats 34% of every trade, and capping holds at 12h destroys the fat tail this edge depends on (its best trade ran +148%).',
   gold: '<b>Gold · clean trend (monthly)</b> — a long-term system for <b>gold</b>: XAUUSD, spot gold in dollars per ounce. Once a month, after the month\'s last daily close, it takes the <b>average</b> of that month\'s daily closes and asks two things about the last 9 months: did gold rise, and did it rise in a fairly straight line? The straightness is Kaufman\'s <b>efficiency ratio</b>: the 9-month move divided by every month\'s move added up. <b>Buy</b> when the 9-month change is up and efficiency ≥ 0.30; <b>sell</b> when the change turns down or efficiency falls under 0.15. No stop and no daily noise: one decision a month, ~1 trade every 2 years. Chosen from five candidates tested on 50 years of gold (rules picked on 1975–2000, judged on 2001–2026). 1975–2026: <b>+7.1%/yr with a −24% worst fall</b>, against +6.2%/yr and −62% for holding gold. It earns its keep by sitting out gold\'s long bear markets (1980–2001, 2011–15); in a bull market it makes <b>less</b> than holding: on XAUUSD\'s daily candles 2003–2026, ×5.6 against ×11.4 for holding, with a −31% worst fall against −45%. Choosing it opens <b>XAUUSD</b> (daily candles from 2003, Dukascopy; today\'s candle follows the live price) on 1d; 1w and 1M show the same trades, and picking another strategy brings back the chart you had before. PAXGUSDT works too. See ALGORITHM.md.',
   donch: '<b>Turtle (channel breakout)</b> — buys a close above the 55-day high, exits on a close below the 20-day low (2×ATR initial stop). The original managed-futures system: many small losses, a few enormous riders.',
 };
@@ -1520,6 +1520,8 @@ function advisor(result){
   const heldTxt = held*dtBar>=172800 ? Math.round(held*dtBar/86400)+' days' : Math.round(held*dtBar/3600)+' hours';
   const bigNum = (txt,col)=>`<div style="font-size:22px;font-weight:800;line-height:1.15;color:${col}">${txt}</div>`;
   const tfName = candlesTf || 'this', trailLow = ad.lb && ad.lb.trailLow;
+  // how far under the entry the stop sits, said next to the level
+  const stopPct = open && open.entry > 0 && open.stop > 0 && open.stop < open.entry ? ` (${((1 - open.stop/open.entry)*100).toFixed(1)}% under the entry)` : '';
   const pendNote = pendX
     ? `<div style="color:#e3c34c;margin-top:3px">` + (pendX.targetPool==='TRAIL' && trailLow
         ? `<b>Exit pending</b> — price ${fmtP(now)} is below the trail (${fmtP(trailLow)}, the prior 1-day low). If this ${tfName} candle`
@@ -1548,7 +1550,7 @@ function advisor(result){
       + bigNum('Buy signal forming', '#e3c34c')
       + `<div style="margin-top:5px">The entry rules are met on the current ${tfName} candle at <b>${fmtP(now)}</b>. If they still hold when it`
       + ` closes at ${closesAt()} ${chartTz}, it's a buy and the bot alerts. Nothing is bought before then.</div>`
-      + `<div style="color:var(--muted)">If it confirms: stop <b style="color:#f85149">${fmtP(open.stop)}</b>${open.tp?` · sell half at ${fmtP(open.tp)} (${halfWhy})`:''}</div>`
+      + `<div style="color:var(--muted)">If it confirms: stop <b style="color:#f85149">${fmtP(open.stop)}</b>${stopPct}${open.tp?` · sell half at ${fmtP(open.tp)} (${halfWhy})`:''}</div>`
       + `</div>`
     : open
     ? `<div style="padding:2px 0 8px">`
@@ -1557,7 +1559,7 @@ function advisor(result){
       + `<div>Now <b>${fmtP(now)}</b> → <b class="${pl>=0?'up':'down'}">${pl>=0?'+':''}${pl.toFixed(1)}%</b> on this position</div>`
       + (open.scale ? `<div>Half already sold at <b>${fmtP(open.scale.px)}</b> (${halfWhy}) — riding the other half</div>` : '')
       + (gA ? gOpen : `<div style="color:var(--muted)">${cyTrend ? `Exit: 5 days under the 40-week line ≈ <b style="color:#f85149">${fmtP(0.97*cyA.plan.trendLine)}</b>`
-          : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`)
+          : `Protective stop <b style="color:#f85149">${fmtP(open.stop)}</b>${stopPct}`}${open.tp?` · <span style="color:#3fb950">sell half at ${fmtP(open.tp)}</span> (${halfWhy})`:''}</div>`)
       + pendNote
       + `</div>`
     : `<div style="padding:2px 0 8px">`
@@ -2081,7 +2083,7 @@ $('cmpGo').addEventListener('click',()=>runCompare(true));
 const PF_RADAR = ['BTCUSDT','BNBUSDT','XRPUSDT','SUIUSDT','INJUSDT','HBARUSDT','ARBUSDT','ZECUSDT'];
 const PF_REGIME_SYM = 'BTCUSDT';          // BTC's own 200d MA is the gate validated out of sample
 const PF_BARS  = { '1h':6000, '2h':8000, '4h':10000, '1d':2000 };
-// radar depth: the 149-candle MA, the 30-day leader check and a 1-day volume average all fit well inside
+// radar depth: the 149-candle MA, a 30-day look-back and a 1-day volume average all fit well inside
 const PF_RBARS = { '1h':1500, '2h':1500, '4h':1200,  '1d':600 };
 const pfCache = {};                 // sym|tf|bars -> { c: candles, at: when fetched }
 let pfRows = [], rdRows = [], pfBusy = false;   // rdRows: one per alert, on its own timeframe and strategy (the radar)
@@ -2208,7 +2210,9 @@ function actionFor(row, held){
   const half = !open ? '' : open.scale ? ` Half already taken at <b>${pfFmt(open.scale.px)}</b>.`
     : open.tp ? ` <b>Sell half at ${pfFmt(open.tp)}</b> (+3R).` : '';
   // the market gate blocks entries no matter how many other conditions are met
-  const g = lb.btcGate, gateNote = (g && !g.open) ? ` <b>Blocked while BTC is below its ${g.maDays}-day MA</b> (unless the coin runs +${Math.round(g.leadPump*100)}% in 30 days).` : '';
+  const g = lb.btcGate, gateNote = ((g && !g.open) ? ` <b>Blocked while BTC is below its ${g.maDays}-day MA</b>${g.leadPump > 0 ? ` (unless the coin runs +${Math.round(g.leadPump*100)}% in 30 days)` : ''}.` : '')
+    // the stop limit (Nov 2026): after a pump 4×ATR can be a third of the price, and the system skips that buy
+    + ((lb.maxStop > 0 && lb.stopDist > lb.maxStop) ? ` <b>No buy while the stop would be ${lb.stopDist >= 1 ? 'over 100' : (lb.stopDist*100).toFixed(0)}% under the entry</b> (the limit is ${(lb.maxStop*100).toFixed(0)}%).` : '');
   if(held){
     if(open) return { tag:'HOLD', cls:'a-hold',
       line:`The system is long here too. Stay in — sell only on a close below <b>${pfFmt(trail)}</b> (the 1-day low).${half}${exitNote}` };
@@ -2255,8 +2259,15 @@ async function openJournalChart(e){
   await chartRun();
   if(chart && candlesSym === e.symbol && candles.length){
     try{ chart.timeScale().setVisibleRange({ from: e.signalTime - 60*tfS, to: (e.exitTime || nowS) + 25*tfS }); }catch(err){}
+    // The chart draws what TODAY's rules trade. A Breakout trade journaled before the Nov 2026 rules (no buys under a
+    // weak BTC, no stop over 25% away) may not be one of them: say so, or the row opens a chart with no trade on it.
+    const eb = +String(e.id).split('|')[2], has = lastResult && (lastResult.trades || []).some((t)=> candles[t.entryIdx] && candles[t.entryIdx].time === eb);
+    if(!has && (e.strategy || 'liqbrk') === 'liqbrk' && e.signalTime < LB_RULES_SINCE && candles[0].time <= eb)
+      $('status').innerHTML += ` • <span style="color:#e3c34c">The journal's ${coin(e.symbol)} trade of ${bkWhen(e.signalTime)} is not drawn: it was taken under the rules before 12 Nov 2026, and today's rules skip it</span>`;
   }
 }
+// when the Breakout rules last changed (ALGORITHM.md, liqbrk, Nov 2026): journal trades before it may not exist under today's rules
+const LB_RULES_SINCE = Date.UTC(2026, 10, 12) / 1000;
 // a radar card opens its alert's chart: coin, timeframe and strategy, with at least the bars the bot reads for it
 async function openAlertChart(sym, tf, strat, minBars){
   $('sym').value = sym; $('strategy').value = strat; $('tf').value = tf;
@@ -2272,7 +2283,9 @@ async function openAlertChart(sym, tf, strat, minBars){
 // Order, one card per coin and strategy: a buy forming on this very candle first, then by HOW FAR THE MARKET MUST MOVE for
 // the alert to buy (above its level already = 0; ties go to the fewest closes still needed). A paused alert counts the
 // pause too: under BTC's MA it needs BTC back above it AND its own level, so its distance is the larger of the two (alts
-// move with BTC), or the leader level if that is nearer; a Pi-cycle cooldown has no distance and goes last. Measured in
+// move with BTC), or the leader level if the engine gives one (lbLeadPump > 0; off since Nov 2026) and it is nearer. A
+// Breakout whose stop would be over the 25% limit needs its ATR to shrink: that shortfall counts as distance too. A
+// Pi-cycle cooldown has no distance and goes last. Measured in
 // Nov 2026: with BTC under its 50-day MA a pure "unpaused first" order put a Turtle coin 36% away above Breakout coins
 // 3% from their level.
 // Left out: coins you hold, and alerts whose strategy is already in that coin (the engine's own trade, or an open journal
@@ -2313,10 +2326,12 @@ function rdDist(nx){
   if(!nx.blocked.length) return Math.max(0, nx.gap);
   if(nx.blocked.some((b)=>b.why === 'cool')) return 999;
   const btc = nx.blocked.find((b)=>b.why === 'btc' || b.why === 'btcCycle');
-  if(!btc) return own;                                            // a break that happened without a buy: wait a candle
+  // the stop limit: the ATR must shrink (or price rise) by this much before 4×ATR fits inside the limit
+  const st = nx.blocked.find((b)=>b.why === 'stop'), vol = st && st.max > 0 ? Math.max(0, (st.dist / st.max - 1) * 100) : 0;
+  if(!btc) return Math.max(own, vol);                             // without a stop block: a break that happened without a buy, wait a candle
   let d = Math.max(own, btc.btcGap != null ? Math.max(0, btc.btcGap) : 50);
   if(btc.why === 'btc' && btc.lead != null) d = Math.min(d, Math.max(0, nx.gap));   // or buy as a 30-day leader
-  return d;
+  return Math.max(d, vol);
 }
 // one line under the cards: where each strategy's list stands, so five cards from one strategy never hide that the others
 // were read (Nov 2026: six of the eight new Trend / Turtle / Cycle alerts were already in trades)
@@ -2359,10 +2374,17 @@ function rdCard(x, i){
     tag = 'PAUSED';
     const b = nx.blocked[0];
     const btcAway = b.btcGap != null ? ` (it needs +${Math.max(0, b.btcGap).toFixed(1)}%)` : '';
-    if(b.why === 'btc') line = `BTC is below its ${b.maDays}-day MA${btcAway}, so Breakout only buys coins up 50% in 30 days`
-      + (b.lead != null ? `: here a ${closeW} above <b>${pfFmt(b.lead)}</b> (${rdAway(nx.gap)}).` : '.')
-      + ` Once BTC is back above it, the buy level is <b>${pfFmt(nx.base)}</b> (${rdAway(nx.baseGap)}).`;
-    else if(b.why === 'fresh') line = `It already closed above its 2-day high without a buy (volume or the 1×ATR margin fell short), so this candle can't buy. It needs to dip back under the 2-day high and break out again.`;
+    // the stop limit can come with the BTC pause or alone; said after the first reason either way
+    const st = nx.blocked.find((q)=>q.why === 'stop');
+    const stTxt = st ? `the stop would sit ${st.dist >= 1 ? 'over 100' : (st.dist*100).toFixed(0)}% under the entry, over the ${(st.max*100).toFixed(0)}% limit` : '';
+    if(b.why === 'btc') line = (b.lead != null
+        ? `BTC is below its ${b.maDays}-day MA${btcAway}, so Breakout only buys 30-day leaders: here a ${closeW} above <b>${pfFmt(b.lead)}</b> (${rdAway(nx.gap)}).`
+        : `BTC is below its ${b.maDays}-day MA${btcAway}, so Breakout doesn't buy.`)
+      + ` Once BTC is back above it, the buy level is <b>${pfFmt(nx.base)}</b> (${rdAway(nx.baseGap)}).`
+      + (st ? ` Even then it would wait: ${stTxt}.` : '');
+    else if(b.why === 'fresh') line = `It already closed above its 2-day high without a buy, so this candle can't buy. It needs to dip back under the 2-day high and break out again.`
+      + (st ? ` Also, ${stTxt}.` : '');
+    else if(b.why === 'stop') line = `Too wild to buy: ${stTxt} (the stop is 4×ATR). It buys a ${closeW} above ${T} (${rdAway(nx.gap)}) once the coin has calmed down.`;
     else if(b.why === 'btcCycle') line = `BTC is below its own 40-week MA${btcAway}, and alts follow BTC's cycle, so there is no trend entry for now. Once BTC recovers, it buys after ${nx.need} daily closes above ${T} (${rdAway(nx.gap)}).`;
     else if(b.why === 'cool') line = `After a Pi-cycle top it waits for a close under the 40-week MA before it trades again (now ${pfFmt(nx.trig / 1.02)}).`;
   } else if(x.strat === 'liqbrk'){
@@ -2708,6 +2730,8 @@ const BK_SHORT = { liqbrk:'Breakout', tsmom:'Trend', donch:'Turtle', cycle:'Cycl
 const bkStrat = (e)=> e.strategy || 'liqbrk';
 const bkTag = (e)=> bkStrat(e) === 'liqbrk' ? '' : ` · ${BK_SHORT[bkStrat(e)] || bkStrat(e)}`;
 const bkNoStop = (e)=> bkStrat(e) === 'tsmom';
+// how far under the entry the stop sits, said next to the level (Nov 2026: a stop 42% away went unnoticed in an alert)
+const bkStopPct = (e)=> e.entry > 0 && e.stop > 0 && e.stop < e.entry ? ` (${((1 - e.stop / e.entry) * 100).toFixed(1)}% under the entry)` : '';
 const bkHolds = (e)=> bkIsOpen(e) && (bkAnswer(e) === 'taken' || (e.alerted && !bkAnswer(e)));
 const bkPrice = (sym)=>{ const r = pxRowFor(sym); return r ? r.c[r.c.length-1].close : (BK.px[sym] || null); };
 async function bkFetchPrices(){
@@ -2900,7 +2924,7 @@ function renderBook(){
   // waiting for your answer: alerted, not answered — open or already closed
   const ask = BK.entries.filter(e=>e.alerted && !bkAnswer(e)).sort((a,b)=>b.signalTime-a.signalTime);
   $('bkAskBox').innerHTML = ask.map(e=>`<div class="bkAsk"><b>${coin(e.symbol)} ${e.tf}${bkTag(e)}</b> · ${e.late?'OPEN TRADE':'BUY'} at <b>${pfFmt(e.entry)}</b>
-      · ${bkWhen(e.signalTime)}<br>${bkNoStop(e) ? 'No stop: it sells when the trend breaks' : `Stop ${pfFmt(e.stop)}`}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
+      · ${bkWhen(e.signalTime)}<br>${bkNoStop(e) ? 'No stop: it sells when the trend breaks' : `Stop ${pfFmt(e.stop)}${bkStopPct(e)}`}${e.tp?` · sell half at ${pfFmt(e.tp)}`:''}${!bkIsOpen(e)?` · <b>already closed</b> ${bkPct(e.ret)}`:''}${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
       <div style="color:var(--muted)">Did you buy it? This slot stays reserved until you answer.</div>
       <div class="bkBtns"><button data-bk="taken" data-id="${e.id}">Taken</button><button class="ghost" data-bk="skipped" data-id="${e.id}">Skipped</button></div></div>`).join('');
   // your open positions
@@ -2911,7 +2935,7 @@ function renderBook(){
         <span class="badge a-hold">IN YOUR BOOK · ${e.tf}${bkTag(e)}</span><span class="px"><b>${p.now?pfFmt(p.now):'—'}</b><s>${bkPct(res).replace(/<[^>]+>/g,'')}</s></span></div>
         <div class="rowK"><span>Bought</span><b>${pfFmt(e.entry)} · ${bkWhen(e.signalTime)}</b></div>
         ${p.value!=null?`<div class="rowK"><span>Worth now</span><b>${pfMoney(p.value)}</b></div>`:''}
-        <div class="rowK"><span>${bkNoStop(e)?'Exit':'Stop'}</span><b style="color:#f85149">${bkNoStop(e)?'when the trend breaks (no stop)':pfFmt(e.stop)}</b></div>
+        <div class="rowK"><span>${bkNoStop(e)?'Exit':'Stop'}</span><b style="color:#f85149">${bkNoStop(e)?'when the trend breaks (no stop)':pfFmt(e.stop) + bkStopPct(e)}</b></div>
         ${e.scale||e.tp ? `<div class="rowK"><span>${e.scale?'Half sold':'Sell half at'}</span><b>${pfFmt(e.scale?e.scale.px:e.tp)}</b></div>`:''}
         ${bkStrat(e)==='liqbrk' && lb.trailLow ? `<div class="rowK"><span>Rest sells on a close below</span><b>${pfFmt(lb.trailLow)}</b></div>`:''}
         ${(()=>{ const lv = bkLive(e); return lv ? `<div class="bkLiveLine">${lv.text}${lv.why||''}</div>` : ''; })()}
@@ -3402,7 +3426,7 @@ let alLive = null, alDraft = null, alLoaded = false, alStale = 0, alLiveNote = '
 // what the strategy does and has its own add form: the timeframes it suits and a bar count past its warm-up.
 const AL_STRATS = [
   { s:'liqbrk', name:'Liquidity Breakout', tfs:['15m','1h','2h','4h','1d'], tf:'4h',
-    what:'Breakouts through the 2-day high on strong volume. Holds about 1–2 days: half is sold at +3R and the rest trails. New entries need BTC above its 50-day average, or the coin up 50% in 30 days.' },
+    what:'Breakouts through the 2-day high on strong volume. Holds about 1–2 days: half is sold at +3R and the rest trails. New entries need BTC above its 50-day average, and a stop no more than 25% under the entry.' },
   { s:'tsmom', name:'Trend Follow', tfs:['4h','1d'], tf:'4h',
     what:'Long while price is above its 200-day average and higher than 90 days ago; sells when either fails. No stop. Holds weeks to months.' },
   { s:'donch', name:'Turtle', tfs:['4h','1d'], tf:'4h',

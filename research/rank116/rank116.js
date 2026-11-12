@@ -14,7 +14,7 @@
 // the average of its two scores + 10 bonus points.
 'use strict';
 const fs = require('fs'), path = require('path');
-const L = require('../liqbrk_lab.js');
+const L = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const CACHE = path.join(__dirname, '..', 'cache');
 const DAY = 86400, H4 = 14400;
 const coins = fs.readFileSync(path.join(__dirname, 'universe.txt'), 'utf8').split('\n').map(s => s.trim()).filter(Boolean);

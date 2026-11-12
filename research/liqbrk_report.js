@@ -1,7 +1,7 @@
 // Runs every study in the Oct 2026 liqbrk research and prints markdown tables.
 //   node research/liqbrk_report.js > research/RESULTS_liqbrk_2026-10.md
 'use strict';
-const L = require('./liqbrk_lab.js');
+const L = require('./liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const TREND = 'SOL FET XLM HBAR PEPE AERO INJ STRK ARB SUI ZEC RENDER RAY CFX'.split(' ');   // user's pick
 const ADDED = 'WIF BONK TAO NEAR AVAX DOGE JUP TIA SEI APT ONDO ENA WLD FLOKI OP'.split(' '); // mine
 const CTRL = 'BTC ETH LINK'.split(' ');

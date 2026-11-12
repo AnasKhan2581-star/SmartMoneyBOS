@@ -26,7 +26,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const L = require('../liqbrk_lab.js');
+const L = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const LL = require('../latelead/latelead_lab.js');
 const OUT = path.join(ROOT, 'research', 'cache', 'weekgate');
 const H4 = 14400, DAY = 86400, WK = 604800, MON0 = 345600, SLIP = 0.0015;      // 1970-01-05 00:00 UTC was a Monday

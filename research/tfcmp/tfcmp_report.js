@@ -9,6 +9,7 @@
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..'), DATA = path.join(ROOT, 'research', 'cache', 'tfcmp');
 const SMC = require(path.join(ROOT, 'detector.js'));
+require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 // ---------------------------------------------------------------- the app's own code and lists

@@ -11,8 +11,10 @@ There is no second copy of the strategy rules. If `ALGORITHM.md` changes, the al
 (`liqbrk`), **Trend Follow** (`tsmom`), **Turtle** (`donch`) or **BTC Cycle** (`cycle`). Titles name the
 strategy (`BUY RAY 4h · Trend Follow`), except liqbrk's, which keep their original form (`BUY ARB 4h`).
 Each message states its own strategy's exit, with today's levels:
-- Liquidity Breakout: the stop, the **take-half price (+3R)**, the trail (a close below the 1-day low) and
-  whether BTC's 50-day MA let it through (or the coin was a +50%/30-day leader).
+- Liquidity Breakout: the stop **and how far under the entry it sits** (`Initial stop 1.22 (12.9% under the
+  entry)`), the **take-half price (+3R)**, the trail (a close below the 1-day low) and the market gate.
+  Since Nov 2026 it buys only while BTC is above its 50-day MA (the "+50% in 30 days" exception is gone), and
+  it skips a breakout whose stop would sit more than 25% under the entry.
 - Trend Follow: **no stop**. It sells on a close under the 200-day MA or under the close 90 days back.
 - Turtle: the stop (2×ATR) and the trail (a close below the 20-day low).
 - BTC Cycle: the tranche plan, the stop (0.65 × the 200-week MA) and the sell zone.
@@ -32,6 +34,9 @@ Each message states its own strategy's exit, with today's levels:
   closed after the bot's previous run is not "old" — it comes as a normal BUY.
 - **Rules updated** — sent once per coin, only when a rules change flips that coin between long and
   flat. No trade happened; the bot just re-read the position under the new rules.
+  A position that was **opened under the old rules stays managed by them**: its TAKE HALF and SELL arrive
+  as normal, and the new rules take over when it closes. Only if the old rules can no longer be replayed
+  does the note say that the bot has stopped following that position; its slot is then freed.
 
 The bot also fetches BTC on every run (one request set per timeframe) for the 50-day gate. If that
 fetch fails, the coins on that timeframe are skipped with an error rather than alerted without the gate.

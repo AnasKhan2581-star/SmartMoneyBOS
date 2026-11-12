@@ -13,6 +13,17 @@
 const fs = require('fs'), path = require('path');
 const SMC = require('../detector.js');
 const P = SMC.DEFAULTS;
+// RULE ERAS. `P` is the engine's live defaults, so this lab always follows detector.js. A study that measured an earlier
+// rule set says so once, at its top: L.useRules('2026-10'). The engine and this lab then run those rules for that
+// process (it edits SMC.DEFAULTS in memory only; the app and the bot never load this file).
+//   '2026-10'  the Oct 2026 rules: BTC 50-day gate WITH the +50%/30-day leader rescue, and no limit on the stop's distance.
+//              Every study from Oct to mid Nov 2026 measured these.
+const ERAS = { '2026-10': { lbLeadPump: 0.5, lbMaxStop: 0 } };
+function useRules(era) {
+  if (!ERAS[era]) throw new Error(`liqbrk_lab: unknown rule era "${era}"`);
+  Object.assign(SMC.DEFAULTS, ERAS[era]);
+  return module.exports;
+}
 const CACHE = path.join(__dirname, 'cache');
 const FEE = 0.001;                                   // 0.1% per side, as everywhere in this repo
 
@@ -67,13 +78,15 @@ function indicators(c, prm = {}) {
   for (let i = warm; i < n; i++) {
     const px = closes[i];
     sig[i] = px > hiB[i] && closes[i - 1] <= hiB[i - 1] && px > maT[i] && rv[i] >= p.lbRelVol
-      && (!maBars || px > maBars[i]) && (!(p.lbBrkExt > 0) || (px - hiB[i]) >= p.lbBrkExt * a[i]);
+      && (!maBars || px > maBars[i]) && (!(p.lbBrkExt > 0) || (px - hiB[i]) >= p.lbBrkExt * a[i])
+      && (!(p.lbMaxStop > 0) || p.lbStop * a[i] <= p.lbMaxStop * px);       // Nov 2026: the stop at most lbMaxStop under the entry
   }
   return { a, hiB, loE, rv, maT, sig, warm, bpd, p };
 }
 
 // ---------- the Oct 2026 market gate, written independently of detector.js so parity means something ----------
-// BTC above its n-day MA (last BTC bar closed by this bar's close) OR coin up >= pump over 30 days.
+// BTC above its n-day MA (last BTC bar closed by this bar's close) OR coin up >= pump over 30 days (pump 0 = no
+// rescue, the engine's default since Nov 2026).
 function marketGate(c, btc, days = P.lbBtcMaDays, pump = P.lbLeadPump) {
   const n = c.length, dt = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400, bpd = 86400 / dt;
   const dB = btc[1].time - btc[0].time, L = Math.round(days * 86400 / dB), L30 = Math.max(2, Math.round(30 * bpd));
@@ -206,7 +219,7 @@ function stats(c, ind, run) {
     yrs: (c[n - 1].time - c[w0].time) / 31557600, expo: held / Math.max(1, n - w0), _eqEnd: eq[n - 1] };
 }
 
-module.exports = { load, slice, indicators, simulate, stats, marketGate, SMC, P };
+module.exports = { load, slice, indicators, simulate, stats, marketGate, SMC, P, ERAS, useRules };
 
 // ---------- parity: the harness must reproduce detector.js exactly ----------
 if (require.main === module && process.argv[2] === 'parity') {
@@ -217,12 +230,14 @@ if (require.main === module && process.argv[2] === 'parity') {
     if (tf === '1h' && !fs.existsSync(path.join(CACHE, `${coin}_1h.json`))) continue;
     const c = load(coin, tf);
     if (c.length < 400) continue;
-    // twice: the pre-Oct-2026 rules (gate + scale-out off) and the shipped defaults (BTC 2h series supplied)
-    for (const mode of ['core', 'shipped']) {
-      const prm = mode === 'core' ? { lbBtcMaDays: 0, lbScaleR: 0 } : { btc: BTC2H };
+    // three times: the pre-Oct-2026 rules (gate, scale-out and stop limit off), the Oct 2026 rules (leader rescue, no
+    // stop limit: what the Oct–Nov 2026 studies measured) and the shipped defaults (BTC 2h series supplied)
+    for (const mode of ['core', 'oct26', 'shipped']) {
+      const era = mode === 'core' ? { lbMaxStop: 0 } : mode === 'oct26' ? ERAS['2026-10'] : {};
+      const prm = mode === 'core' ? { lbBtcMaDays: 0, lbScaleR: 0, ...era } : { btc: BTC2H, ...era };
       const ref = SMC.detectAll(c, { strategy: 'liqbrk', longOnly: true, useLiq: false, ...prm }).trades;
-      const mine = simulate(c, indicators(c), mode === 'core' ? { fill: 'close', exit: 'base' }
-        : { fill: 'close', exit: 'scale3R', veto: marketGate(c, BTC2H) });
+      const mine = simulate(c, indicators(c, era), mode === 'core' ? { fill: 'close', exit: 'base' }
+        : { fill: 'close', exit: 'scale3R', veto: marketGate(c, BTC2H, P.lbBtcMaDays, era.lbLeadPump ?? P.lbLeadPump) });
       const refClosed = ref.filter(x => x.outcome !== 'open');
       const same = refClosed.length === mine.trades.length && refClosed.every((r, i) => {
         const m = mine.trades[i], mExit = m.legs.reduce((s, l) => s + l.w * l.px, 0);   // weighted, like detector

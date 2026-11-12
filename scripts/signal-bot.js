@@ -19,8 +19,9 @@
  *     Without it every run would re-announce a position opened days ago. On the FIRST run for
  *     a watch item the state is recorded silently — you are not told about history.
  *
- *  3. liqbrk's MARKET GATE needs BTC (Oct 2026: enter only while BTC > its 50-day MA, or the coin
- *     is a +50%/30d leader). BTC is fetched once per timeframe with 51 days of extra history so
+ *  3. liqbrk's MARKET GATE needs BTC (enter only while BTC > its 50-day MA; the "+50% in 30 days
+ *     leader" exception was removed in Nov 2026, as was any buy whose stop would sit more than 25%
+ *     under the entry). BTC is fetched once per timeframe with 51 days of extra history so
  *     its MA is warm. If that fetch fails the watch items on that timeframe are SKIPPED with an
  *     error — an alert computed without the gate would be a trade the rules never take.
  *     It also SELLS HALF at +3R: that is its own alert ("TAKE HALF"), sent once per position.
@@ -35,6 +36,10 @@
  *  4. A RULES CHANGE re-baselines. State carries the rules version; when it differs, the new
  *     rules' view is recorded, and if it disagrees with what the old rules said (long vs flat)
  *     you get one "rules updated" note instead of a fake BUY or SELL.
+ *     A POSITION OPENED UNDER THE OLD RULES IS STILL MANAGED TO ITS EXIT BY THEM (LEGACY below):
+ *     the entry rules changed, the position is real money, so its TAKE HALF and SELL arrive as
+ *     normal and the new rules take over when it closes. Only when the old rules cannot be
+ *     replayed does the note say the old position is no longer followed, and its slot is freed.
  *
  * Channels are all optional and all additive; whichever secrets exist get used.
  *   NTFY_TOPIC (+ optional NTFY_SERVER)  — easiest phone push, no account
@@ -81,8 +86,11 @@ const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision']
 const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
 // bump a strategy's entry when ITS trading rules change, so stored positions are re-read under the new rules
 // (note 4). Per strategy, so a change to one never makes every alert of another re-baseline.
-const RULES = { liqbrk: 'liqbrk-2026-10-btc50-lead50-scale3R', cycle: 'cycle-2026-10-daily-btcled-half1.85' };
+const RULES = { liqbrk: 'liqbrk-2026-11-btc50-maxstop25-scale3R', cycle: 'cycle-2026-10-daily-btcled-half1.85' };
 const rulesOf = (strat) => RULES[strat] || strat;
+// Earlier rule sets the engine can still replay: the rules id a stored position carries -> the engine params that bring
+// those rules back. A position opened under one of them is read with it until it closes (note 4).
+const LEGACY = { 'liqbrk-2026-10-btc50-lead50-scale3R': { lbLeadPump: 0.5, lbMaxStop: 0 } };
 // Fallback only, for a state file with no _meta.lastRun yet. The real "fresh" test uses the time of the
 // previous persisted run, because GitHub's scheduler runs late and irregularly (measured Oct 2026: a
 // 2-hourly cron actually fired every 5-6 hours), so "the latest N candles" is not a safe proxy.
@@ -143,8 +151,11 @@ function gateLine(lb) {
   if (!g) return null;
   if (g.missing) return 'Market gate: BTC data missing — gate skipped';
   return g.btcOk ? `Market gate: BTC above its ${g.maDays}-day MA`
-    : `Market gate: BTC below its ${g.maDays}-day MA — allowed as a 30-day leader (+${Math.round(g.leadPump * 100)}%)`;
+    : g.leadPump > 0 ? `Market gate: BTC below its ${g.maDays}-day MA — allowed as a 30-day leader (+${Math.round(g.leadPump * 100)}%)`
+    : `Market gate: BTC below its ${g.maDays}-day MA`;
 }
+// how far under the entry a stop sits, said next to the level so the risk is read at a glance
+const stopPct = (trade) => trade && trade.entry > 0 && isFinite(trade.stop) ? ` (${((1 - trade.stop / trade.entry) * 100).toFixed(1)}% under the entry)` : '';
 // 2h vs 4h on the same coin (measured Oct 2026, 32 coins, full history, shipped rules): a 2h buy
 // is followed by a 4h buy within 24h only 42% of the time, and 37% of 4h buys have no 2h buy before
 // them — so 2h is a heads-up and 4h is the trade. 2h buys that a 4h buy followed averaged +4.9%,
@@ -187,9 +198,9 @@ function exitLines(w, trade, advice, open) {
     `              or under the close ${q.refDays || 90} days back (now ${fmtPx(q.ref)})`,
     'No stop: it holds until the trend breaks'];
   if (s === 'donch') return [
-    `${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}`,
+    `${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`,
     `Trail exit    close below the ${q.outDays || 20}-day low (now ${fmtPx(q.chanLow)})`];
-  return [`${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}`];
+  return [`${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`];
 }
 // what a cycle entry still has to do: the tranche program, the exit line, BTC's state for alts
 function cycleLines(trade, advice) {
@@ -299,19 +310,22 @@ function openMessage(w, c, trade, advice, slot) {
     tag: 'buy',
   };
 }
-function rulesMessage(w, cur) {
+// `dropped` = the old rules' position was in your book and can no longer be followed (its rules cannot be replayed)
+function rulesMessage(w, cur, dropped) {
   const coin = w.symbol.replace(/USDT$/, '');
   return {
     title: `Rules updated — ${coin} ${w.tf}${tagOf(w)}`,
     body: [
       ...(isCycle(w) ? ['BTC Cycle was rebuilt (Oct 2026): a daily system, alts follow BTC\'s cycle,',
         'and half is sold in the sell zone (1.85 × the 200-day MA).']
-        : stratOf(w) === 'liqbrk' ? ['liqbrk now also requires BTC above its 50-day MA (or the coin up 50%+ in 30 days)', 'and sells half at +3R.']
+        : stratOf(w) === 'liqbrk' ? ['Liquidity Breakout no longer buys while BTC is under its 50-day MA (the "+50% in 30 days"',
+          'exception is gone), and skips a buy whose stop would be more than 25% under the entry.']
         : [`${STRAT_NAME[stratOf(w)] || stratOf(w)}'s rules changed (see ALGORITHM.md).`]),
       '',
-      cur.inPosition ? `Under the new rules this coin is LONG since ${fmtDay(cur.entryTime)}.`
+      cur.inPosition ? `Under the new rules this coin is LONG since ${fmtDay(closeAt(w, cur.entryTime))}.`
         : 'Under the new rules this coin is FLAT — the old rules had it long.',
-      'No trade happened just now; this only re-reads the position.',
+      ...(dropped ? ['The bot no longer follows the old position: its exit is yours to manage. Its slot is freed.']
+        : ['No trade happened just now; this only re-reads the position.']),
     ].join('\n'),
     tag: 'win',
   };
@@ -454,21 +468,37 @@ async function notify(msg) {
         try { btcD = w.symbol === 'BTCUSDT' ? 'self' : await btcDailyFor(); }
         catch (e) { throw new Error(`BTC daily fetch failed (${e.message}) — skipped, the cycle's BTC rules cannot be checked`); }
       }
-      const res = SMC.detectAll(c, { strategy: strat, longOnly: true, useLiq: false, btc, btcD });
+      const detect = (extra) => SMC.detectAll(c, { strategy: strat, longOnly: true, useLiq: false, btc, btcD, ...extra });
+      let res = detect();
       if (!res.advice) {                      // runQuant bailed: fewer bars than the warm-up needs
         console.error(`${key}: ${c.length} bars is below the strategy's warm-up — this watch can `
           + `NEVER fire. Raise "bars" in the watchlist.`);
         process.exitCode = 1;
         continue;
       }
+      const prev = state[key];
+      // note 4: a position opened under earlier rules is read with THOSE rules until it closes. legTrade = that
+      // position in the old rules' replay (null when the rules are current, unknown, or no longer show it).
+      const legId = prev && prev.inPosition ? (prev.legacy || (prev.rules !== rulesOf(strat) ? prev.rules : null)) : null;
+      let legTrade = null;
+      if (legId && LEGACY[legId]) {
+        const old = detect(LEGACY[legId]);
+        legTrade = (old.advice && old.trades.find((t) => c[t.entryIdx].time === prev.entryTime)) || null;
+        if (legTrade && legTrade.outcome === 'open') res = old;   // still open: its levels, half and trail come from its own rules
+      }
+      const legOpen = !!(legTrade && legTrade.outcome === 'open');
       const open = res.trades.filter((t) => t.outcome === 'open').slice(-1)[0] || null;
       const closed = res.trades.filter((t) => t.outcome !== 'open');
-      const last = closed.length ? closed[closed.length - 1] : null;
+      // a legacy position that has closed is the trade this run reports; the new rules read the coin from here on
+      const last = legTrade && !legOpen ? legTrade : closed.length ? closed[closed.length - 1] : null;
       const cur = { inPosition: !!open, entryTime: open ? c[open.entryIdx].time : null,
                     scaled: !!(open && open.scale), lastBar: c[c.length - 1].time, rules: rulesOf(strat),
-                    lastEntry: res.trades.length ? c[res.trades[res.trades.length - 1].entryIdx].time : null };
-      const prev = state[key];
-      const rulesChanged = prev && prev.rules !== rulesOf(strat);
+                    lastEntry: res.trades.length ? c[res.trades[res.trades.length - 1].entryIdx].time : null,
+                    ...(legOpen ? { legacy: legId } : {}) };
+      // with the old position found in its own rules' replay, the normal branches below handle it (holding, half,
+      // sell); the re-baseline branch is for everything else
+      const rulesChanged = prev && prev.rules !== rulesOf(strat) && !legTrade;
+      if (legTrade) console.log(`${key}: position from ${fmtDay(closeAt(w, prev.entryTime))} was opened under earlier rules — ${legOpen ? 'still managed by them' : 'it has closed, the current rules take over'}`);
       // "fresh" = entered on a candle that closed after the previous persisted run, i.e. a signal no run
       // has been able to report yet. `noted` = this exact position has been journaled (BUY or OPEN TRADE).
       const lastRun = state._meta && state._meta.lastRun;
@@ -494,7 +524,7 @@ async function notify(msg) {
       if (prev && !stale && rulesChanged) {
         // note 4: re-read under the new rules; speak only if long/flat actually changed
         console.log(`${key}: rules changed — re-baselined (${cur.inPosition ? 'long' : 'flat'} under the new rules)`);
-        if (prev.inPosition !== cur.inPosition) { ev('rules', null, { cur }); if (cur.inPosition) noted = true; }
+        if (prev.inPosition !== cur.inPosition) { ev('rules', null, { cur, prev }); if (cur.inPosition) noted = true; }
       } else if (!prev || stale) {
         // First sighting. History stays quiet (no SELL for a trade that closed before you watched),
         // but an OPEN position is always journaled: a FRESH entry as a normal BUY (add a coin at 10:30,
@@ -516,7 +546,9 @@ async function notify(msg) {
         // a close and a re-entry both landed between two runs — report both, in order
         if (last && last.scale && !prev.scaled) ev('half', last);
         if (last) ev('sell', last);
-        ev('buy', open); if (open.scale) ev('half', open);
+        // the re-entry is fresh by construction, except after a legacy position: the current rules may have entered
+        // while it was still open, and an old entry is an OPEN TRADE note, never a BUY
+        if (isFresh(open)) { ev('buy', open); if (open.scale) ev('half', open); } else ev('open', open);
         noted = true;
       } else if (cur.inPosition && !noted) {
         // a position recorded silently before OPEN TRADE notes existed — journal it once
@@ -529,7 +561,8 @@ async function notify(msg) {
       if (open) openNow.push({ ...ctx, trade: open });
       cur.noted = noted;
       if (!prev || stale || rulesChanged || prev.inPosition !== cur.inPosition || prev.entryTime !== cur.entryTime
-          || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar || !!prev.noted !== noted) {
+          || !!prev.scaled !== cur.scaled || prev.lastBar !== cur.lastBar || !!prev.noted !== noted
+          || prev.rules !== cur.rules || (prev.legacy || null) !== (cur.legacy || null)) {
         state[key] = cur; changed = true;
       }
     } catch (e) {
@@ -585,8 +618,20 @@ async function notify(msg) {
       alerts++;
     } else console.log(`${x.key}: ${x.kind.toUpperCase()} — journal only (${answer(e) === 'skipped' ? 'you skipped it' : 'not in your book'})`);
   }
-  // 2) rules notes (rare, informational)
-  for (const x of queue.filter((q) => q.kind === 'rules')) { await notify(rulesMessage(x.w, x.cur)); alerts++; }
+  // 2) rules notes (rare, informational). When the old rules were long and could not be replayed (LEGACY has no entry
+  //    for them, or their replay no longer shows the position), the journal entry can never get a SELL: release it,
+  //    like a coin removed from the watchlist, and say so if it was in your book.
+  for (const x of queue.filter((q) => q.kind === 'rules')) {
+    let dropped = false;
+    if (x.prev && x.prev.inPosition && !x.cur.inPosition) {
+      const e = J.get(`${x.w.symbol}|${x.w.tf}|${x.prev.entryTime}` + (stratOf(x.w) === 'liqbrk' ? '' : `|${stratOf(x.w)}`));
+      if (e && (e.status === 'open' || e.status === 'half')) {
+        dropped = holds(e);
+        Object.assign(e, { status: 'dropped', why: 'rules changed', exitTime: Math.floor(Date.now() / 1000) }); jChanged = true;
+      }
+    }
+    await notify(rulesMessage(x.w, x.cur, dropped)); alerts++;
+  }
   // 3) new positions, strongest volume spike first, while slots last
   for (const x of queue.filter((q) => q.kind === 'buy' || q.kind === 'open').sort((a, b) => b.strength - a.strength)) {
     const id = idOf(x);

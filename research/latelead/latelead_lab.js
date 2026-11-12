@@ -35,7 +35,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const L = require('../liqbrk_lab.js');
+const L = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const CACHE = path.join(ROOT, 'research', 'cache'), OUT = path.join(CACHE, 'latelead'), DEADDIR = path.join(CACHE, 'lb15dead');
 const H4 = 14400, DAY = 86400, SLIP = 0.0015;
 const SPLIT = Date.UTC(2022, 0, 1) / 1e3, S0 = Date.UTC(2017, 8, 1) / 1e3;

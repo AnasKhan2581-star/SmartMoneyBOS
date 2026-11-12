@@ -41,10 +41,47 @@ strategy**, not as a strategy on its own.
 
 ## `liqbrk` - buy-side liquidity continuation (July 2026)
 
+> **SHIPPED Nov 2026 (user-approved; research/stopcap/, the RESEARCH entry "liqbrk after INIT's
+> −41.7% stop-out" below) — two entry changes. Everything else in this section is unchanged.**
+> 1. **No leader rescue:** `lbLeadPump` 0.5 → **0**. A breakout is bought only while BTC closes
+>    above its 50-day MA. The parameter stays (a value above 0 brings the rescue back).
+> 2. **A limit on the stop's distance (entries only):** no entry when the initial stop would be more
+>    than 25% under the entry, i.e. when `lbStop` × ATR > `lbMaxStop` × close (`lbMaxStop` =
+>    **0.25**, 0 = off). The stop itself is still 4 × ATR; a signal over the limit is skipped, not
+>    bought with a tighter stop.
+>
+> **Why** (the 65 alert coins / the 103-coin list / the 103 plus 171 delisted coins; 4h, bought at
+> the next open, 0.1% fee and 0.15% slippage):
+> - The rescue's trades average −1.63% / −0.99% / −3.38% (63 / 66 / 215 trades) and lose on all
+>   three sets from 2022 (−3.10% / −0.74% / −4.43%). A two-day pump makes a coin a "leader", so in a
+>   weak market the rule bought the top of pumps: INIT 4h, 10 Nov 2026, +120% in three days, stop
+>   42% under the entry, stopped out at −41.7%.
+> - Trades whose stop is over 30% away lose on all three sets (−2.77% / −4.13% / −5.27%). From 25%
+>   to 30% the sets disagree (−6.18% / +3.86% / +0.59%), so 25% is a choice about the worst loss,
+>   not about profit.
+> - Both together: average trade +1.72% → +2.16% / +2.22% → +2.29% / +0.62% → +0.95%; trades losing
+>   over 20%: 50 → 17 / 15 → 7 / 167 → 58; worst trade −42% → −25% / −32% → −25% / −46% → −25%; 8% /
+>   5% / 11% fewer trades.
+> - Clamping the stop on the same trades does not help (more of them end below −20%), and a smaller
+>   buy earns less per trade than skipping.
+> - Limits: both rules were written after looking at losing trades; the rule still loses about 6
+>   trades in 10 and the 5-slot pot still draws down more than 50%. In a weak market there are now
+>   no Breakout buys at all, which gives up the few early-cycle leaders the rescue caught (2 trades
+>   in 2023 on the alert coins).
+>
+> **In the code.** `advice.signals` gains "Stop within 25% of the entry (now N%)"; `advice.lb` gains
+> `stopDist` and `maxStop`; `advice.next.blocked` can carry `{ why: 'stop', dist, max }`, and under
+> a weak BTC it carries `{ why: 'btc' }` with `lead: null`. `research/liqbrk_lab.js` follows the
+> engine (parity); studies from Oct–Nov 2026 pin the rules they measured with
+> `L.useRules('2026-10')`. The bot's `RULES.liqbrk` is `liqbrk-2026-11-btc50-maxstop25-scale3R`; a
+> position opened under the Oct 2026 rules is still managed to its exit by them (`LEGACY` in
+> signal-bot.js).
+
 > **SHIPPED Oct 2026 (user-approved) — two additions on top of the rules below. Defaults; each switches off.**
 > 1. **Market gate (entries only):** take a signal only if **BTC closes above its own 50-day MA**
 >    (`lbBtcMaDays` = 50, 0 = off) **OR the coin itself is up ≥ 50% over the last 30 days**
->    (`lbLeadPump` = 0.5, 0 = no rescue — a leader running on its own is allowed through). BTC is read
+>    (`lbLeadPump` = 0.5, 0 = no rescue — a leader running on its own is allowed through; **the
+>    rescue was switched off in Nov 2026, see the block above**). BTC is read
 >    from the last BTC candle that has CLOSED by the coin candle's close — never later. If the caller
 >    supplies no BTC series the gate is open and the result says so (`btcGate: 'missing'`).
 > 2. **Scale-out:** sell **half at entry + 3R** (`lbScaleR` = 3, 0 = off; R = entry − initial stop),
@@ -99,7 +136,9 @@ the raid, not fade it.
 1. **Entry** - the FIRST close above the prior `lbBreak` **2-day** high (the BSL pool),
    **and** close > the `lbTrend` **5-day** SMA, **and** close > the `lbMaBars` **149-bar** SMA
    *of the timeframe being traded* (see below), **and** volume >= `lbRelVol` **1.3x** its 1-day average.
-2. **Stop** - `lbStop` **3 x ATR** of the trading timeframe. Deliberately bar-native, not a fixed %:
+   Since Sep–Nov 2026 also: the close clears that high by `lbBrkExt` **1 x ATR**, BTC is above its
+   50-day MA, and the stop would be at most `lbMaxStop` **25%** under the entry (the blocks above).
+2. **Stop** - `lbStop` **3 x ATR** of the trading timeframe (4 x since Sep 2026). Deliberately bar-native, not a fixed %:
    ZEC ran $21->$750 in the sample and a constant-% stop is the documented reason `zecdiv` failed.
 3. **Exit** - trail out on a close below the prior `lbExit` **1-day** low, or the stop. The 149 MA
    gates **entries only** - an open position is never closed because price slips back under it.
@@ -1132,10 +1171,12 @@ RESULTS_weekgate_2026-11.md. Set-up and coin sets as research/latelead/ (the 65 
 - **Verdict: keep the 50-day gate.** A weekly 9 is the same gate made slightly slower. Don't re-test weekly MAs of BTC
   or of the coin as the gate.
 
-## RESEARCH (Nov 2026): liqbrk after INIT's −41.7% stop-out — the leader rescue and a stop with no limit (NOT shipped; two changes proposed)
+## RESEARCH (Nov 2026): liqbrk after INIT's −41.7% stop-out — the leader rescue and a stop with no limit (both changes SHIPPED Nov 2026)
 
 User: "The last trade that happened actually got stopped out at -41% no trader would trade like that ig, there are
-things still wrong in the strategy". Research only: detector.js, the webapp and the bot are unchanged.
+things still wrong in the strategy". The study itself changed nothing. The user then approved both proposed rules
+("Yes go with proposal no breakout buy while btc under MA and no buy with more than 25% Stop") and they are shipped:
+see the Nov 2026 block at the top of the liqbrk section. "Shipped" in the numbers below means the Oct 2026 rules.
 research/stopcap/stopcap_lab.js (`run`, `report`) → RESULTS_stopcap_2026-11.md. Set-up and coin sets as
 research/latelead/ (the 65 alert coins on Binance 4h to 2026-11-11 / the 103-coin list / the 103 plus 171 delisted;
 numbers below are in that order).
@@ -1178,7 +1219,7 @@ numbers below are in that order).
   - A smaller buy (size = 15% ÷ the stop's distance of a slot, so a stop-out costs at most 15% of a slot), in slot
     units: +1.72% → +1.74% / +2.22% → +2.07% / +0.62% → +0.76%, worst −15%. With no rescue +1.83% / +2.13% / +0.86%,
     under the skip rule below on all three. It would also need sizes in the alerts and the book.
-- **PROPOSED, not shipped: (1) no leader rescue (`lbLeadPump` 0), (2) no entry when the stop would be more than 25%
+- **PROPOSED, then SHIPPED: (1) no leader rescue (`lbLeadPump` 0), (2) no entry when the stop would be more than 25%
   under the close (a new `lbMaxStop` 0.25: `lbStop` × ATR ÷ close).**
   - Together: average trade +1.72% → +2.16% / +2.22% → +2.29% / +0.62% → +0.95%; PF 1.36 → 1.51 / 1.59 → 1.64 / 1.12 →
     1.21; PF without the best 2% 0.96 → 1.09 / 1.17 → 1.21 / 0.80 → 0.88.
@@ -1193,9 +1234,9 @@ numbers below are in that order).
   - Limits. Both ideas were written after looking at losing trades, INIT's first, with both halves in view. The stop
     limit is a risk rule: only the over-30% trades lose on every set. Trades with a stop over 25% away are 3–9% of all
     and fat-tailed. The rule still loses about 6 trades in 10, and the pot still draws down more than 50%.
-  - If approved: this file's liqbrk block first; detector.js (`lbLeadPump` 0, `lbMaxStop` in the entry test and in
-    `advice.next`); research/liqbrk_lab.js parity; `RULES.liqbrk` in signal-bot.js bumped so positions re-baseline
-    with one note; the gate texts in the bot and the radar.
+  - Shipped as: this file's liqbrk block; detector.js (`lbLeadPump` 0, `lbMaxStop` in the entry test, the conditions
+    list and `advice.next`); research/liqbrk_lab.js parity; `RULES.liqbrk` in signal-bot.js bumped; the gate texts in
+    the bot, the radar and the holding cards.
 
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 

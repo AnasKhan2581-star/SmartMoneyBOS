@@ -15,7 +15,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const { SMC, indicators, simulate } = require('../liqbrk_lab.js');
+const { SMC, indicators, simulate } = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const DATA = path.join(ROOT, 'research', 'cache', 'lb15');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 

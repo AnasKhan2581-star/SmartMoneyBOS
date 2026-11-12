@@ -8,7 +8,7 @@ bot. A result reaches `detector.js` only after the user approves it, and its rul
 
 | Folder | Question | Verdict |
 |---|---|---|
-| [`stopcap/`](stopcap/) | After INIT's −41.7% stop-out: is the Breakout rule's "leader" exception worth keeping, and should a stop have a maximum distance? | **Not shipped; two changes proposed.** The leader exception's trades lose, and trades with a stop over 30% away lose on all three coin sets. Proposed: no leader exception, and no buy when the stop would be more than 25% away. A tighter stop or a smaller buy on the same trades does less. |
+| [`stopcap/`](stopcap/) | After INIT's −41.7% stop-out: is the Breakout rule's "leader" exception worth keeping, and should a stop have a maximum distance? | **Both changes shipped** (Nov 2026). The leader exception's trades lose, and trades with a stop over 30% away lose on all three coin sets. Shipped: no leader exception, and no buy when the stop would be more than 25% away. A tighter stop or a smaller buy on the same trades does less. |
 | [`weekgate/`](weekgate/) | Should the Breakout market filter be "BTC above the 9 MA on the weekly chart" instead of the 50-day average? | **Rejected.** It is nearly the same filter (they differ on 4% of candles) and slightly worse where they differ. The coin's own weekly 9 MA loses clearly. |
 | [`latelead/`](latelead/) | Why didn't the Breakout rule buy INIT's +79% day, and should it buy such sudden runs? | **Not shipped; one change proposed.** It saw the run and the BTC filter blocked it. Buying such runs loses on all three coin sets. Proposed: the "leader" exception should need a day of leadership first ([`stopcap/`](stopcap/) now proposes dropping it). |
 | [`smcpoi/`](smcpoi/) | The user's 15m pattern: a sweep of the higher low, a close above the major high, a buy back in the up move's fair value gap | **Not shipped.** Real (it beats the same orders at random times), but it breaks even on the user's 103 coins. [README](smcpoi/README.md) |
@@ -42,6 +42,9 @@ study gives the short version.
   Random numbers come from [`rng.js`](rng.js).
 - **Parity.** Labs that copy a shipped strategy are first checked trade-for-trade against `detector.js` (their
   `parity` modes).
+- **Rule eras.** `liqbrk_lab.js` follows the engine's current rules. A study of the Breakout rules as they were from
+  Oct to mid Nov 2026 (the "leader" exception, no stop limit) says so at its top with `L.useRules('2026-10')`, so
+  re-running it reproduces its report. "Shipped" in those reports means the rules of their day.
 
 ## Data
 

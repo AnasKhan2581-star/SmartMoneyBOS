@@ -20,7 +20,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
-const { SMC, indicators, simulate } = require('../liqbrk_lab.js');
+const { SMC, indicators, simulate } = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const L15 = require('../liqbrk15m/lab15.js');
 const { load, btcStates, alignIdx, leadArr, toDet, netOf, windowStats, pathStats, LIST } = L15;
 const P = SMC.DEFAULTS;

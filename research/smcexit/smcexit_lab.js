@@ -12,7 +12,7 @@
 //     when its height is ≥ 0.5 × ATR (DEFAULTS.fvgMult), and stays live until a later bar trades into it.
 'use strict';
 const path = require('path'), fs = require('fs');
-const L = require('../liqbrk_lab.js');
+const L = require('../liqbrk_lab.js').useRules('2026-10');   // the rules this study measured (Oct 2026: leader rescue, no stop limit)
 const P = L.P;
 const CACHE = path.join(__dirname, '..', 'cache');
 

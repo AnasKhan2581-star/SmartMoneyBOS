@@ -63,8 +63,15 @@
     lbBtcMaDays: 50, // market gate: only enter while BTC closes above its n-DAY MA. 0 = off.
                      // Needs a BTC candle series in params.btc (any TF); without one the gate is
                      // open and the result says btcGate.missing — never silently pretends.
-    lbLeadPump: 0.5, // ...OR the coin itself is up ≥ this over the last 30 days (a leader running
-                     // on its own gets through a weak-BTC gate). 0 = no rescue.
+    lbLeadPump: 0,   // ...OR the coin itself is up ≥ this over the last 30 days (a "leader" gets through a
+                     // weak-BTC gate). 0 = no rescue, the default since Nov 2026 (it was 0.5): a two-day pump
+                     // made a coin a leader, so in weak markets the rule bought the top of pumps and those
+                     // trades lost (research/stopcap/, ALGORITHM.md).
+    // Nov 2026 (user-approved; research/stopcap/, ALGORITHM.md):
+    lbMaxStop: 0.25, // entry gate: no entry when the initial stop would be further than this fraction under
+                     // the entry (lbStop × ATR > lbMaxStop × close). 0 = off. The stop itself is unchanged;
+                     // a signal over the limit is skipped, never bought with a tighter stop (that was
+                     // measured too, and did not help).
     lbScaleR: 3,     // sell HALF at entry + n×R (R = entry − initial stop); the rest keeps the
                      // normal stop/trail. 0 = off. One trade record; exitPrice = weighted average.
     longOnly: false, // investment/spot mode: never short (structure is still tracked both ways)
@@ -656,7 +663,8 @@
       }
       // MARKET GATE: BTC above its n-day MA, read from the last BTC candle CLOSED by this candle's
       // close (two-pointer on close times, so any BTC timeframe works and nothing leaks forward),
-      // OR this coin up ≥ lbLeadPump over 30 days. Gate arrays stay all-true when it is off.
+      // OR, only when lbLeadPump > 0 (off by default since Nov 2026), this coin up ≥ lbLeadPump over
+      // 30 days. Gate arrays stay all-true when it is off.
       const btcOk = new Array(n).fill(true), leadOk = new Array(n).fill(false);
       let btcMissing = false, btcRef = null;
       if (p.lbBtcMaDays > 0) {
@@ -677,7 +685,10 @@
       lb = { hiB, loE, rv, maT: sma(S(p.lbTrend)),
              // bar-native 149 MA of THIS chart's timeframe; null when the filter is off
              maBars: lbMaBars >= 2 ? sma(lbMaBars) : null,
-             btcOk, leadOk, btcMissing, btcRef, gate: (i) => btcMissing || btcOk[i] || leadOk[i] };
+             btcOk, leadOk, btcMissing, btcRef, gate: (i) => btcMissing || btcOk[i] || leadOk[i],
+             // the initial stop's distance as a fraction of an entry at `px`, and the entry gate on it (lbMaxStop)
+             stopDist: (i, px) => (px > 0 ? p.lbStop * a[i] / px : Infinity),
+             stopOk: (i, px) => !(p.lbMaxStop > 0) || p.lbStop * a[i] <= p.lbMaxStop * px };
     }
 
     let pos = null, sigRun = 0;
@@ -719,7 +730,8 @@
                    && px > lb.maT[i] && lb.rv[i] >= p.lbRelVol
                    && (!lb.maBars || px > lb.maBars[i])            // entry price above the 149-bar MA
                    && (!(p.lbBrkExt > 0) || (px - lb.hiB[i]) >= p.lbBrkExt * a[i])  // decisive break
-                   && lb.gate(i)                                   // BTC > its 50d MA, or a 30-day leader
+                   && lb.gate(i)                                   // BTC > its 50d MA (or a leader, if lbLeadPump > 0)
+                   && lb.stopOk(i, px)                             // the stop would sit ≤ lbMaxStop under the entry
                    && magnetOK(i, px)) {
           const stop = px - p.lbStop * a[i];
           pos = { entry: px, stop, entryIdx: i, tp: p.lbScaleR > 0 ? px + p.lbScaleR * (px - stop) : null };
@@ -783,6 +795,8 @@
         ...(p.lbBtcMaDays > 0 ? [{ name: lb.btcMissing ? `BTC ${p.lbBtcMaDays}-day MA — BTC data missing, gate skipped`
             : `BTC above its ${p.lbBtcMaDays}-day MA${p.lbLeadPump > 0 ? ` (or coin +${Math.round(p.lbLeadPump * 100)}% in 30 days)` : ''}`,
                                 ok: lb.gate(i) }] : []),
+        ...(p.lbMaxStop > 0 ? [{ name: `Stop within ${+(p.lbMaxStop * 100).toFixed(1)}% of the entry (now ${lb.stopDist(i, px) >= 1 ? 'over 100' : (lb.stopDist(i, px) * 100).toFixed(1)}%)`,
+                                 ok: lb.stopOk(i, px) }] : []),
       ]) : [
         { name: 'Above 200-day average', ok: px > maL[i] },
         { name: '90-day momentum positive', ok: px > closes[i - lookLen] },
@@ -794,6 +808,7 @@
         breakHigh: lb.hiB[i], trendMa: lb.maT[i], maBars: lb.maBars ? lb.maBars[i] : null,
         maBarsLen: lbMaBars, relVol: +lb.rv[i].toFixed(2), needVol: p.lbRelVol,
         trailLow: lb.loE[i], atr: a[i], stopIfEntered: px - p.lbStop * a[i],
+        stopDist: +lb.stopDist(i, px).toFixed(4), maxStop: p.lbMaxStop,   // the stop's distance if bought at this price, and the limit (0 = none)
         btcGate: p.lbBtcMaDays > 0 ? { missing: lb.btcMissing, btcOk: !lb.btcMissing && lb.btcOk[i], leadOk: lb.leadOk[i],
           open: lb.gate(i), maDays: p.lbBtcMaDays, leadPump: p.lbLeadPump } : null,
         scaleR: p.lbScaleR,
@@ -837,8 +852,9 @@
         const base = Math.max(brk, lb.maT[i], lb.maBars ? lb.maBars[i] : -Infinity);
         let trig = base;
         const blocked = [], L30 = S(30);
-        // BTC under its MA: only a 30-day leader may buy, so the close must ALSO reach +lbLeadPump over 30 days. `base`
-        // keeps the level that applies once BTC is back above its MA.
+        // BTC under its MA: no buy (the default), or with lbLeadPump > 0 only a 30-day leader may buy, so the close must
+        // ALSO reach +lbLeadPump over 30 days (`lead`; null without the rescue). `base` keeps the level that applies once
+        // BTC is back above its MA.
         const btcUnder = p.lbBtcMaDays > 0 && !lb.btcMissing && !lb.btcOk[i];
         const lead = btcUnder && p.lbLeadPump > 0 && i >= L30 ? (1 + p.lbLeadPump) * closes[i - L30] : null;
         if (btcUnder) {
@@ -849,6 +865,11 @@
         }
         // FIRST close through: the last candle already closed above its own 2-day high, so this one cannot buy
         if (!(i > 0 && closes[i - 1] <= lb.hiB[i - 1])) blocked.push({ why: 'fresh' });
+        // the stop's distance at the price a buy would happen (this close if it is already through, else the trigger),
+        // read with this candle's ATR as it stands, like `trig` itself. Over lbMaxStop there is no buy. A candle that
+        // runs far to reach its trigger widens its own ATR, so a level many % away can still end blocked on the day
+        const buyPx = Math.max(px, trig);
+        if (!lb.stopOk(i, buyPx)) blocked.push({ why: 'stop', dist: +lb.stopDist(i, buyPx).toFixed(4), max: p.lbMaxStop });
         advice.next = { path: 'break', trig, gap: pct(trig), base, baseGap: pct(base), run: 0, need: 1, unit: 'bar', blocked, entered,
           levels: { high: lb.hiB[i], brk, trend: lb.maT[i], maBars: lb.maBars ? lb.maBars[i] : null },
           vol: { now: +lb.rv[i].toFixed(2), need: p.lbRelVol }, conds: advice.signals };
