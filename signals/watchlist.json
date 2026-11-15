@@ -456,6 +456,24 @@
       "tf": "4h",
       "bars": 4500,
       "strategy": "donch"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "tf": "4h",
+      "bars": 18000,
+      "strategy": "cycle"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "tf": "1d",
+      "bars": 3000,
+      "strategy": "cycle"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "tf": "1d",
+      "bars": 3000,
+      "strategy": "cycle"
     }
   ]
 }
