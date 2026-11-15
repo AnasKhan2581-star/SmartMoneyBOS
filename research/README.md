@@ -8,6 +8,7 @@ bot. A result reaches `detector.js` only after the user approves it, and its rul
 
 | Folder | Question | Verdict |
 |---|---|---|
+| [`stocks/`](stocks/) | Four strategies for 50 US stocks and the 97 Indian stocks on the user's HalalVest page, each a daily context plus a chart trigger; which of hourly, daily and weekly charts works | **Backtest only.** Leaders (a monthly rotation into the strongest fifth, cash when the index is under its 200-day) is the strongest. US dips bounce, Indian stocks trend, and hourly charts add nothing. Both lists are today's picks, so every return is too high. [README](stocks/README.md) |
 | [`stopcap/`](stopcap/) | After INIT's −41.7% stop-out: is the Breakout rule's "leader" exception worth keeping, and should a stop have a maximum distance? | **Both changes shipped** (Nov 2026). The leader exception's trades lose, and trades with a stop over 30% away lose on all three coin sets. Shipped: no leader exception, and no buy when the stop would be more than 25% away. A tighter stop or a smaller buy on the same trades does less. |
 | [`weekgate/`](weekgate/) | Should the Breakout market filter be "BTC above the 9 MA on the weekly chart" instead of the 50-day average? | **Rejected.** It is nearly the same filter (they differ on 4% of candles) and slightly worse where they differ. The coin's own weekly 9 MA loses clearly. |
 | [`latelead/`](latelead/) | Why didn't the Breakout rule buy INIT's +79% day, and should it buy such sudden runs? | **Buying sudden runs: rejected.** It saw the run and the BTC filter blocked it. Buying such runs loses on all three coin sets. It proposed that the "leader" exception should need a day of leadership first; [`stopcap/`](stopcap/) then dropped the exception altogether, and that shipped. |
@@ -40,6 +41,7 @@ study gives the short version.
   another judges.
 - **Controls.** Where a pattern is claimed, the same orders are also placed at random times (or random levels).
   Random numbers come from [`rng.js`](rng.js).
+- **Stocks** (`stocks/`) use Yahoo prices and stock-market costs instead (0.05% a side in the US, 0.2% in India).
 - **Parity.** Labs that copy a shipped strategy are first checked trade-for-trade against `detector.js` (their
   `parity` modes).
 - **Rule eras.** `liqbrk_lab.js` follows the engine's current rules. A study of the Breakout rules as they were from
@@ -56,3 +58,5 @@ The caches live in `research/cache/` (git-ignored, so a fresh clone has to fetch
 - **The 171 delisted or collapsed coins:** `node research/liqbrk15m/fetch15.js DIR=lb15dead <coins>` → `cache/lb15dead`.
 - **The alert list's 4h candles to now:** `node research/latelead/latelead_lab.js fetch` → `cache/latelead`.
 - **Gold:** `node research/gold/gold_lab.js` keeps its own cache in `cache/gold`.
+- **Stocks (US and India):** `NODE_USE_ENV_PROXY=1 node research/stocks/fetch.js` → `cache/stocks` (Yahoo Finance; needs
+  `query1.finance.yahoo.com` and `query2.finance.yahoo.com` on the network allowlist).

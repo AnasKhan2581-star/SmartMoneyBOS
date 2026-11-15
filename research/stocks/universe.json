@@ -1,0 +1,1534 @@
+{
+ "_comment": "Built by research/stocks/build_universe.py. India: the 97 stocks on the HalalVest page. US: 50 hand-picked large names; their Shariah compliance is NOT verified here.",
+ "context": {
+  "us": {
+   "index": "^GSPC",
+   "vix": "^VIX"
+  },
+  "in": {
+   "index": "^BSESN",
+   "index2": "^NSEI",
+   "vix": "^INDIAVIX"
+  }
+ },
+ "us": [
+  {
+   "key": "AAPL",
+   "sector": "Technology",
+   "yahoo": [
+    "AAPL"
+   ]
+  },
+  {
+   "key": "MSFT",
+   "sector": "Technology",
+   "yahoo": [
+    "MSFT"
+   ]
+  },
+  {
+   "key": "NVDA",
+   "sector": "Technology",
+   "yahoo": [
+    "NVDA"
+   ]
+  },
+  {
+   "key": "AVGO",
+   "sector": "Technology",
+   "yahoo": [
+    "AVGO"
+   ]
+  },
+  {
+   "key": "AMD",
+   "sector": "Technology",
+   "yahoo": [
+    "AMD"
+   ]
+  },
+  {
+   "key": "QCOM",
+   "sector": "Technology",
+   "yahoo": [
+    "QCOM"
+   ]
+  },
+  {
+   "key": "TXN",
+   "sector": "Technology",
+   "yahoo": [
+    "TXN"
+   ]
+  },
+  {
+   "key": "AMAT",
+   "sector": "Technology",
+   "yahoo": [
+    "AMAT"
+   ]
+  },
+  {
+   "key": "LRCX",
+   "sector": "Technology",
+   "yahoo": [
+    "LRCX"
+   ]
+  },
+  {
+   "key": "MU",
+   "sector": "Technology",
+   "yahoo": [
+    "MU"
+   ]
+  },
+  {
+   "key": "ADBE",
+   "sector": "Technology",
+   "yahoo": [
+    "ADBE"
+   ]
+  },
+  {
+   "key": "CRM",
+   "sector": "Technology",
+   "yahoo": [
+    "CRM"
+   ]
+  },
+  {
+   "key": "NOW",
+   "sector": "Technology",
+   "yahoo": [
+    "NOW"
+   ]
+  },
+  {
+   "key": "INTU",
+   "sector": "Technology",
+   "yahoo": [
+    "INTU"
+   ]
+  },
+  {
+   "key": "CSCO",
+   "sector": "Technology",
+   "yahoo": [
+    "CSCO"
+   ]
+  },
+  {
+   "key": "ACN",
+   "sector": "Technology",
+   "yahoo": [
+    "ACN"
+   ]
+  },
+  {
+   "key": "GOOGL",
+   "sector": "Communication",
+   "yahoo": [
+    "GOOGL"
+   ]
+  },
+  {
+   "key": "META",
+   "sector": "Communication",
+   "yahoo": [
+    "META"
+   ]
+  },
+  {
+   "key": "AMZN",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "AMZN"
+   ]
+  },
+  {
+   "key": "TSLA",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "TSLA"
+   ]
+  },
+  {
+   "key": "HD",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "HD"
+   ]
+  },
+  {
+   "key": "LOW",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "LOW"
+   ]
+  },
+  {
+   "key": "NKE",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "NKE"
+   ]
+  },
+  {
+   "key": "TJX",
+   "sector": "Consumer discretionary",
+   "yahoo": [
+    "TJX"
+   ]
+  },
+  {
+   "key": "PG",
+   "sector": "Consumer staples",
+   "yahoo": [
+    "PG"
+   ]
+  },
+  {
+   "key": "CL",
+   "sector": "Consumer staples",
+   "yahoo": [
+    "CL"
+   ]
+  },
+  {
+   "key": "KMB",
+   "sector": "Consumer staples",
+   "yahoo": [
+    "KMB"
+   ]
+  },
+  {
+   "key": "MDLZ",
+   "sector": "Consumer staples",
+   "yahoo": [
+    "MDLZ"
+   ]
+  },
+  {
+   "key": "LLY",
+   "sector": "Healthcare",
+   "yahoo": [
+    "LLY"
+   ]
+  },
+  {
+   "key": "JNJ",
+   "sector": "Healthcare",
+   "yahoo": [
+    "JNJ"
+   ]
+  },
+  {
+   "key": "MRK",
+   "sector": "Healthcare",
+   "yahoo": [
+    "MRK"
+   ]
+  },
+  {
+   "key": "ABBV",
+   "sector": "Healthcare",
+   "yahoo": [
+    "ABBV"
+   ]
+  },
+  {
+   "key": "ABT",
+   "sector": "Healthcare",
+   "yahoo": [
+    "ABT"
+   ]
+  },
+  {
+   "key": "TMO",
+   "sector": "Healthcare",
+   "yahoo": [
+    "TMO"
+   ]
+  },
+  {
+   "key": "DHR",
+   "sector": "Healthcare",
+   "yahoo": [
+    "DHR"
+   ]
+  },
+  {
+   "key": "ISRG",
+   "sector": "Healthcare",
+   "yahoo": [
+    "ISRG"
+   ]
+  },
+  {
+   "key": "SYK",
+   "sector": "Healthcare",
+   "yahoo": [
+    "SYK"
+   ]
+  },
+  {
+   "key": "MDT",
+   "sector": "Healthcare",
+   "yahoo": [
+    "MDT"
+   ]
+  },
+  {
+   "key": "UNP",
+   "sector": "Industrials",
+   "yahoo": [
+    "UNP"
+   ]
+  },
+  {
+   "key": "UPS",
+   "sector": "Industrials",
+   "yahoo": [
+    "UPS"
+   ]
+  },
+  {
+   "key": "EMR",
+   "sector": "Industrials",
+   "yahoo": [
+    "EMR"
+   ]
+  },
+  {
+   "key": "ETN",
+   "sector": "Industrials",
+   "yahoo": [
+    "ETN"
+   ]
+  },
+  {
+   "key": "XOM",
+   "sector": "Energy",
+   "yahoo": [
+    "XOM"
+   ]
+  },
+  {
+   "key": "CVX",
+   "sector": "Energy",
+   "yahoo": [
+    "CVX"
+   ]
+  },
+  {
+   "key": "COP",
+   "sector": "Energy",
+   "yahoo": [
+    "COP"
+   ]
+  },
+  {
+   "key": "SLB",
+   "sector": "Energy",
+   "yahoo": [
+    "SLB"
+   ]
+  },
+  {
+   "key": "LIN",
+   "sector": "Materials",
+   "yahoo": [
+    "LIN"
+   ]
+  },
+  {
+   "key": "ECL",
+   "sector": "Materials",
+   "yahoo": [
+    "ECL"
+   ]
+  },
+  {
+   "key": "APD",
+   "sector": "Materials",
+   "yahoo": [
+    "APD"
+   ]
+  },
+  {
+   "key": "NEM",
+   "sector": "Materials",
+   "yahoo": [
+    "NEM"
+   ]
+  }
+ ],
+ "in": [
+  {
+   "key": "AARTIIND",
+   "name": "Aarti Industries",
+   "sector": "Chemicals",
+   "yahoo": [
+    "AARTIIND.NS"
+   ],
+   "check": {
+    "2025": 389.71,
+    "2026": 399.05
+   }
+  },
+  {
+   "key": "ABB",
+   "name": "ABB India",
+   "sector": "Capital goods",
+   "yahoo": [
+    "ABB.NS"
+   ],
+   "check": {
+    "2025": 5479.67,
+    "2026": 5917.3
+   }
+  },
+  {
+   "key": "ALKEM",
+   "name": "Alkem Labs",
+   "sector": "Healthcare",
+   "yahoo": [
+    "ALKEM.NS"
+   ],
+   "check": {
+    "2025": 4834.71,
+    "2026": 5299.0
+   }
+  },
+  {
+   "key": "AMBER",
+   "name": "Amber Enterprises",
+   "sector": "Electronics",
+   "yahoo": [
+    "AMBER.NS"
+   ],
+   "check": {
+    "2025": 6879.55,
+    "2026": 6579.5
+   }
+  },
+  {
+   "key": "ANURAS",
+   "name": "Anupam Rasayan",
+   "sector": "Chemicals",
+   "yahoo": [
+    "ANURAS.NS"
+   ],
+   "check": {
+    "2025": 758.9,
+    "2026": 1230.9
+   }
+  },
+  {
+   "key": "APARINDS",
+   "name": "Apar Industries",
+   "sector": "Capital goods",
+   "yahoo": [
+    "APARINDS.NS"
+   ],
+   "check": {
+    "2025": 5507.34,
+    "2026": 9881.0
+   }
+  },
+  {
+   "key": "APLAPOLLO",
+   "name": "APL Apollo Tubes",
+   "sector": "Capital goods",
+   "yahoo": [
+    "APLAPOLLO.NS"
+   ],
+   "check": {
+    "2025": 1519.95,
+    "2026": 1937.0
+   }
+  },
+  {
+   "key": "ASIANPAINT",
+   "name": "Asian Paints",
+   "sector": "Consumer",
+   "yahoo": [
+    "ASIANPAINT.NS"
+   ],
+   "check": {
+    "2025": 2291.25,
+    "2026": 2225.8
+   }
+  },
+  {
+   "key": "ASTRAL",
+   "name": "Astral Ltd",
+   "sector": "Capital goods",
+   "yahoo": [
+    "ASTRAL.NS"
+   ],
+   "check": {
+    "2025": 1290.76,
+    "2026": 1599.0
+   }
+  },
+  {
+   "key": "BAYERCROP",
+   "name": "Bayer Cropscience",
+   "sector": "Chemicals",
+   "yahoo": [
+    "BAYERCROP.NS"
+   ],
+   "check": {
+    "2025": 4783.9,
+    "2026": 4645.6
+   }
+  },
+  {
+   "key": "BEML",
+   "name": "BEML Ltd",
+   "sector": "Capital goods",
+   "yahoo": [
+    "BEML.NS"
+   ],
+   "check": {
+    "2025": 1599.91,
+    "2026": 1369.4
+   }
+  },
+  {
+   "key": "BHARATFORG",
+   "name": "Bharat Forge",
+   "sector": "Auto",
+   "yahoo": [
+    "BHARATFORG.NS"
+   ],
+   "check": {
+    "2025": 1162.42,
+    "2026": 1674.6
+   }
+  },
+  {
+   "key": "BLUEDART",
+   "name": "Blue Dart Express",
+   "sector": "Logistics",
+   "yahoo": [
+    "BLUEDART.NS"
+   ],
+   "check": {
+    "2025": 6188.23,
+    "2026": 4886.8
+   }
+  },
+  {
+   "key": "BLUESTAR",
+   "name": "Blue Star",
+   "sector": "Electronics",
+   "yahoo": [
+    "BLUESTARCO.NS"
+   ],
+   "check": {
+    "2025": 2126.19,
+    "2026": 1610.7
+   }
+  },
+  {
+   "key": "BORORENEW",
+   "name": "Borosil Renewables",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "BORORENEW.NS"
+   ],
+   "check": {
+    "2025": 478.45,
+    "2026": 377.0
+   }
+  },
+  {
+   "key": "CARBORUNIV",
+   "name": "Carborundum Universal",
+   "sector": "Capital goods",
+   "yahoo": [
+    "CARBORUNIV.NS"
+   ],
+   "check": {
+    "2025": 1009.58,
+    "2026": 775.7
+   }
+  },
+  {
+   "key": "CGPOWER",
+   "name": "CG Power",
+   "sector": "Capital goods",
+   "yahoo": [
+    "CGPOWER.NS"
+   ],
+   "check": {
+    "2025": 637.09,
+    "2026": 655.05
+   }
+  },
+  {
+   "key": "CIPLA",
+   "name": "Cipla",
+   "sector": "Healthcare",
+   "yahoo": [
+    "CIPLA.NS"
+   ],
+   "check": {
+    "2025": 1426.96,
+    "2026": 1224.2
+   }
+  },
+  {
+   "key": "COALINDIA",
+   "name": "Coal India",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "COALINDIA.NS"
+   ],
+   "check": {
+    "2025": 371.53,
+    "2026": 449.4
+   }
+  },
+  {
+   "key": "CONCOR",
+   "name": "Container Corp of India",
+   "sector": "Logistics",
+   "yahoo": [
+    "CONCOR.NS"
+   ],
+   "check": {
+    "2025": 550.23,
+    "2026": 444.55
+   }
+  },
+  {
+   "key": "COROMANDEL",
+   "name": "Coromandel International",
+   "sector": "Chemicals",
+   "yahoo": [
+    "COROMANDEL.NS"
+   ],
+   "check": {
+    "2025": 2033.28,
+    "2026": 1918.7
+   }
+  },
+  {
+   "key": "CUMMINSIND",
+   "name": "Cummins India",
+   "sector": "Capital goods",
+   "yahoo": [
+    "CUMMINSIND.NS"
+   ],
+   "check": {
+    "2025": 3009.65,
+    "2026": 4500.1
+   }
+  },
+  {
+   "key": "CYIENTDLM",
+   "name": "Cyient DLM",
+   "sector": "Electronics",
+   "yahoo": [
+    "CYIENTDLM.NS"
+   ],
+   "check": {
+    "2025": 461.45,
+    "2026": 284.6
+   }
+  },
+  {
+   "key": "DABUR",
+   "name": "Dabur India",
+   "sector": "Consumer",
+   "yahoo": [
+    "DABUR.NS"
+   ],
+   "check": {
+    "2025": 498.84,
+    "2026": 410.45
+   }
+  },
+  {
+   "key": "DEEPAKNTR",
+   "name": "Deepak Nitrite",
+   "sector": "Chemicals",
+   "yahoo": [
+    "DEEPAKNTR.NS"
+   ],
+   "check": {
+    "2025": 1974.13,
+    "2026": 1352.2
+   }
+  },
+  {
+   "key": "DELHIVERY",
+   "name": "Delhivery",
+   "sector": "Logistics",
+   "yahoo": [
+    "DELHIVERY.NS"
+   ],
+   "check": {
+    "2025": 255.1,
+    "2026": 416.7
+   }
+  },
+  {
+   "key": "DIVISLAB",
+   "name": "Divis Lab",
+   "sector": "Healthcare",
+   "yahoo": [
+    "DIVISLAB.NS"
+   ],
+   "check": {
+    "2025": 5749.27,
+    "2026": 5947.0
+   }
+  },
+  {
+   "key": "DIXON",
+   "name": "Dixon Technologies",
+   "sector": "Electronics",
+   "yahoo": [
+    "DIXON.NS"
+   ],
+   "check": {
+    "2025": 13173.64,
+    "2026": 9673.0
+   }
+  },
+  {
+   "key": "DRREDDY",
+   "name": "Dr Reddys",
+   "sector": "Healthcare",
+   "yahoo": [
+    "DRREDDY.NS"
+   ],
+   "check": {
+    "2025": 1136.99,
+    "2026": 1254.9
+   }
+  },
+  {
+   "key": "EMAMILTD",
+   "name": "Emami Ltd",
+   "sector": "Consumer",
+   "yahoo": [
+    "EMAMILTD.NS"
+   ],
+   "check": {
+    "2025": 564.9,
+    "2026": 393.4
+   }
+  },
+  {
+   "key": "EXIDEIND",
+   "name": "Exide Industries",
+   "sector": "Auto",
+   "yahoo": [
+    "EXIDEIND.NS"
+   ],
+   "check": {
+    "2025": 358.57,
+    "2026": 287.9
+   }
+  },
+  {
+   "key": "GENUSPOWER",
+   "name": "Genus Power",
+   "sector": "Capital goods",
+   "yahoo": [
+    "GENUSPOWER.NS"
+   ],
+   "check": {
+    "2025": 259.83,
+    "2026": 214.9
+   }
+  },
+  {
+   "key": "GODREJCP",
+   "name": "Godrej Consumer",
+   "sector": "Consumer",
+   "yahoo": [
+    "GODREJCP.NS"
+   ],
+   "check": {
+    "2025": 1134.33,
+    "2026": 979.93
+   }
+  },
+  {
+   "key": "GRANULES",
+   "name": "Granules India",
+   "sector": "Healthcare",
+   "yahoo": [
+    "GRANULES.NS"
+   ],
+   "check": {
+    "2025": 484.87,
+    "2026": 620.4
+   }
+  },
+  {
+   "key": "GREAVESCOT",
+   "name": "Greaves Cotton",
+   "sector": "Capital goods",
+   "yahoo": [
+    "GREAVESCOT.NS"
+   ],
+   "check": {
+    "2025": 212.7,
+    "2026": 120.61
+   }
+  },
+  {
+   "key": "HAVELLS",
+   "name": "Havells India",
+   "sector": "Capital goods",
+   "yahoo": [
+    "HAVELLS.NS"
+   ],
+   "check": {
+    "2025": 1483.59,
+    "2026": 1180.02
+   }
+  },
+  {
+   "key": "HCLTECH",
+   "name": "HCL Technologies",
+   "sector": "IT",
+   "yahoo": [
+    "HCLTECH.NS"
+   ],
+   "check": {
+    "2025": 1509.68,
+    "2026": 1316.4
+   }
+  },
+  {
+   "key": "HIRECT",
+   "name": "Hind Rectifiers",
+   "sector": "Capital goods",
+   "yahoo": [
+    "HIRECT.NS"
+   ],
+   "check": {
+    "2025": 473.49,
+    "2026": 660.1
+   }
+  },
+  {
+   "key": "INFY",
+   "name": "Infosys",
+   "sector": "IT",
+   "yahoo": [
+    "INFY.NS"
+   ],
+   "check": {
+    "2025": 1525.5,
+    "2026": 1250.6
+   }
+  },
+  {
+   "key": "IONEXCHANG",
+   "name": "Ion Exchange",
+   "sector": "Capital goods",
+   "yahoo": [
+    "IONEXCHANG.NS"
+   ],
+   "check": {
+    "2025": 465.5,
+    "2026": 320.35
+   }
+  },
+  {
+   "key": "JAIBALAJI",
+   "name": "Jai Balaji Industries",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "JAIBALAJI.NS"
+   ],
+   "check": {
+    "2025": 137.9,
+    "2026": 54.14
+   }
+  },
+  {
+   "key": "JYOTHYLAB",
+   "name": "Jyothy Labs",
+   "sector": "Consumer",
+   "yahoo": [
+    "JYOTHYLAB.NS"
+   ],
+   "check": {
+    "2025": 325.33,
+    "2026": 197.25
+   }
+  },
+  {
+   "key": "KAYNES",
+   "name": "Kaynes Technology",
+   "sector": "Electronics",
+   "yahoo": [
+    "KAYNES.NS"
+   ],
+   "check": {
+    "2025": 4747.35,
+    "2026": 3429.6
+   }
+  },
+  {
+   "key": "KEC",
+   "name": "KEC International",
+   "sector": "Capital goods",
+   "yahoo": [
+    "KEC.NS"
+   ],
+   "check": {
+    "2025": 777.84,
+    "2026": 511.3
+   }
+  },
+  {
+   "key": "KEI",
+   "name": "KEI Industries",
+   "sector": "Capital goods",
+   "yahoo": [
+    "KEI.NS"
+   ],
+   "check": {
+    "2025": 2889.43,
+    "2026": 4038.0
+   }
+  },
+  {
+   "key": "KPEL",
+   "name": "KP Energy",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "KPEL.NS"
+   ],
+   "check": {
+    "2025": 369.83,
+    "2026": 249.85
+   }
+  },
+  {
+   "key": "KPRMILL",
+   "name": "KPR Mill",
+   "sector": "Consumer",
+   "yahoo": [
+    "KPRMILL.NS"
+   ],
+   "check": {
+    "2025": 902.09,
+    "2026": 829.45
+   }
+  },
+  {
+   "key": "KRSNAA",
+   "name": "Krsnaa Diagnostics",
+   "sector": "Healthcare",
+   "yahoo": [
+    "KRSNAA.NS"
+   ],
+   "check": {
+    "2025": 785.33,
+    "2026": 520.3
+   }
+  },
+  {
+   "key": "KSCL",
+   "name": "Kaveri Seed",
+   "sector": "Chemicals",
+   "yahoo": [
+    "KSCL.NS"
+   ],
+   "check": {
+    "2025": 1256.66,
+    "2026": 783.8
+   }
+  },
+  {
+   "key": "LAURUSLABS",
+   "name": "Laurus Labs",
+   "sector": "Healthcare",
+   "yahoo": [
+    "LAURUSLABS.NS"
+   ],
+   "check": {
+    "2025": 611.45,
+    "2026": 991.71
+   }
+  },
+  {
+   "key": "MAANALUM",
+   "name": "Maan Aluminium",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "MAANALU.NS"
+   ],
+   "check": {
+    "2025": 76.25,
+    "2026": 120.89
+   }
+  },
+  {
+   "key": "MAPMYINDIA",
+   "name": "MapMyIndia",
+   "sector": "IT",
+   "yahoo": [
+    "MAPMYINDIA.NS"
+   ],
+   "check": {
+    "2025": 1686.06,
+    "2026": 801.1
+   }
+  },
+  {
+   "key": "MARICO",
+   "name": "Marico",
+   "sector": "Consumer",
+   "yahoo": [
+    "MARICO.NS"
+   ],
+   "check": {
+    "2025": 645.22,
+    "2026": 735.95
+   }
+  },
+  {
+   "key": "MAXHEALTH",
+   "name": "Max Healthcare",
+   "sector": "Healthcare",
+   "yahoo": [
+    "MAXHEALTH.NS"
+   ],
+   "check": {
+    "2025": 1095.69,
+    "2026": 962.3
+   }
+  },
+  {
+   "key": "MEDPLUS",
+   "name": "MedPlus Health",
+   "sector": "Healthcare",
+   "yahoo": [
+    "MEDPLUS.NS"
+   ],
+   "check": {
+    "2025": 760.0,
+    "2026": 839.9
+   }
+  },
+  {
+   "key": "METROPOLIS",
+   "name": "Metropolis",
+   "sector": "Healthcare",
+   "yahoo": [
+    "METROPOLIS.NS"
+   ],
+   "check": {
+    "2025": 390.33,
+    "2026": 434.0
+   }
+  },
+  {
+   "key": "MINDACORP",
+   "name": "Minda Corp",
+   "sector": "Auto",
+   "yahoo": [
+    "MINDACORP.NS"
+   ],
+   "check": {
+    "2025": 537.77,
+    "2026": 505.65
+   }
+  },
+  {
+   "key": "MOTHERSON",
+   "name": "Samvardhana Motherson",
+   "sector": "Auto",
+   "yahoo": [
+    "MOTHERSON.NS"
+   ],
+   "check": {
+    "2025": 86.94,
+    "2026": 107.62
+   }
+  },
+  {
+   "key": "MTARTECH",
+   "name": "MTAR Technologies",
+   "sector": "Capital goods",
+   "yahoo": [
+    "MTARTECH.NS"
+   ],
+   "check": {
+    "2025": 1281.15,
+    "2026": 3467.7
+   }
+  },
+  {
+   "key": "NAVINFLUOR",
+   "name": "Navin Fluorine",
+   "sector": "Chemicals",
+   "yahoo": [
+    "NAVINFLUOR.NS"
+   ],
+   "check": {
+    "2025": 4200.31,
+    "2026": 6162.5
+   }
+  },
+  {
+   "key": "OLECTRA",
+   "name": "Olectra Greentech",
+   "sector": "Auto",
+   "yahoo": [
+    "OLECTRA.NS"
+   ],
+   "check": {
+    "2025": 1167.22,
+    "2026": 966.25
+   }
+  },
+  {
+   "key": "PERSISTENT",
+   "name": "Persistent Systems",
+   "sector": "IT",
+   "yahoo": [
+    "PERSISTENT.NS"
+   ],
+   "check": {
+    "2025": 5178.96,
+    "2026": 5049.1
+   }
+  },
+  {
+   "key": "PGEL",
+   "name": "PG Electroplast",
+   "sector": "Electronics",
+   "yahoo": [
+    "PGEL.NS"
+   ],
+   "check": {
+    "2025": 916.2,
+    "2026": 469.9
+   }
+  },
+  {
+   "key": "PIDILITIND",
+   "name": "Pidilite Industries",
+   "sector": "Chemicals",
+   "yahoo": [
+    "PIDILITIND.NS"
+   ],
+   "check": {
+    "2025": 1403.64,
+    "2026": 1307
+   }
+  },
+  {
+   "key": "PIIND",
+   "name": "PI Industries",
+   "sector": "Chemicals",
+   "yahoo": [
+    "PIIND.NS"
+   ],
+   "check": {
+    "2025": 3414.2,
+    "2026": 2718.8
+   }
+  },
+  {
+   "key": "POLYCAB",
+   "name": "Polycab India",
+   "sector": "Capital goods",
+   "yahoo": [
+    "POLYCAB.NS"
+   ],
+   "check": {
+    "2025": 5119.3,
+    "2026": 6843.5
+   }
+  },
+  {
+   "key": "POLYMED",
+   "name": "Poly Medicure",
+   "sector": "Healthcare",
+   "yahoo": [
+    "POLYMED.NS"
+   ],
+   "check": {
+    "2025": 2241.31,
+    "2026": 1191.1
+   }
+  },
+  {
+   "key": "PREMIERENE",
+   "name": "Premier Energies",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "PREMIERENE.NS"
+   ],
+   "check": {
+    "2025": 936.57,
+    "2026": 890.99
+   }
+  },
+  {
+   "key": "RALLIS",
+   "name": "Rallis India",
+   "sector": "Chemicals",
+   "yahoo": [
+    "RALLIS.NS"
+   ],
+   "check": {
+    "2025": 212.62,
+    "2026": 218.25
+   }
+  },
+  {
+   "key": "REDINGTON",
+   "name": "Redington India",
+   "sector": "IT",
+   "yahoo": [
+    "REDINGTON.NS"
+   ],
+   "check": {
+    "2025": 237.66,
+    "2026": 199.95
+   }
+  },
+  {
+   "key": "SARDAEN",
+   "name": "Sarda Energy",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "SARDAEN.NS"
+   ],
+   "check": {
+    "2025": 512.61,
+    "2026": 510.65
+   }
+  },
+  {
+   "key": "SHREEPUSHK",
+   "name": "Shree Pushkar",
+   "sector": "Chemicals",
+   "yahoo": [
+    "SHREEPUSHK.NS"
+   ],
+   "check": {
+    "2025": 264.89,
+    "2026": 301.3
+   }
+  },
+  {
+   "key": "SIEMENS",
+   "name": "Siemens India",
+   "sector": "Capital goods",
+   "yahoo": [
+    "SIEMENS.NS"
+   ],
+   "check": {
+    "2025": 3096.63,
+    "2026": 2935.0
+   }
+  },
+  {
+   "key": "SIYARAM",
+   "name": "Siyaram Silk",
+   "sector": "Consumer",
+   "yahoo": [
+    "SIYSIL.NS"
+   ],
+   "check": {
+    "2025": 644.7,
+    "2026": 435.8
+   }
+  },
+  {
+   "key": "SONACOMS",
+   "name": "Sona BLW",
+   "sector": "Auto",
+   "yahoo": [
+    "SONACOMS.NS"
+   ],
+   "check": {
+    "2025": 458.17,
+    "2026": 481.5
+   }
+  },
+  {
+   "key": "SRF",
+   "name": "SRF Ltd",
+   "sector": "Chemicals",
+   "yahoo": [
+    "SRF.NS"
+   ],
+   "check": {
+    "2025": 2929.9,
+    "2026": 2438.0
+   }
+  },
+  {
+   "key": "SUMICHEM",
+   "name": "Sumitomo Chemical",
+   "sector": "Chemicals",
+   "yahoo": [
+    "SUMICHEM.NS"
+   ],
+   "check": {
+    "2025": 558.21,
+    "2026": 364.45
+   }
+  },
+  {
+   "key": "SUNPHARMA",
+   "name": "Sun Pharma",
+   "sector": "Healthcare",
+   "yahoo": [
+    "SUNPHARMA.NS"
+   ],
+   "check": {
+    "2025": 1717.85,
+    "2026": 1757.2
+   }
+  },
+  {
+   "key": "SUZLON",
+   "name": "Suzlon Energy",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "SUZLON.NS"
+   ],
+   "check": {
+    "2025": 56.66,
+    "2026": 39.56
+   }
+  },
+  {
+   "key": "SYNGENE",
+   "name": "Syngene International",
+   "sector": "Healthcare",
+   "yahoo": [
+    "SYNGENE.NS"
+   ],
+   "check": {
+    "2025": 724.79,
+    "2026": 389.9
+   }
+  },
+  {
+   "key": "TATACOMM",
+   "name": "Tata Communications",
+   "sector": "IT",
+   "yahoo": [
+    "TATACOMM.NS"
+   ],
+   "check": {
+    "2025": 1554.99,
+    "2026": 1347.9
+   }
+  },
+  {
+   "key": "TATAELXSI",
+   "name": "Tata Elxsi",
+   "sector": "IT",
+   "yahoo": [
+    "TATAELXSI.NS"
+   ],
+   "check": {
+    "2025": 5156.27,
+    "2026": 3976.6
+   }
+  },
+  {
+   "key": "TCIEXP",
+   "name": "TCI Express",
+   "sector": "Logistics",
+   "yahoo": [
+    "TCIEXP.NS"
+   ],
+   "check": {
+    "2025": 603.75,
+    "2026": 461.5
+   }
+  },
+  {
+   "key": "TCS",
+   "name": "TCS",
+   "sector": "IT",
+   "yahoo": [
+    "TCS.NS"
+   ],
+   "check": {
+    "2025": 3485.69,
+    "2026": 2358.9
+   }
+  },
+  {
+   "key": "TECHM",
+   "name": "Tech Mahindra",
+   "sector": "IT",
+   "yahoo": [
+    "TECHM.NS"
+   ],
+   "check": {
+    "2025": 1378.37,
+    "2026": 1384.0
+   }
+  },
+  {
+   "key": "TEXRAIL",
+   "name": "Titagarh Rail",
+   "sector": "Capital goods",
+   "yahoo": [
+    "TEXRAIL.NS"
+   ],
+   "check": {
+    "2025": 134.01,
+    "2026": 78.8
+   }
+  },
+  {
+   "key": "THERMAX",
+   "name": "Thermax",
+   "sector": "Capital goods",
+   "yahoo": [
+    "THERMAX.NS"
+   ],
+   "check": {
+    "2025": 3639.42,
+    "2026": 3260.7
+   }
+  },
+  {
+   "key": "TIINDIA",
+   "name": "Tube Investments",
+   "sector": "Auto",
+   "yahoo": [
+    "TIINDIA.NS"
+   ],
+   "check": {
+    "2025": 2765.59,
+    "2026": 2517.3
+   }
+  },
+  {
+   "key": "TRSF",
+   "name": "Transformers & Rectifiers",
+   "sector": "Capital goods",
+   "yahoo": [
+    "TARIL.NS",
+    "TRIL.NS",
+    "TECHNOE.NS"
+   ],
+   "check": {
+    "2025": 997.03,
+    "2026": 985.1
+   }
+  },
+  {
+   "key": "UNOMINDA",
+   "name": "Uno Minda",
+   "sector": "Auto",
+   "yahoo": [
+    "UNOMINDA.NS"
+   ],
+   "check": {
+    "2025": 873.56,
+    "2026": 1031.6
+   }
+  },
+  {
+   "key": "VINATIORGA",
+   "name": "Vinati Organics",
+   "sector": "Chemicals",
+   "yahoo": [
+    "VINATIORGA.NS"
+   ],
+   "check": {
+    "2025": 1574.05,
+    "2026": 1324.3
+   }
+  },
+  {
+   "key": "VOLTAMP",
+   "name": "Voltamp Transformers",
+   "sector": "Capital goods",
+   "yahoo": [
+    "VOLTAMP.NS"
+   ],
+   "check": {
+    "2025": 7061.57,
+    "2026": 8685.5
+   }
+  },
+  {
+   "key": "VOLTAS",
+   "name": "Voltas",
+   "sector": "Electronics",
+   "yahoo": [
+    "VOLTAS.NS"
+   ],
+   "check": {
+    "2025": 1450.6,
+    "2026": 1272.8
+   }
+  },
+  {
+   "key": "WAAREEENER",
+   "name": "Waaree Energies",
+   "sector": "Energy & metals",
+   "yahoo": [
+    "WAAREEENER.NS"
+   ],
+   "check": {
+    "2025": 2403.3,
+    "2026": 3109.8
+   }
+  },
+  {
+   "key": "WABAG",
+   "name": "VA Tech Wabag",
+   "sector": "Capital goods",
+   "yahoo": [
+    "WABAG.NS"
+   ],
+   "check": {
+    "2025": 1450.92,
+    "2026": 1157.4
+   }
+  },
+  {
+   "key": "WIPRO",
+   "name": "Wipro",
+   "sector": "IT",
+   "yahoo": [
+    "WIPRO.NS"
+   ],
+   "check": {
+    "2025": 250.72,
+    "2026": 187.64
+   }
+  },
+  {
+   "key": "YASHIND",
+   "name": "Netweb Technologies",
+   "sector": "IT",
+   "yahoo": [
+    "NETWEB.NS"
+   ],
+   "check": {
+    "2025": 1512.82,
+    "2026": 3098.8
+   }
+  }
+ ]
+}

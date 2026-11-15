@@ -1238,6 +1238,100 @@ numbers below are in that order).
     list and `advice.next`); research/liqbrk_lab.js parity; `RULES.liqbrk` in signal-bot.js bumped; the gate texts in
     the bot, the radar and the holding cards.
 
+## RESEARCH (Nov 2026): four stock strategies on US and Indian halal lists — daily context + a chart trigger (backtest only, NOT in the app)
+
+User: "Want do it with Indian and US stocks, make 4 strategies for them make, context is very very important in stocks
+so keep that in mind, just make strategies take 50 US and all Indian stocks from halalvest … compare what time frames
+are working better etc, make it work, this is only backtesting". Backtest only: detector.js, the webapp and the bot
+are unchanged. research/stocks/ (`build_universe.py`, `fetch.js`, `stock_data.js`, `stock_lab.js design | design-cost
+| run`, `stock_report.js`) → RESULTS_stocks_2026-11.md, whose every comparison is checked against the run before it is
+printed. Numbers below are US / India unless marked.
+- **The lists, and why every return is too high.** India: the 97 stocks on the user's HalalVest page. US: 50 large
+  names picked by hand from what Shariah-screened funds hold; their compliance is NOT verified. Both lists were chosen
+  today, so they hold only winners: holding the whole list made +17.7% / +24.7% a year (S&P 500 +6.4%, Sensex +9.6%).
+  Compare rows with each other and with holding the list, never with a real account.
+- **Set-up.**
+  - Yahoo prices, adjusted for splits and dividends. Daily: US from 2000, India from 2010 (Yahoo's Indian history
+    before 2008 is full of mis-adjusted splits; anything before a one-day move over 45% is discarded). Hourly: only
+    from December 2023 (730 days), so the three charts are compared from 2024-02-01. 15-minute data reaches 60 days:
+    untestable. Hourly volume is unusable.
+  - Costs a side: 0.05% US, 0.2% India (STT, charges, slippage). Signal at a close, fill at the next open; a stop
+    fills at its level or at the open beyond it. Taxes not counted.
+  - The book: 10 equal slots, the stronger stock first. Every test window starts fresh: nothing bought before its
+    first day counts, and a rule already in a buy state buys at the first open (so Trend starts fully invested). The
+    control: 20 random candles a trade, same stock, same years, same context met, same holding length ("random days").
+  - Rules were chosen on US daily candles 2000–2013 only. US 2014–2026, all of India and every hourly result are
+    tests.
+- **Context, read once a day** (an hourly candle reads yesterday's): M the index over its 200-day average; T the stock
+  over its own; R its 6-month return in the top half of the list; S its sector in the top half by 3-month return.
+- **The four strategies** (triggers counted in candles of the chart):
+  - Leaders (context M): at each month's end hold the top fifth by 12-month return skipping the latest month, each
+    only if over its own 200-day average; a holding stays while in the top 30%; all cash when M fails at a month's
+    end.
+  - Trend (MR): 50-candle average over the 200 and the close over the 200; out when the 50 falls under the 200, or a
+    stop 25% under the entry.
+  - Breakout (MTR): first close over the 50-candle high on 1.5× volume (not on hourly); out on a close under the
+    50-candle low, or a stop 3 × ATR.
+  - Pullback (MT): 2-candle RSI under 10; out on the first close over the 5-candle average or after 10 candles, or a
+    stop 5 × ATR.
+- **Books on all history** (growth a year / worst fall; holding the list +17.7% / −45% and +24.7% / −39%; holding it
+  only while the index is over its 200-day +11.0% / −23% and +20.9% / −33%):
+  - Leaders monthly: +16.4% / −33% and +31.8% / −27%. US 2014–26 +19.0% / −29%; India halves +33.8% / −19% and +30.0%
+    / −28%.
+  - Trend: daily +15.2% / −51% and +28.8% / −34%; weekly +10.5% / −60% and +19.3% / −26%.
+  - Breakout: daily +13.5% / −26% and +15.4% / −45%; weekly +12.2% / −47% and +18.7% / −35%.
+  - Pullback: daily +8.5% / −18% and +1.1% / −35%; weekly +5.8% / −21% and +7.1% / −19%.
+  - US Trend's −51% is the 2000 bubble: started on the first day of 2000 it holds that winter's strongest stocks and
+    gives their gains back before the 50 crosses under the 200 (June 2000 to July 2002; the worst trade, PG −46%,
+    opened far under its stop). The faster 20/100 pair fell −35% in the design years against −51%; the textbook pair
+    was kept. An early version of the lab left out positions bought before a window and hid this fall; every window
+    now starts fresh, and the rules were not re-chosen after that fix.
+- **What each trigger adds over random days** (average trade − control, daily charts):
+  - Pullback: +0.26% in the US (6.8 standard errors; design +0.34%, later years +0.19%). India +0.17%, but the trade
+    itself keeps only +0.29% after costs and the book grows +1.1% a year.
+  - Breakout: +0.27% in the US on a 128-day hold (0.2 standard errors: none; later years −0.94%). India +5.93% (2.0),
+    in both halves (+6.23%, +4.66%).
+  - Trend: +5.1% in the US (1.9), +27.4% in India (3.0).
+  - So US large companies bounce after dips and their breakouts mean nothing; the Indian list trends, and its dips do
+    not pay after costs.
+- **Context.**
+  - Leaders' market test: worst fall −53% → −33% (US), −35% → −27% (India). It cost growth in US 2014–26 (+19.0% with,
+    +25.7% without).
+  - Pullback with no context: +0.41% a trade in the US, −0.10% in India (book worst fall −78%). With M+T+R+S: +0.62%
+    and +0.43%.
+  - US Breakout book worst fall −54% → −26% with M+T+R at the same growth; in India context did not help it (+20.0% /
+    −38% with none, +15.4% / −45% with). Trend barely changes (US +15.8% / −52% → +15.2% / −51%, India +31.6% / −37% →
+    +28.8% / −34%): its trigger is already a trend test. The sector test raised the average trade everywhere but is
+    thin (2–23 stocks a sector).
+- **Timeframes.**
+  - Hourly, since 2024-02-01 only: the biggest gain over random days was +0.47% a trade (US Trend, 0.7 standard
+    errors: chance). Pullback lost −0.02% and −0.42% a trade after costs (India's book lost 53% a year); Breakout did
+    worse than random days in both (−0.31%, −0.41%). Nothing argues for hourly charts; under three years of data.
+  - Daily against weekly, all history (growth per unit of worst fall): US Trend daily (not in every sub-period),
+    Breakout daily, Pullback daily; India Trend daily, Breakout weekly, Pullback weekly. Weekly Trend and Breakout
+    trades last 1.7 to 4.5 years on average.
+  - Leaders re-ranked weekly / monthly / quarterly: US +11.5% / −45%, +16.4% / −33%, +11.4% / −36%; India +31.6% /
+    −28%, +31.8% / −27%, +30.1% / −34%. Monthly is best on all history in both; India's three are close.
+- **Tried in the design step and not kept.**
+  - A gap up of 1.5 × ATR on twice the volume (the footprint of good news): 0.24 signals a stock a year in large
+    companies, +0.31% a trade over random days.
+  - A deeper dip for a dear market: at India's costs (still on US 2000–2013) the US dip rule keeps +0.17% a trade and
+    RSI under 5 keeps +0.35%. On India that version makes +0.46% a trade and the book +3.5% / −23%: better, still
+    small. "Deepest dip first" for a free slot was no better than "stronger stock first".
+  - The textbook rules were kept where a variant scored higher in the design years: Trend's 50/200 over 20/100, and
+    Leaders' 12-months-skip-one ranking although 6 of its 10 variants scored higher. Picking the best cell of a table
+    is how backtests fool people.
+- **Limits.** Hindsight in both lists lifts every row, dip-buying most. The US list is unscreened. Hourly rests on
+  under three years. The 10-slot book is path-dependent, so a few points a year between two rows mean little. One data
+  source. The Trend stop and the deeper dip were added after the first full run was seen (chosen on design numbers
+  alone), and the fresh-start fix came after the rules were frozen.
+- **Verdict.** Leaders, re-ranked monthly, is the strongest of the four. In India it beat holding the list on growth
+  and on worst fall (+31.8% / −27% against +24.7% / −39%). In the US it made a little less than holding the list for a
+  smaller fall (+16.4% / −33% against +17.7% / −45%), about level per unit of fall with daily Breakout and with
+  holding the list only in bull markets. Pullback on daily candles is the US's one trigger with a measured edge, and
+  it is small. Daily Trend is a sound way to hold Indian stocks; in the US it fell −51% after 2000. Stay off hourly
+  charts.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
