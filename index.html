@@ -26,6 +26,8 @@
   button{cursor:pointer;background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600}
   button:hover{filter:brightness(1.08)}
   button.ghost{background:#0d1117;color:var(--txt);border-color:var(--line);font-weight:500}
+  button.btnGo{background:#238636;border-color:#238636}
+  button.btnStop{background:#b62324;border-color:#b62324}
   #status{font-size:12px;color:var(--muted);margin-left:auto;text-align:right}
   #status b.bull{color:var(--lime)} #status b.bear{color:var(--red)}
   #stratInfo{flex:0 0 auto;padding:6px 12px;font-size:12px;color:var(--muted);background:var(--panel);border-bottom:1px solid var(--line)}
@@ -47,6 +49,7 @@
            padding:5px 8px;font:inherit;font-size:13px}
   #cmpSyms:focus{outline:none;border-color:#1f6feb}
   #cmpCtl .cmpsw{flex-direction:row;align-items:center;gap:5px;white-space:nowrap}
+  #cmpCtl .cmpRun{display:flex;gap:8px}                   /* Start and Stop wrap together, side by side */
   .stab{font-variant-numeric:tabular-nums}
   .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
   .spanhint{color:var(--muted);font-size:11px;white-space:nowrap}
@@ -742,7 +745,10 @@
     <label class="cmpsw" title="Instead of grading each row on one window, slide a window across its whole history and report how often it was profitable. A row that only works in one window is a coin flip, not an edge.">
       <input id="cmpSweep" type="checkbox" checked style="margin:0" /> Window sweep
     </label>
-    <button id="cmpGo" class="ghost">↻ Refresh data</button>
+    <span class="cmpRun">
+      <button id="cmpGo" class="btnGo" title="Run the comparison with the settings above. A run that is going is replaced at once. Coins read in the last 15 minutes are kept; older data is fetched again.">▶ Start</button>
+      <button id="cmpStop" class="btnStop" hidden title="Stop fetching. The coins already read stay in the table, and ▶ Start reads the rest.">■ Stop</button>
+    </span>
   </div>
   <div id="cmpPick"></div>
   <div id="cmpWrap"><table id="cmpTable">
@@ -801,8 +807,10 @@ const TF_MS = {'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8
 // `spec` is either a bar COUNT (number) or a DATE RANGE ({from, to} in ms).
 // In range mode it pages back until it passes `from` OR the pair's history runs out — so a
 // start date older than the listing simply yields the earliest bars that exist, no error.
-async function fetchKlines(symbol, interval, spec, onPage){
+// opts.signal (an AbortController's): Compare's ■ Stop and its replaced runs abort the download at once, retries included
+async function fetchKlines(symbol, interval, spec, onPage, opts){
   if(isXau(symbol)) return xauKlines(interval, spec);
+  const signal = opts && opts.signal, stopped = () => !!(signal && signal.aborted);
   const range = (spec && typeof spec === 'object') ? spec : null;
   const total = range ? Infinity : spec;
   let collected = [], endTime = range && range.to ? range.to : undefined;
@@ -815,8 +823,9 @@ async function fetchKlines(symbol, interval, spec, onPage){
     for (let attempt = 0; attempt < 4 && !rows; attempt++){
       if (attempt) await new Promise(r => setTimeout(r, 400 * Math.pow(2, attempt - 1)));
       for (const base of ENDPOINTS){
+        if (stopped()) throw new DOMException('stopped', 'AbortError');
         try{
-          const r = await fetch(`${base}/api/v3/klines?${qs}`);
+          const r = await fetch(`${base}/api/v3/klines?${qs}`, signal ? { signal } : undefined);
           if(!r.ok){
             lastErr = `${base} HTTP ${r.status}`;
             if(r.status === 400 || r.status === 404) return collected.length ? finishKlines(collected) : [];
@@ -824,7 +833,7 @@ async function fetchKlines(symbol, interval, spec, onPage){
           }
           rows = await r.json(); break;
         }
-        catch(e){ lastErr = `${base}: ${e.message}`; }
+        catch(e){ if (stopped()) throw e; lastErr = `${base}: ${e.message}`; }
       }
     }
     if(!rows) throw new Error(lastErr || 'fetch failed');
@@ -1652,8 +1661,9 @@ const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w
 // so a combo can be required to work both recently and over the long haul before it is suggested.
 const CMP_REF_BARS=10000;
 const CMP_CPU_S=1.0;             // ~compute seconds per coin on a phone, for the Top 100 estimate only
-const cmpCache={}, cmpRowsTf={};
-let cmpSort={k:'net',d:-1}, cmpBusy=false, cmpPending=false;
+const cmpCache={}, cmpRowsTf={}, cmpCoin={};
+let cmpSort={k:'net',d:-1}, cmpBusy=false, cmpRun=null, cmpStopped=null, cmpPaintAt=0;
+const CMP_FRESH_MS=15*60e3;      // ▶ Start re-reads anything older; what is younger is kept, so a stopped run resumes
 
 // ---- editable symbol list -------------------------------------------------
 // Accepts bare tickers or full pairs, in any case: "inj, arb, HBARUSDT" is valid.
@@ -1790,6 +1800,30 @@ function okRow(e, requireStable){
   return e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=minTrades()
       && (!requireStable || (e.sweep && e.sweep.pos>=0.70));
 }
+// ---- runs: start, replace, stop (Nov 2026, user request) ---------------------------------------------------------
+// One run at a time, and a new request REPLACES the run in flight: other coins + GO, ▶ Start, a new timeframe, bar
+// count or date range all cancel it (its downloads are aborted) and start at once. Before, a request that came mid-run
+// waited behind the whole old list (cmpPending): typing BTC during a 50-coin run waited for all 50. ■ Stop cancels with
+// no replacement. Each finished coin's rows are kept per window (cmpCoin, keyed rk|sym): the table fills in as coins
+// finish, the go-to pick waits for the whole list, and ▶ Start, or a new list that shares coins, does not redo them.
+// ▶ Start re-reads data older than CMP_FRESH_MS; the automatic runs reuse whatever is held, as before.
+function cmpBusyUI(){ $('cmpStop').hidden=!cmpBusy; }
+function cmpCancel(){ if(cmpRun){ cmpRun.ctrl.abort(); cmpRun=null; } cmpBusy=false; cmpBusyUI(); }
+function cmpStart(force){ cmpStopped=null; cmpCancel(); return runCompare(force); }
+// opening the tab: show what is held, and read only when nothing runs and you did not stop this very request
+function cmpAuto(){
+  if(cmpBusy) return;
+  if(cmpStopped===cmpRowKey()+'|'+CMP_SYMS.join()){ renderCmp(); return; }
+  runCompare(false);
+}
+function cmpStop(){
+  const run=cmpRun; if(!run) return;
+  cmpCancel(); cmpStopped=run.rk+'|'+run.syms;
+  $('cmpStatus').textContent=`Stopped: ${run.done} of ${run.total} coins read. The table shows those; ▶ Start reads the rest.`;
+  renderCmp();
+}
+// the table fills in as coins finish, redrawn at most every 1.5 s (a 100-coin list would otherwise redraw 100 times)
+function cmpPaint(run){ if(cmpRun!==run) return; const t=Date.now(); if(t-cmpPaintAt<1500) return; cmpPaintAt=t; renderCmp(); }
 async function runCompare(force){
   const tf=$('cmpTf').value, byDate=$('cmpRangeMode').value==='dates';
   const bars=cmpBars();
@@ -1803,74 +1837,91 @@ async function runCompare(force){
   }
   const rk = cmpRowKey();
   const need=Math.max(bars, CMP_REF_BARS);
-  // Dropping a request while one is in flight leaves the table rendering a key nobody computed —
-  // which is exactly what happens when you switch to date mode (that fires a fetch) and then pick
-  // your dates a moment later. Queue it instead of discarding it.
-  if(cmpBusy){ cmpPending=true; return; }
+  // a request made while a run is in flight replaces it (cmpStart cancels first); a run still going here is the one
+  // for these very settings (the tab was reopened), so let it finish
+  if(cmpBusy) return;
   if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
-  cmpBusy=true;
-  $('cmpBody').innerHTML='<tr><td colspan="12" style="color:#8b949e;padding:14px">Loading…</td></tr>';
+  const syms=CMP_SYMS.slice();
+  const run={ ctrl:new AbortController(), rk, syms:syms.join(), done:0, total:syms.length };
+  cmpRun=run; cmpBusy=true; cmpBusyUI();
+  const live=()=> cmpRun===run;                         // false once stopped or replaced: it writes nothing more
+  const say=(t)=>{ if(live()) $('cmpStatus').textContent=t; };
+  const fresh=(at)=> !force || Date.now()-(at||0) < CMP_FRESH_MS;
+  renderCmp();                                          // the coins already read for this window, else "Loading…"
   const rows=[], bad=[], short=[]; let noBtcD=false;
+  const take=(o)=>{ rows.push(...o.rows); if(o.bad) bad.push(o.bad); if(o.short) short.push(o.short); if(o.noBtcD) noBtcD=true;
+    run.done++; cmpPaint(run); };
   // BIG LISTS (Top 100): 3 coins in flight, so network overlaps compute — fetchKlines already backs
   // off on 429/418, and 3 x ~5 req/s stays far inside Binance's 6000-weight/min budget. Up to 12
   // coins keeps the old one-at-a-time behaviour exactly. Big lists also drop each coin's raw
   // candles once its rows are computed: 100 coins x 20k bars is ~2M candle objects, enough to kill
   // a phone tab. The rows (all the table needs) are tiny; changing Bars just refetches.
-  const N=CMP_SYMS.length, conc=N>12?3:1, keepCandles=N<=25;
+  const N=syms.length, conc=N>12?3:1, keepCandles=N<=25;
   const tag=(i)=> N>1 ? `(${i+1}/${N}) ` : '';
   const one = async (sym, i)=>{
     await new Promise(r=>setTimeout(r,0));               // let the progress text paint
-    $('cmpStatus').textContent=tag(i)+'fetching '+sym+' '+tf+' × '+bars+'…';
+    if(!live()) return;
+    const kept=cmpCoin[rk+'|'+sym];
+    if(kept && fresh(kept.at)){ take(kept); return; }
+    say(tag(i)+'fetching '+sym+' '+tf+' × '+bars+'…');
+    const out={ rows:[], bad:null, short:null, noBtcD:false, at:Date.now() };
     try{
       const key=sym+'|'+tf;
       // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
       // One fetch serves both windows — the reference costs no extra requests.
       const ckey = byDate ? `${key}|d${refFrom}-${dspec.to}` : key;
       let ent=cmpCache[ckey];
-      if(force || !ent || (!byDate && ent.asked<need)){
+      if(!ent || !fresh(ent.at) || (!byDate && ent.asked<need)){
         const spec = byDate ? {from:refFrom, to:dspec.to} : need;
-        const rows=await fetchKlines(sym,tf,spec,(got,want)=>{
-          $('cmpStatus').textContent = tag(i) + (want
-            ? `fetching ${sym} ${tf} — ${got}/${want} bars…`
-            : `fetching ${sym} ${tf} — ${got} bars…`);
-        });
-        ent=cmpCache[ckey]={rows, asked:byDate?Infinity:need};
+        const got=await fetchKlines(sym,tf,spec,(n,want)=>{
+          say(tag(i) + (want ? `fetching ${sym} ${tf} — ${n}/${want} bars…` : `fetching ${sym} ${tf} — ${n} bars…`));
+        }, { signal: run.ctrl.signal });
+        if(!live()) return;
+        ent=cmpCache[ckey]={rows:got, asked:byDate?Infinity:need, at:Date.now()};
       }
       const full=ent.rows||[];
       // user's window: the date range, or the last N bars
       const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
                        : (full.length>bars ? full.slice(-bars) : full);
-      if(c.length<250){ bad.push(sym+' (only '+c.length+' bars)'); if(!keepCandles) delete cmpCache[ckey]; return; }
-      const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
-      const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
-      const btcD = await btcDailyFor(sym);                // cycle's BTC-led rules on alts; 'self' on BTC
-      if(!btcD) noBtcD = true;
-      const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
-      // a start date earlier than the listing is clamped by the API — say so rather than
-      // letting a short row look like a like-for-like comparison
-      if(byDate && c.length && c[0].time*1000 > dspec.from + (TF_MS[tf]||864e5)*2){
-        short.push(`${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`);
-      }
-      for(const [st,label] of CMP_STRATS){
-        const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
-        const e=pathStats(res.trades,c);
-        // the 10k reference run — skipped only when it would be the identical window
-        let d=e;
-        if(!sameWin && ref.length>=250){
-          const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
-          d=pathStats(rr.trades,ref);
+      if(c.length<250){ out.bad=sym+' (only '+c.length+' bars)'; if(!keepCandles) delete cmpCache[ckey]; }
+      else {
+        const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
+        const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
+        const btcD = await btcDailyFor(sym);                // cycle's BTC-led rules on alts; 'self' on BTC
+        if(!live()) return;
+        if(!btcD) out.noBtcD = true;
+        const sameWin = c.length===ref.length || (!byDate && bars===CMP_REF_BARS);
+        // a start date earlier than the listing is clamped by the API — say so rather than
+        // letting a short row look like a like-for-like comparison
+        if(byDate && c.length && c[0].time*1000 > dspec.from + (TF_MS[tf]||864e5)*2){
+          out.short = `${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`;
         }
-        rows.push({sym,st,label,e,d,sameWin});
+        for(const [st,label] of CMP_STRATS){
+          const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
+          const e=pathStats(res.trades,c);
+          // the 10k reference run — skipped only when it would be the identical window
+          let d=e;
+          if(!sameWin && ref.length>=250){
+            const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
+            d=pathStats(rr.trades,ref);
+          }
+          out.rows.push({sym,st,label,e,d,sameWin});
+        }
+        if(!keepCandles) delete cmpCache[ckey];
       }
-      if(!keepCandles) delete cmpCache[ckey];
-    }catch(e){ bad.push(sym+' (no data)'); }
+    }catch(e){
+      if(!live()) return;                                 // stopped or replaced: not a data problem
+      bad.push(sym+' (no data)'); run.done++; cmpPaint(run); return;   // a failed read is not kept: next run tries again
+    }
+    if(!live()) return;
+    cmpCoin[rk+'|'+sym]=out; take(out);
   };
-  const queue=CMP_SYMS.map((sym,i)=>[sym,i]);
+  const queue=syms.map((sym,i)=>[sym,i]);
   await Promise.all(Array.from({length:conc}, async ()=>{
-    while(queue.length){ const [sym,i]=queue.shift(); await one(sym,i); }
+    while(queue.length && live()){ const [sym,i]=queue.shift(); await one(sym,i); }
   }));
-  cmpRowsTf[rk]=rows; cmpBusy=false;
-  if(cmpPending){ cmpPending=false; return runCompare(false); }   // settings moved while we fetched
+  if(!live()) return;
+  cmpRowsTf[rk]=rows; cmpRun=null; cmpBusy=false; cmpBusyUI();
   // a typo'd or delisted symbol should say so, not vanish silently; and a symbol clamped to a
   // later start than you asked for is being graded on less history than its neighbours
   $('cmpStatus').textContent = [
@@ -1882,7 +1933,10 @@ async function runCompare(force){
   renderCmp();
 }
 function renderCmp(){
-  const tf=$('cmpTf').value, all=cmpRowsTf[cmpRowKey()]||[];
+  const tf=$('cmpTf').value, rk=cmpRowKey(), whole=cmpRowsTf[rk];
+  // until a run has read the whole list, the table shows the coins finished so far (cmpCoin)
+  const doneN = whole ? CMP_SYMS.length : CMP_SYMS.filter(s=>cmpCoin[rk+'|'+s]).length;
+  const all = whole || CMP_SYMS.flatMap(s=>(cmpCoin[rk+'|'+s]||{}).rows||[]);
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
   const {k,d}=cmpSort, sweepOn=$('cmpSweep').checked;
@@ -1923,8 +1977,8 @@ function renderCmp(){
     const e=r.e;
     const ok = okRow(e, sweepOn);
     return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(e.vol)}</td><td>${nc(e)}</td><td><b>${pcb(e.net)}</b></td><td>${pcb(e.edge)}</td><td>${pfc(e.pf)}</td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td style="color:#8b949e">${(e.expo*100).toFixed(0)}%</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
-  }).join('') || '<tr><td colspan="12" style="color:#8b949e;padding:14px">No data — hit ↻ Refresh.</td></tr>';
-  renderPick(all, tf);
+  }).join('') || `<tr><td colspan="12" style="color:#8b949e;padding:14px">${cmpBusy ? 'Loading…' : 'No data — press ▶ Start.'}</td></tr>`;
+  renderPick(all, tf, whole ? null : { done:doneN, total:CMP_SYMS.length, running:cmpBusy });
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     // open the chart on the same window the row was graded on, in whichever mode is active
@@ -1939,8 +1993,18 @@ function renderCmp(){
 // A combo must clear the full investment test in BOTH windows — the user's and the fixed 10k
 // reference. Ranked by the WEAKEST of its two edges over buy & hold, so the winner is the one
 // whose worst showing is best, never the one with a single spectacular window.
-function renderPick(rows, tf){
+function renderPick(rows, tf, partial){
   const el=$('cmpPick');
+  // the pick (and its "nothing cleared" verdict) is about the whole list, so it waits until every coin is read
+  if(partial && partial.done < partial.total){
+    el.innerHTML=`<div class="pick none"><div class="pickhead">
+        <span class="pickbadge">${partial.running ? 'READING' : 'STOPPED'}</span>
+        <h3 class="picktitle">${partial.done} of ${partial.total} coins read</h3>
+      </div><div class="pickbody"><div style="font-size:12.5px;line-height:1.6;color:var(--muted)">
+        The go-to combo is picked from the whole list, so it waits until every coin is read.${partial.running ? '' : ' ▶ Start reads the rest; the coins already read are kept.'}
+      </div></div></div>`;
+    return;
+  }
   if(!rows || !rows.length){ el.innerHTML=''; return; }
   const span=(e)=>{ const d=e.yrs*365;
     return d>=730? `${e.yrs.toFixed(1)} yrs` : d>=60? `${Math.round(d/30.44)} mo` : `${Math.round(d)} d`; };
@@ -2058,16 +2122,17 @@ $('cmpStrat').addEventListener('change',renderCmp);
 $('cmpTf').addEventListener('change',()=>{
   // an untouched Bars box tracks the per-TF default, so switching TF keeps grading a sane span
   if(!cmpBarsTouched) setCmpBars(CMP_BARS[$('cmpTf').value]||4500);
-  cmpSpan(); runCompare(false);
+  cmpSpan(); cmpStart(false);
 });
 $('cmpBars').addEventListener('change',()=>{
   cmpBarsTouched=true;
   setCmpBars(cmpBars());                                  // clamp what they typed, then persist
   try{ localStorage.setItem('smb.cmpBars', String(cmpBars())); }catch(e){}
-  runCompare(false);
+  cmpStart(false);
 });
 $('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
-$('cmpGo').addEventListener('click',()=>runCompare(true));
+$('cmpGo').addEventListener('click',()=>cmpStart(true));
+$('cmpStop').addEventListener('click',cmpStop);
 
 // ============================ PORTFOLIO HOME ============================
 // This screen answers "what do I own, what is it worth, and what should I do about it".
@@ -3744,25 +3809,27 @@ function cmpSpan2(){
   el.title = d<200 ? `${Math.round(d)} days is too short for a swing system to produce a readable sample`
                    : `${Math.round(d)} days per symbol, where its history reaches that far back`;
 }
-$('cmpRangeMode').addEventListener('change',()=>{ syncCmpMode(); runCompare(false); });
+$('cmpRangeMode').addEventListener('change',()=>{ syncCmpMode(); cmpStart(false); });
 for(const id of ['cmpFrom','cmpTo']){
-  $(id).addEventListener('change',()=>{ cmpSpan2(); if($('cmpRangeMode').value==='dates') runCompare(false); });
+  $(id).addEventListener('change',()=>{ cmpSpan2(); if($('cmpRangeMode').value==='dates') cmpStart(false); });
 }
 syncCmpMode();
-// editing the symbol list drops the computed rows but KEEPS the klines cache, so re-running
-// only fetches the symbols that are actually new
-function applyCmpSyms(){
+// editing the symbol list drops the computed rows but KEEPS the klines cache and each coin's rows, so re-running only
+// reads the symbols that are actually new. A new list replaces a run in flight. go = GO on the keyboard: (re)start even
+// when the list is unchanged.
+function applyCmpSyms(go){
   const next=parseSyms($('cmpSyms').value);
   if(!next.length){ $('cmpStatus').textContent='no valid symbols — list unchanged'; return; }
-  if(next.join()===CMP_SYMS.join()) return;
+  if(next.join()===CMP_SYMS.join()){ if(go) cmpStart(false); return; }
   CMP_SYMS=next;
   $('cmpSyms').value=cmpSymsText(CMP_SYMS);
   try{ localStorage.setItem('smb.cmpSyms', CMP_SYMS.join(',')); }catch(e){}
   for(const k of Object.keys(cmpRowsTf)) delete cmpRowsTf[k];
-  runCompare(false);
+  cmpStart(false);
 }
 $('cmpSyms').addEventListener('change',()=>{ cmpListNote=''; applyCmpSyms(); });
-$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); cmpListNote=''; applyCmpSyms(); } });
+// GO on a phone keyboard is Enter: start with this list now (a run in flight is replaced), and drop the keyboard
+$('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); cmpListNote=''; applyCmpSyms(true); e.target.blur(); } });
 $('cmpSymsReset').addEventListener('click',()=>{
   cmpListNote=''; $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
 });
@@ -3881,7 +3948,7 @@ $('cmpTop100').addEventListener('click', async ()=>{
     cmpListNote=`top ${t.syms.length} by ${t.source}${t.fallback?' — '+t.fallback:''}${stale?' — '+stale:''} · ranked ${new Date(t.at).toLocaleString()}${t.coins?' · '+t.coins:''}`;
     const same = t.syms.join()===CMP_SYMS.join();
     $('cmpSyms').value=cmpSymsText(t.syms);
-    if(same) runCompare(false); else applyCmpSyms();
+    if(same) cmpStart(false); else applyCmpSyms();
   }catch(e){ $('cmpStatus').textContent='could not build the top-100 list: '+e.message; }
   finally{ btn.disabled=false; }
 });
@@ -3922,7 +3989,7 @@ $('cmpGainers').addEventListener('click', async ()=>{
     cmpListNote=`top ${g.syms.length} Binance gainers, 24h change at ${new Date(g.at).toLocaleString()} (≥ $1M volume) · ${g.coins}`;
     const same=g.syms.join()===CMP_SYMS.join();
     $('cmpSyms').value=cmpSymsText(g.syms);
-    if(same) runCompare(false); else applyCmpSyms();
+    if(same) cmpStart(false); else applyCmpSyms();
   }catch(e){ $('cmpStatus').textContent='could not fetch the gainers: '+e.message; }
   finally{ btn.disabled=false; }
 });
@@ -3936,7 +4003,7 @@ function showView(v){
   $('alView').style.display = v==='alerts'?'block':'none';
   if(v==='portfolio') pfFreshen();
   if(v==='alerts') alInit();
-  if(v==='compare') runCompare(false);
+  if(v==='compare') cmpAuto();
   if(v==='chart'){
     ensureChart();
     if(!chart) return;
