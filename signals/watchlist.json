@@ -474,6 +474,24 @@
       "tf": "1d",
       "bars": 3000,
       "strategy": "cycle"
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "tsmom"
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "tf": "1d",
+      "bars": 1500,
+      "strategy": "tsmom"
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "tf": "1d",
+      "bars": 1500,
+      "strategy": "donch"
     }
   ]
 }
