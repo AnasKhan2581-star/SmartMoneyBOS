@@ -1352,6 +1352,15 @@ busy (and liqbrk BUYs journal-only) for a long time.
   sits in cash, because signals need BTC above its 50-day MA).
 - Taken = the signal's own price (one tap). The journal stores no money; the book's dollar values are computed in the
   browser from a capital figure that never leaves it.
+- **Alert timeframes (Nov 2026, user request: weekly and 1h).**
+  - Trend Follow and Turtle: 1h, 4h, 1d, 1w. Their lookbacks count days, so each timeframe reads the same trends at
+    its own close. On STX, RAY, AR, INJ, CFX and PROM the 1h and 4h entries fell within hours of each other, and weekly
+    ones up to a week after the daily ones (about one trade a year a coin).
+  - BTC Cycle: 4h, 1d, 1w. Weekly reads the rules in weeks (5 days become 2 weekly closes). On BTC, ETH, TRX and RAY
+    it caught the same big moves as 1d, with some entries and exits weeks later and 0–3 fewer trades. No 1h: it would
+    repeat 4h.
+  - liqbrk: no weekly. Its stop is 4×ATR of the chart, and on weekly candles that sits 21–192% under the price on 10
+    alert coins. The 25% stop limit let through 1 trade since 2017; without the limit there were 0–2 a coin.
 
 ## `gold` — long-term gold: the clean-trend system (Nov 2026, user request; SHIPPED)
 

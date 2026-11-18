@@ -443,7 +443,7 @@
         if (B && !B.bull[K]) blocked.push({ why: 'btcCycle', btcGap: isFinite(B.ma[K] / B.px[K]) ? +((B.ma[K] / B.px[K] - 1) * 100).toFixed(2) : null });
         adv.next = { path: 'trend', trig: T, gap: pct(T), run: up, need: persist, unit: 'day', blocked, entered, zone: zK,
           conds: [{ name: 'Close above 1.02 × the 40-week MA', ok: x > T },
-                  { name: `${p.cyclePersist} daily closes in a row above it`, ok: up >= persist },
+                  { name: Z.dt >= 6 * 86400 ? `${persist} weekly closes in a row above it` : `${p.cyclePersist} daily closes in a row above it`, ok: up >= persist },
                   ...(B ? [{ name: 'BTC above its own 40-week MA', ok: !!B.bull[K] }] : []),
                   ...(cool ? [{ name: 'Pi-cycle top cooldown over (a close under the 40-week MA)', ok: false }] : [])] };
       }
@@ -842,7 +842,7 @@
           levels: { ma: maL[i], ref },
           conds: [{ name: `Close above the ${p.tsmomMa}-day MA`, ok: px > maL[i] },
                   { name: `Close above the close ${p.tsmomLook} days back`, ok: px > ref },
-                  { name: `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
+                  { name: dt >= 6 * 86400 ? `Both, ${persistN} weekly closes in a row` : `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
       } else if (p.strategy === 'donch') {
         advice.next = { path: 'break', trig: hiN[i], gap: pct(hiN[i]), run: 0, need: 1, unit: 'bar', blocked: [], entered,
           levels: { high: hiN[i] }, conds: [{ name: `Close above the ${p.donchIn}-day high`, ok: px > hiN[i] }] };

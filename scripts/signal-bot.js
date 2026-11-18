@@ -83,7 +83,9 @@ const WATCH_PATH = path.resolve(argOf('--watch', path.join(ROOT, 'signals', 'wat
 const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
-const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5 };
+const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5, '1w': 6048e5 };
+// fewest closed candles a watch needs before it is read: 300, but 60 on weekly (a coin listed in 2021 has ~250 weeks)
+const minBarsOf = (tf) => ((TF_MS[tf] || 864e5) >= 6048e5 ? 60 : 300);
 // bump a strategy's entry when ITS trading rules change, so stored positions are re-read under the new rules
 // (note 4). Per strategy, so a change to one never makes every alert of another re-baseline.
 const RULES = { liqbrk: 'liqbrk-2026-11-btc50-maxstop25-scale3R', cycle: 'cycle-2026-10-daily-btcled-half1.85' };
@@ -172,8 +174,12 @@ function pairLine(w, pair) {
 // 1.85 × the 200-day MA, a level that moves with the MA) and holds the rest to the Pi-Cycle top or a
 // 5-day break of the 40-week MA. The messages must say the rule of the strategy that actually fired.
 const isCycle = (w) => (w.strategy || 'liqbrk') === 'cycle';
+// the cycle's "N days under the 40-week MA" in the candles it is read on: days (4h and 1d are read as days), or weekly
+// closes on a weekly watch, where the engine turns the days into bars and keeps at least 2 (5 days = 2 weekly closes)
+const cyRun = (w) => { const d = SMC.DEFAULTS.cyclePersist, ms = TF_MS[w.tf] || 864e5;
+  return ms > 864e5 ? `${Math.max(2, Math.round(d * 864e5 / ms))} weekly closes` : `${d} days`; };
 const halfWhy = (w) => isCycle(w) ? 'sell zone: 1.85 × the 200-day MA' : '+3R';
-const restRule = (w) => isCycle(w) ? 'it rides to the Pi-Cycle top or 5 days under the 40-week MA'
+const restRule = (w) => isCycle(w) ? `it rides to the Pi-Cycle top or ${cyRun(w)} under the 40-week MA`
   : 'stop as before, trail = close below the 1-day low';
 const WHY = { STOP: 'stop hit', TRAIL: 'trailed out below the 1-day low', 'PI-TOP': 'Pi-Cycle top',
   'BTC-BEAR': 'BTC lost its 40-week MA (its bear signal)' };
@@ -186,13 +192,13 @@ function whyText(w, pool) {
   const s = stratOf(w);
   if (s === 'tsmom' && pool === 'TREND') return 'the trend broke (a close under the 200-day MA, or under the close 90 days back)';
   if (s === 'donch' && pool === 'TRAIL') return 'closed below the 20-day low';
-  if (s === 'cycle' && pool === 'TREND') return '5 days under the 40-week MA';
+  if (s === 'cycle' && pool === 'TREND') return `${cyRun(w)} under the 40-week MA`;
   return WHY[pool] || String(pool || '').toLowerCase();
 }
 // what still ends the position: each strategy's own exit, with today's levels where the engine gives them
 function exitLines(w, trade, advice, open) {
   const s = stratOf(w), q = (advice && advice.q) || {};
-  if (s === 'cycle') return cycleLines(trade, advice);
+  if (s === 'cycle') return cycleLines(w, trade, advice);
   if (s === 'tsmom') return [
     `Exit          close under the ${q.maDays || 200}-day MA (now ${fmtPx(q.ma)})`,
     `              or under the close ${q.refDays || 90} days back (now ${fmtPx(q.ref)})`,
@@ -203,14 +209,14 @@ function exitLines(w, trade, advice, open) {
   return [`${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`];
 }
 // what a cycle entry still has to do: the tranche program, the exit line, BTC's state for alts
-function cycleLines(trade, advice) {
+function cycleLines(w, trade, advice) {
   const cy = advice && advice.cycle; if (!cy) return [];
   const p = cy.plan || {}, out = [];
   if (cy.mode === 'ACCUM') {
     out.push(`Accumulation: buy ${Math.round(trade.frac * 100)}% of the slot now, the rest when price reclaims the`,
       `40-week MA ≈ ${fmtPx(p.reserveTrig)} (no separate alert for that tranche)`,
       `Stop          ${fmtPx(trade.stop)} (0.65 × the 200-week MA)`);
-  } else out.push(`Exit          5 days under the 40-week line ≈ ${fmtPx(0.97 * p.trendLine)}`);
+  } else out.push(`Exit          ${cyRun(w)} under the 40-week line ≈ ${fmtPx(0.97 * p.trendLine)}`);
   if (cy.btc && !cy.btc.self) out.push(cy.btc.missing ? 'BTC daily data missing — NOT gated on BTC\'s cycle'
     : `BTC: ${cy.btc.bull ? 'above' : 'below'} its 40-week MA${cy.btc.zone2 ? ', in its buy zone' : ''}`);
   return out;
@@ -428,7 +434,7 @@ async function notify(msg) {
   };
 
   // 2h before 4h, so a 4h buy can see whether the same coin's 2h bought first (pairLine)
-  const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5 };
+  const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5, '1w': 6 };
   const items = watch.watch.slice().sort((a, b) => (TF_RANK[a.tf] ?? 9) - (TF_RANK[b.tf] ?? 9));
   const pairOf = (w, entryTime) => {
     const strat = w.strategy || 'liqbrk', otherTf = w.tf === '2h' ? '4h' : w.tf === '4h' ? '2h' : null;
@@ -457,7 +463,7 @@ async function notify(msg) {
         const end = c[c.length - 1].time + TF_MS[w.tf] / 1000, today = Math.floor(end / 86400) * 86400;
         if (end !== today) c = c.filter((x) => x.time < today);
       }
-      if (c.length < 300) { console.log(`${key}: only ${c.length} closed bars — skipped`); continue; }
+      if (c.length < minBarsOf(w.tf)) { console.log(`${key}: only ${c.length} closed bars — skipped`); continue; }
 
       let btc = null, btcD;
       if (strat === 'liqbrk') {

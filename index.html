@@ -2311,7 +2311,7 @@ function rdRank(){
     const nx = x.res.advice.next;
     const forming = !!nx.entered;                                   // rdClass kept only a buy on the forming candle
     const paused = !forming && nx.blocked.length > 0;
-    const unitH = nx.unit === 'day' ? 24 : (TF_MS[x.loadTf] || 864e5) / 36e5;
+    const unitH = nx.unit === 'day' && x.loadTf !== '1w' ? 24 : (TF_MS[x.loadTf] || 864e5) / 36e5;
     const left = forming ? 0 : (nx.gap <= 0 ? Math.max(1, nx.need - nx.run) : nx.need) * unitH;   // hours of closes still needed
     const r = Object.assign({}, x, { nx, forming, paused, dist: forming ? 0 : rdDist(nx), left });
     r.key = [forming ? 0 : 1, r.dist, paused ? 1 : 0, left];
@@ -2361,10 +2361,13 @@ const rdAway = (g)=> g <= 0 ? 'already above' : `+${g.toFixed(1)}% away`;
 const RD_EXIT = { liqbrk:'Then: half sells at +3R, the rest on a close below the 1-day low.',
   tsmom:'No stop: it sells when the trend breaks.', donch:'Then: a 2×ATR stop, and it sells on a close below the 20-day low.',
   cycle:'It holds for months: half sells in the sell zone.' };
+// a timeframe as a word in a sentence: "weekly close", "daily close", "4h close"
+const tfWord = (tf)=> tf === '1w' ? 'weekly' : tf === '1d' ? 'daily' : tf;
 function rdCard(x, i){
   const nx = x.nx, last = x.c[x.c.length - 1].close, L = nx.levels || {}, ad = x.res.advice;
   const conds = nx.conds || [], met = conds.filter(s=>s.ok).length, tot = conds.length || 1;
-  const closeW = x.strat === 'cycle' ? 'daily close' : `${x.tf} close`, T = `<b>${pfFmt(nx.trig)}</b>`;
+  const cyW = x.loadTf === '1w' ? 'weekly' : 'daily';               // the Cycle reads days, or weeks on a weekly watch
+  const closeW = x.strat === 'cycle' ? `${cyW} close` : `${tfWord(x.tf)} close`, T = `<b>${pfFmt(nx.trig)}</b>`;
   const near = !x.paused && (x.forming || nx.gap <= 3);
   let tag = near ? 'NEXT TRADE' : 'WATCH', cls = near ? 'a-next' : 'a-wait', line = '';
   if(x.forming){
@@ -2385,7 +2388,7 @@ function rdCard(x, i){
     else if(b.why === 'fresh') line = `It already closed above its 2-day high without a buy, so this candle can't buy. It needs to dip back under the 2-day high and break out again.`
       + (st ? ` Also, ${stTxt}.` : '');
     else if(b.why === 'stop') line = `Too wild to buy: ${stTxt} (the stop is 4×ATR). It buys a ${closeW} above ${T} (${rdAway(nx.gap)}) once the coin has calmed down.`;
-    else if(b.why === 'btcCycle') line = `BTC is below its own 40-week MA${btcAway}, and alts follow BTC's cycle, so there is no trend entry for now. Once BTC recovers, it buys after ${nx.need} daily closes above ${T} (${rdAway(nx.gap)}).`;
+    else if(b.why === 'btcCycle') line = `BTC is below its own 40-week MA${btcAway}, and alts follow BTC's cycle, so there is no trend entry for now. Once BTC recovers, it buys after ${nx.need} ${cyW} closes above ${T} (${rdAway(nx.gap)}).`;
     else if(b.why === 'cool') line = `After a Pi-cycle top it waits for a close under the 40-week MA before it trades again (now ${pfFmt(nx.trig / 1.02)}).`;
   } else if(x.strat === 'liqbrk'){
     const lbLen = (ad.lb || {}).maBarsLen || 149;
@@ -2394,16 +2397,16 @@ function rdCard(x, i){
   } else if(x.strat === 'tsmom'){
     const days = Math.round(nx.need / perDayOf(x.loadTf)), both = `its 200-day MA (<b>${pfFmt(L.ma)}</b>) and its close 90 days back (<b>${pfFmt(L.ref)}</b>)`;
     line = nx.gap <= 0
-      ? `Above both of its lines now: ${both}. It buys once that holds ${days} days in a row: ${nx.run} of ${nx.need} ${x.tf} closes so far, about ${rdDur(x.left)} to go.`
-      : `Buys after ${days} days of ${x.tf} closes above ${T} (${rdAway(nx.gap)}), the higher of ${both}.`;
+      ? `Above both of its lines now: ${both}. It buys once that holds ${days} days in a row: ${nx.run} of ${nx.need} ${tfWord(x.tf)} closes so far, about ${rdDur(x.left)} to go.`
+      : `Buys after ${days} days of ${tfWord(x.tf)} closes above ${T} (${rdAway(nx.gap)}), the higher of ${both}.`;
   } else if(x.strat === 'donch'){
     line = `Buys on a ${closeW} above the 55-day high, ${T} (${rdAway(nx.gap)}).`;
   } else if(x.strat === 'cycle'){
     line = nx.path === 'zone'
-      ? `In the cycle's buy zone (${nx.zone} of 3 value signs). It starts buying on a daily close above the 20-day high, ${T} (${rdAway(nx.gap)}), or on a sweep and reclaim of its 4-month low.`
+      ? `In the cycle's buy zone (${nx.zone} of 3 value signs). It starts buying on a ${cyW} close above the 20-day high, ${T} (${rdAway(nx.gap)}), or on a sweep and reclaim of its 4-month low.`
       : nx.gap <= 0
-        ? `Above 1.02× its 40-week MA (${T}). It buys after ${nx.need} daily closes in a row there: ${nx.run} so far, counting today if it holds.`
-        : `Buys after ${nx.need} daily closes in a row above ${T} (${rdAway(nx.gap)}), 1.02× its 40-week MA.`;
+        ? `Above 1.02× its 40-week MA (${T}). It buys after ${nx.need} ${cyW} closes in a row there: ${nx.run} so far, counting ${cyW === 'weekly' ? 'this week' : 'today'} if it holds.`
+        : `Buys after ${nx.need} ${cyW} closes in a row above ${T} (${rdAway(nx.gap)}), 1.02× its 40-week MA.`;
   }
   const crown = i === 0 && near ? '<span class="badge a-next">Most likely next</span>' : '';
   const sub = x.forming ? 'buy forming' : x.paused ? 'paused' : nx.gap <= 0 ? 'at the buy level' : `+${nx.gap.toFixed(1)}% to buy`;
@@ -2509,9 +2512,10 @@ const pxRowFor = (sym)=> rowFor(sym) || rdRows.find(r=>r.sym===sym);
 // THE RADAR'S LIST (Nov 2026, user request: "top 5 from all", not just liqbrk). Every alert on every strategy's list,
 // read on its OWN timeframe and as deep as its strategy needs, never deeper than the watch itself (the bot cannot see
 // more): liqbrk PF_RBARS; Trend Follow / Turtle the 200-day MA plus ~130 days (1,980 bars on 4h); the Cycle on DAILY
-// candles whatever the watch's timeframe (it is a daily system on every chart, so the trades are the same), as many
-// days as the watch reads, up to 3,000. PF_RADAR stands in, as liqbrk on the Portfolio's timeframe, when the list
-// can't be read. Gold is not on the alert lists, so the radar has no reader for it.
+// candles for a 4h or 1d watch (a daily system there, so the trades are the same), as many days as the watch reads, up
+// to 3,000. A weekly Cycle watch reads weekly candles: its trades differ from the daily ones. PF_RADAR stands in, as
+// liqbrk on the Portfolio's timeframe, when the list can't be read. Gold is not on the alert lists, so the radar has
+// no reader for it.
 const RD_STRATS = { liqbrk:'Breakout', tsmom:'Trend Follow', donch:'Turtle', cycle:'BTC Cycle' };
 const perDayOf = (tf)=> 864e5 / (TF_MS[tf] || 864e5);
 function rdItems(){
@@ -2522,9 +2526,10 @@ function rdItems(){
     const strat = w.strategy || 'liqbrk', tf = w.tf || pfTf, wb = +w.bars || 4500;
     // a Binance ticker only: the list is a file anyone with the repo can edit, and the cards print the symbol as HTML
     if(!RD_STRATS[strat] || !/^[A-Z0-9]{2,30}$/.test(String(w.symbol || '')) || !TF_MS[tf]) continue;
-    const plan = strat === 'cycle' ? { loadTf:'1d', depth: Math.min(3000, Math.ceil(wb / perDayOf(tf))) }
+    const plan = strat === 'cycle' ? (tf === '1w' ? { loadTf:'1w', depth: Math.min(wb, 1000) }
+        : { loadTf:'1d', depth: Math.min(3000, Math.ceil(wb / perDayOf(tf))) })
       : strat === 'liqbrk' ? { loadTf:tf, depth: Math.min(wb, PF_RBARS[tf] || 1500) }
-      : { loadTf:tf, depth: Math.min(wb, Math.ceil(330 * perDayOf(tf))) };
+      : { loadTf:tf, depth: Math.min(wb, Math.max(60, Math.ceil(330 * perDayOf(tf)))) };   // 60: pfRun's least (48 on 1w)
     out.push(Object.assign({ w, sym:w.symbol, tf, strat }, plan));
   }
   return out;
@@ -3424,23 +3429,31 @@ const AL_FILE = 'signals/watchlist.json';
 let alLive = null, alDraft = null, alLoaded = false, alStale = 0, alLiveNote = '';
 // One collapsible list per strategy (user request, Nov 2026), in the style of the token panels below. Each says
 // what the strategy does and has its own add form: the timeframes it suits and a bar count past its warm-up.
+// Weekly and 1h (user request, Nov 2026) go where they work. Trend Follow and Turtle count their lookbacks in days, so
+// every timeframe reads the same trends, each at its own close. The Cycle gets weekly (its own, slower read) but not
+// 1h, which would repeat 4h exactly. Breakout gets no weekly: its stop is 4×ATR of the chart, and on weekly candles
+// that sits 21-192% under the price on 10 alert coins (Nov 2026), so the 25% limit let through 1 trade since 2017.
 const AL_STRATS = [
   { s:'liqbrk', name:'Liquidity Breakout', tfs:['15m','1h','2h','4h','1d'], tf:'4h',
-    what:'Breakouts through the 2-day high on strong volume. Holds about 1–2 days: half is sold at +3R and the rest trails. New entries need BTC above its 50-day average, and a stop no more than 25% under the entry.' },
-  { s:'tsmom', name:'Trend Follow', tfs:['4h','1d'], tf:'4h',
-    what:'Long while price is above its 200-day average and higher than 90 days ago; sells when either fails. No stop. Holds weeks to months.' },
-  { s:'donch', name:'Turtle', tfs:['4h','1d'], tf:'4h',
-    what:'Buys a close above the 55-day high; sells on a close below the 20-day low, or at its 2×ATR stop. Holds weeks.' },
-  { s:'cycle', name:'BTC Cycle', tfs:['4h','1d'], tf:'4h',
-    what:'BTC\'s halving playbook: buys near the 200-week average and in deep zones, sells half in the sell zone and holds the rest for months or years. Alts follow BTC\'s cycle. A daily system on either timeframe (4h and 1d give the same trades): its alerts come after the daily close (05:30 IST).' },
+    what:'Breakouts through the 2-day high on strong volume. Holds about 1–2 days: half is sold at +3R and the rest trails. New entries need BTC above its 50-day average, and a stop no more than 25% under the entry. No weekly: there its 4×ATR stop sits far under the price (21–192% on 10 alert coins), past the 25% limit, so it almost never buys (1 trade on those 10 coins since 2017).' },
+  { s:'tsmom', name:'Trend Follow', tfs:['1h','4h','1d','1w'], tf:'4h',
+    what:'Long while price is above its 200-day average and higher than 90 days ago; sells when either fails. No stop. Holds weeks to months. Its lookbacks count days, so every timeframe sees the same trends, each at its own close: 1h within the hour, weekly up to a week later (the week closes Monday 05:30 IST).' },
+  { s:'donch', name:'Turtle', tfs:['1h','4h','1d','1w'], tf:'4h',
+    what:'Buys a close above the 55-day high; sells on a close below the 20-day low, or at its 2×ATR stop. Holds weeks. Its lookbacks count days, so every timeframe sees the same breakouts, each at its own close.' },
+  { s:'cycle', name:'BTC Cycle', tfs:['4h','1d','1w'], tf:'4h',
+    what:'BTC\'s halving playbook: buys near the 200-week average and in deep zones, sells half in the sell zone and holds the rest for months or years. Alts follow BTC\'s cycle. A daily system on 4h and 1d (the same trades): its alerts come after the daily close (05:30 IST). Weekly reads the same rules on weekly candles, after the Monday 05:30 IST close: the same big moves, but entries and exits can come weeks later. No 1h: it would repeat the 4h trades at the same moment, from 24× the data.' },
 ];
-// Bars: the default clears each warm-up with room to spare. Trend Follow and Turtle need the 200-day average first
-// (1,200 bars on 4h); the Cycle wants the 200-week average (~1,400 days), so it is counted in DAYS: 3,000 days is
-// 3,000 bars on 1d and 18,000 on 4h. The floor stops a watch that could never fire (the bot would report it as an
-// error on every run).
-const alPerDay = (tf)=> Math.max(1, Math.round(864e5 / (TF_MS[tf] || 864e5)));
-const alBarsFor = (s, tf)=> s === 'cycle' ? 3000 * alPerDay(tf) : s === 'liqbrk' ? 4500 : tf === '1d' ? 1500 : 4500;
-const alMinBars = (s, tf)=> s === 'liqbrk' ? 600 : s === 'cycle' ? 1500 * alPerDay(tf) : tf === '1d' ? 400 : 1500;
+// Bars: the default clears each warm-up with room to spare, counted in DAYS where the rules are (a weekly candle is 7
+// days). Trend Follow and Turtle need the 200-day average first: 4,800 bars on 1h, 1,200 on 4h, 29 on 1w. The Cycle
+// wants the 200-week average (~1,400 days), so 3,000 days: 18,000 bars on 4h, 3,000 on 1d, 429 on 1w. Weekly asks for
+// all history (Binance's coins have under 500 weekly candles). The floor stops a watch that could never fire (the bot
+// would report it as an error on every run).
+const alBarsIn = (days, tf)=> Math.ceil(days * 864e5 / (TF_MS[tf] || 864e5));
+const alBarsFor = (s, tf)=> s === 'liqbrk' ? 4500 : s === 'cycle' ? alBarsIn(3000, tf)
+  : tf === '1w' ? 1000 : tf === '1d' ? 1500 : tf === '1h' ? 7200 : 4500;
+const alMinBars = (s, tf)=> s === 'liqbrk' ? 600 : s === 'cycle' ? alBarsIn(1500, tf)
+  : tf === '1w' ? 60 : tf === '1d' ? 400 : tf === '1h' ? 5000 : 1500;
+const alBarsStep = (tf)=> tf === '1w' ? 10 : 500;
 const alStratOf = (x)=> x.strategy || 'liqbrk';
 const alInfo = (s)=> AL_STRATS.find((d)=>d.s === s)
   || { s, name:String(s).replace(/[&<>"']/g, (ch)=>`&#${ch.charCodeAt(0)};`), tfs:[], tf:'', what:'' };
@@ -3457,12 +3470,12 @@ function alSection(s){
       ${d.tfs.length ? `<div class="alAdd">
         <label class="alSymL">Coins (one or several: ARB, SOL, INJ)<input class="sym alSymIn" placeholder="ARB, SOL" list="symList" autocomplete="off" /></label>
         <label>Timeframe<select class="alTfIn">${d.tfs.map((t)=>`<option${t === d.tf ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-        <label title="Candles the bot reads each run. It must clear the strategy's warm-up, or the watch can never fire.">Bars<input class="alBarsIn" type="number" value="${alBarsFor(s, d.tf)}" min="${alMinBars(s, d.tf)}" step="500" /></label>
+        <label title="Candles the bot reads each run. It must clear the strategy's warm-up, or the watch can never fire.">Bars<input class="alBarsIn" type="number" value="${alBarsFor(s, d.tf)}" min="${alMinBars(s, d.tf)}" step="${alBarsStep(d.tf)}" /></label>
         <button class="alAddBtn">Add to ${d.name}</button></div><div class="alMsg"></div>` : ''}
     </div>`;
   box.appendChild(el);
   const tfIn = el.querySelector('.alTfIn'), barsIn = el.querySelector('.alBarsIn'), symIn = el.querySelector('.alSymIn');
-  if(tfIn) tfIn.onchange = ()=>{ barsIn.value = alBarsFor(s, tfIn.value); barsIn.min = alMinBars(s, tfIn.value); };
+  if(tfIn) tfIn.onchange = ()=>{ barsIn.value = alBarsFor(s, tfIn.value); barsIn.min = alMinBars(s, tfIn.value); barsIn.step = alBarsStep(tfIn.value); };
   if(symIn) symIn.onkeydown = (e)=>{ if(e.key === 'Enter') alAddTo(s); };
   if(el.querySelector('.alAddBtn')) el.querySelector('.alAddBtn').onclick = ()=> alAddTo(s);
   return el;

@@ -102,14 +102,26 @@ once: `RAY, STX, AR`), the timeframes that strategy suits and a bar count past i
 | strategy | timeframes | default bars | at least |
 | --- | --- | --- | --- |
 | `liqbrk` | 15m, 1h, 2h, 4h, 1d | 4500 | 600 |
-| `tsmom`, `donch` | 4h, 1d | 4500 on 4h, 1500 on 1d | 1500 on 4h, 400 on 1d (the 200-day MA comes first) |
-| `cycle` | 4h, 1d | 3000 days: 18000 on 4h, 3000 on 1d | 1500 days: 9000 on 4h, 1500 on 1d (the 200-week MA needs ~1,400 days) |
+| `tsmom`, `donch` | 1h, 4h, 1d, 1w | 7200 on 1h, 4500 on 4h, 1500 on 1d, 1000 on 1w (all history) | 5000 on 1h, 1500 on 4h, 400 on 1d, 60 on 1w (the 200-day MA comes first) |
+| `cycle` | 4h, 1d, 1w | 3000 days: 18000 on 4h, 3000 on 1d, 429 on 1w | 1500 days: 9000 on 4h, 1500 on 1d, 215 on 1w (the 200-week MA needs ~1,400 days) |
 
 `cycle` (BTC Cycle) is a daily system: on a 4h watch it acts on **finished UTC days only**, so 4h and 1d
 give the same trades and the alert comes after the daily close (00:00 UTC). On alts it follows BTC's cycle
 (it fetches BTC's daily history for that). The 2h/4h heads-up pairing above
 applies to liqbrk only; it was measured there. A watch with fewer bars than its strategy's warm-up can
 never fire, and the bot reports it as an error on every run.
+
+**Weekly and 1h** (Nov 2026):
+- Trend Follow and Turtle count their lookbacks in days, so every timeframe sees the same trends, each at its own
+  close: 1h within the hour, weekly up to a week later. A weekly candle closes Monday 00:00 UTC (05:30 IST).
+- The Cycle on weekly candles reads its rules in weeks. It catches the same big moves, but entries and exits can come
+  weeks later than on 1d, and its "5 days under the 40-week MA" exit becomes 2 weekly closes. It has no 1h option:
+  that would repeat the 4h trades at the same moment, from 24 times the data.
+- liqbrk has no weekly option. Its stop is 4×ATR of the chart, and on weekly candles that sits 21–192% under the
+  price on 10 alert coins, so the 25% stop limit let through 1 trade since 2017.
+- A weekly watch needs 60 closed candles before it is read (300 on other timeframes), since most coins have only a
+  few hundred weekly candles.
+- 1h alerts need the outside trigger below. On GitHub's own schedule a 1h signal can arrive hours after its candle.
 
 ## The trading book — 5 slots and a journal
 
@@ -193,7 +205,9 @@ are ETH, SOL, LINK and BTC.
 
 The workflow is scheduled every 15 minutes, but GitHub runs scheduled jobs late or skips them when its runners are
 busy. On this repo a 2-hourly schedule once fired only every 5–6 hours, and in Nov 2026 the 15-minute schedule fired
-only every **3–7 hours**. Until the bot runs, nothing that happened since its last run is alerted or in the journal.
+only every **3–7 hours**, and in the week to Nov 18 every **4–10 hours** (27 runs). An alert that comes a minute after
+a close is a run that happened to start then. Until the bot runs, nothing that happened since its last run is alerted
+or in the journal.
 On Nov 1, PARTI hit its stop in the 21:30–01:30 IST candle, and at 01:56 the journal still said Open because the bot
 had last run at 22:32. The Portfolio page says when this is happening ("The bot is behind") and links to GitHub's
 **Run workflow** button. If you want alerts within a few minutes of every candle close, let a free outside scheduler
