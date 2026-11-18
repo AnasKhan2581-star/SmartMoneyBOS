@@ -14,6 +14,25 @@ terms. Result: `composite` is profitable on 6/7 coins on 4h and 1d and 5/6 on 1w
 dead XMR listing is mixed) — same economic strategy on every TF. The Compare page runs all
 4 strategies × 7 coins (daily, all-in, 0.1% fees/side) with 6M/1Y/CAGR/DD/WR/Sharpe.
 
+**Monthly candles (Nov 2026, when Compare gained 1M).**
+- Bars per day come from the spacing of the first two candles. A calendar month is 28 to 31 days, so any 27–32-day
+  spacing counts as the average month, 30.44 days (`barDt`). A monthly series then reads the same lookbacks whichever
+  month it starts in: the 200-day MA is 7 candles and the 200-week MA 46.
+- A monthly candle closes on the 1st of the next month (`barEnd`). The Cycle reads BTC's daily state there, and
+  `liqbrk` its BTC gate. Reading 30.44 days on from a February candle had looked 2–3 days into March.
+- Every other timeframe is unchanged: verify.py, the Cycle parity checks (12/12 both), the gold parity checks and
+  liqbrk's 660 runs all match.
+- What monthly can't do:
+  - Breakout never trades on it: its 149-candle MA is 12 years of months.
+  - No coin has the 20 closed trades the ✓ needs: BTC makes 3 to 9 over its 112 months.
+  - So monthly rows are context, never a pick. On BTC the Cycle makes 4 trades on monthly candles (×11.3) against 7 on
+    daily ones (×25.2): the same big moves, read later.
+- Compare's minimums are counted in time where 250 candles is more than two years:
+  - A window needs 250 candles, or two years when that is fewer (`cmpMinBars`): 24 on 1M, and 105 on 1w, which used
+    to need 4.8 years.
+  - The window sweep's floor is 120 candles, or 3 years when that is fewer. Only 1M changes (36): 120 months is more
+    history than any coin has.
+
 ## REJECTED: `zecdiv` — ZEC 15m MACD absorption divergence (built & removed July 2026)
 
 Built, benched, shipped, then **removed by the user** ("that strategy is not working"). Recorded

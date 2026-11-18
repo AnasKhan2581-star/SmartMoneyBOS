@@ -747,6 +747,7 @@
           <label><input type="checkbox" value="4h" /> 4h</label>
           <label><input type="checkbox" value="1d" /> 1d</label>
           <label><input type="checkbox" value="1w" /> 1w</label>
+          <label><input type="checkbox" value="1M" /> 1M (monthly)</label>
           <button type="button" id="cmpTfDone">Done</button>
         </div>
       </details>
@@ -1677,7 +1678,13 @@ const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtl
 // 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
 // Oct 2026 (user's settings): Compare opens on All strategies · 4h · 19,096 bars (≈8.7 years). 15m starts at
 // a year (35,040 bars, 36 pages a coin) — a 15m pull of a whole list is the heaviest thing this tab does.
-const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w':600 };
+// 1M (Nov 2026, user request): 300 is the box's floor and 25 years, so it reads every month a coin has (BTC: about 110).
+const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w':600, '1M':300 };
+// The fewest candles a window may have: 250, or two years when that is fewer (Nov 2026, with monthly). A flat 250 skipped
+// every coin on 1M (no coin has 250 months) and, on 1w, every coin younger than 4.8 years.
+const cmpMinBars=(tf)=>Math.min(250, Math.ceil(730*864e5/(TF_MS[tf]||864e5)));
+// Binance spot starts in mid-July 2017: a span past that is "all history", never "≈ 25 yrs"
+const cmpAvailDays=()=>(Date.now()-Date.UTC(2017,6,14))/864e5;
 // cmpCache: sym|tf -> {rows, asked}. `asked` is what we last requested, so lowering the Bars
 // box slices the tail off what we already hold instead of refetching, and a symbol whose
 // history is genuinely shorter than `asked` is not refetched forever.
@@ -1713,7 +1720,7 @@ if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
 // ---- timeframes: one or several (Nov 2026, user request) -----------------------------------------------------------
 // Every coin is read on each ticked timeframe and every row carries its own (tf), so a coin's 1h, 4h and 1d sit side by
 // side. The list applies when it closes (Done, a tap outside), so ticking three boxes starts one run, not three.
-const CMP_TF_ORDER=['15m','1h','2h','4h','1d','1w'];
+const CMP_TF_ORDER=['15m','1h','2h','4h','1d','1w','1M'];
 let cmpTfs=['4h'];
 try{ const t=JSON.parse(localStorage.getItem('smb.cmpTfs')||'null');
   if(Array.isArray(t)){ const ok=CMP_TF_ORDER.filter(x=>t.includes(x)); if(ok.length) cmpTfs=ok; } }catch(e){}
@@ -1739,8 +1746,11 @@ function cmpBarsDefault(){
 // that people read "650 bars" without noticing it is 27 days.
 function cmpSpan(){
   const el=$('cmpSpan');
+  const avail=cmpAvailDays();
   const all=cmpTfs.map((tf)=>{ const n=cmpBarsFor(tf), d=n*(TF_MS[tf]||864e5)/864e5;
-    return { tf, n, d, txt: d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d` }; });
+    return { tf, n, d, whole: d>avail,
+      txt: d>avail ? 'all history' : d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d` }; });
+  const wholeNote=(x)=> x.whole ? ` More than Binance has: its spot history starts in July 2017, so this reads everything each coin has (at most ≈ ${(avail/365).toFixed(1)} years). The Yrs column shows each row's.` : '';
   // a swing system holding ~1-2 days needs months, not weeks, before any column means anything
   const thin=all.filter(x=>x.d<200);
   el.classList.toggle('thin', thin.length>0); el.classList.toggle('multi', cmpMulti());
@@ -1748,11 +1758,12 @@ function cmpSpan(){
     el.textContent=x.txt;
     el.title = x.d < 200
       ? `${x.n} × ${x.tf} is only ${Math.round(x.d)} days — too short for a swing system to produce a readable sample. Expect single-digit trade counts.`
-      : `${x.n} × ${x.tf} ≈ ${Math.round(x.d)} days of history per symbol`;
+      : `${x.n} × ${x.tf} ≈ ${Math.round(x.d)} days of history per symbol.`+wholeNote(x);
     return; }
-  el.textContent=all.map(x=>`${x.tf} ${x.txt.replace('≈ ','')}`).join(' · ');
+  el.textContent=all.map(x=>`${x.tf} ${x.whole ? 'all' : x.txt.replace('≈ ','')}`).join(' · ');
   el.title=`Each timeframe reads ${+$('cmpBars').value>0 ? `${cmpBarsFor(cmpTfs[0]).toLocaleString()} of its own candles` : 'its own default number of candles'}, so they cover different periods: the Yrs column shows each row's. Fetch by Dates to read them all over one period.`
-    + (thin.length ? ` Too short for a swing system: ${thin.map(x=>x.tf).join(', ')}.` : '');
+    + (thin.length ? ` Too short for a swing system: ${thin.map(x=>x.tf).join(', ')}.` : '')
+    + (all.some(x=>x.whole) ? ` "all": ${all.filter(x=>x.whole).map(x=>x.tf).join(', ')} ask for more than Binance has (its spot history starts in July 2017), so they read everything each coin has.` : '');
 }
 try{ const b=localStorage.getItem('smb.cmpBars'); if(b) $('cmpBars').value=b; }catch(e){}
 $('cmpBars').placeholder='per TF';
@@ -1767,7 +1778,7 @@ $('cmpStrat').innerHTML='<option value="all" selected>All strategies</option>'
 // CAGR/6M/1Y were dropped Oct 2026 — CAGR annualises a number whose window length varies by
 // symbol (see the Yrs column), and the two trailing windows just restated it over arbitrary cuts.
 function pathStats(trades,c){
-  const dt=c.length>1?Math.max(60,c[1].time-c[0].time):86400, bpd=86400/dt;
+  const dt=SMC.barDt(c), bpd=86400/dt;                         // a month counts as the average month
   const r=new Array(c.length).fill(0);
   let w=0,l=0,gp=0,gl=0,inBars=0;
   for(const t of trades){ if(t.exitPrice==null) continue;
@@ -1798,7 +1809,8 @@ function pathStats(trades,c){
   // window placements disagree with the other half on whether a symbol even makes money, so
   // a single window cannot rank anything (see ALGORITHM.md). Reads the equity path that is
   // already built above, so it costs nothing extra — no re-running the engine per window.
-  const wBars=Math.max(120, Math.floor((eq.length-1)*0.35));
+  // never under 120 candles, or 3 years when that is fewer: on 1M, 120 candles is 10 years, more than any coin has
+  const wBars=Math.max(Math.min(120, Math.round(3*365*bpd)), Math.floor((eq.length-1)*0.35));
   const step=Math.max(1, Math.floor(wBars/8));
   const wr_=[];
   for(let end=eq.length-1; end-wBars>=0; end-=step){
@@ -1823,7 +1835,9 @@ function pathStats(trades,c){
 function cmpKeyFor(tf){
   if($('cmpRangeMode').value==='dates'){
     const s=dateSpec('cmpFrom','cmpTo');
-    return s ? `${tf}|d${s.from}-${s.to}` : `${tf}|dinvalid`;
+    // keyed by the two boxes, never by s.to: an end of today (or an empty To) is clamped to Date.now(), which moves
+    // every millisecond, so the run saved its rows under one key and the table looked under another and stayed empty
+    return s ? `${tf}|d${$('cmpFrom').value}-${$('cmpTo').value||'now'}` : `${tf}|dinvalid`;
   }
   return `${tf}|${cmpBarsFor(tf)}`;
 }
@@ -1926,7 +1940,7 @@ async function runCompare(force){
       // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
       // One fetch serves both windows — the reference costs no extra requests.
       const refFrom = byDate ? refFromOf(tf) : null;
-      const ckey = byDate ? `${key}|d${refFrom}-${dspec.to}` : key;
+      const ckey = byDate ? `${key}|${keyOf[tf]}` : key;      // the boxes, not dspec.to (see cmpKeyFor)
       let ent=cmpCache[ckey];
       if(!ent || !fresh(ent.at) || (!byDate && ent.asked<need)){
         const spec = byDate ? {from:refFrom, to:dspec.to} : need;
@@ -1940,7 +1954,7 @@ async function runCompare(force){
       // user's window: the date range, or the last N bars
       const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
                        : (full.length>bars ? full.slice(-bars) : full);
-      if(c.length<250){ out.bad=name+' (only '+c.length+' bars)'; if(!keepCandles) delete cmpCache[ckey]; }
+      if(c.length<cmpMinBars(tf)){ out.bad=name+' (only '+c.length+' bars)'; if(!keepCandles) delete cmpCache[ckey]; }
       else {
         const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
         const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
@@ -1958,7 +1972,7 @@ async function runCompare(force){
           const e=pathStats(res.trades,c);
           // the 10k reference run — skipped only when it would be the identical window
           let d=e;
-          if(!sameWin && ref.length>=250){
+          if(!sameWin && ref.length>=cmpMinBars(tf)){
             const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
             d=pathStats(rr.trades,ref);
           }

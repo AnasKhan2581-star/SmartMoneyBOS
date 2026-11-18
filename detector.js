@@ -277,6 +277,20 @@
     return { outcome: 'open', exitIdx: c.length - 1 };
   }
 
+  // Seconds per candle, read from the first gap. A calendar month (28-31 days) counts as the average month, so a monthly
+  // series reads the same day-counted lookbacks whichever month it starts in (Nov 2026, monthly in Compare).
+  const MONTH_S = 2629746;
+  function barDt(c) {
+    const dt = c.length > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+    return dt >= 27 * 86400 && dt <= 32 * 86400 ? MONTH_S : dt;
+  }
+  // when a candle that opened at t closes: a monthly candle on the 1st of the next month, any other one dt later
+  function barEnd(t, dt) {
+    if (dt !== MONTH_S) return t + dt;
+    const d = new Date(t * 1000);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 1000;
+  }
+
   // ---- CYCLE: the BTC halving playbook (rebuilt Oct 2026) --------------------
   // research/cycle/RESULTS_cycle_2026-10.md, ALGORITHM.md. What changed and why:
   //  • a DAILY system on every chart: sub-daily candles are aggregated to UTC days, the playbook runs on
@@ -301,7 +315,7 @@
   }
   // the playbook's signals on one series (day-denominated, so weekly bars work too)
   function cycleSignals(d, persistDays) {
-    const n = d.length, dt = n > 1 ? Math.max(60, d[1].time - d[0].time) : 86400, bpd = 86400 / dt;
+    const n = d.length, dt = barDt(d), bpd = 86400 / dt;
     const S = (days) => Math.max(2, Math.round(days * bpd));
     const closes = d.map((x) => x.close);
     const sma = (len) => {
@@ -346,7 +360,7 @@
       let dn = 0;
       const dnAt = bd.map((x, j) => (dn = x.close < 0.97 * BZ.ma280[j] ? dn + 1 : 0));
       for (let k = 0, j = -1; k < days.length; k++) {
-        while (j + 1 < bd.length && bd[j + 1].time + BZ.dt <= days[k].time + Z.dt) j++;
+        while (j + 1 < bd.length && barEnd(bd[j + 1].time, BZ.dt) <= barEnd(days[k].time, Z.dt)) j++;
         B.bull[k] = j >= 0 && bd[j].close > BZ.ma280[j];
         B.zone2[k] = j >= 0 && BZ.zone(j) >= 2;
         B.riskOff[k] = j >= 0 && dnAt[j] >= BZ.persist;
@@ -443,7 +457,7 @@
         if (B && !B.bull[K]) blocked.push({ why: 'btcCycle', btcGap: isFinite(B.ma[K] / B.px[K]) ? +((B.ma[K] / B.px[K] - 1) * 100).toFixed(2) : null });
         adv.next = { path: 'trend', trig: T, gap: pct(T), run: up, need: persist, unit: 'day', blocked, entered, zone: zK,
           conds: [{ name: 'Close above 1.02 × the 40-week MA', ok: x > T },
-                  { name: Z.dt >= 6 * 86400 ? `${persist} weekly closes in a row above it` : `${p.cyclePersist} daily closes in a row above it`, ok: up >= persist },
+                  { name: Z.dt >= 6 * 86400 ? `${persist} ${Z.dt >= 27 * 86400 ? 'monthly' : 'weekly'} closes in a row above it` : `${p.cyclePersist} daily closes in a row above it`, ok: up >= persist },
                   ...(B ? [{ name: 'BTC above its own 40-week MA', ok: !!B.bull[K] }] : []),
                   ...(cool ? [{ name: 'Pi-cycle top cooldown over (a close under the 40-week MA)', ok: false }] : [])] };
       }
@@ -573,7 +587,7 @@
     // so "SMA200" is 200 days on any TF (1200 bars on 4h, ~29 bars on 1w) — the same economic
     // signal everywhere. Stop multiples scale by √(bars/day) so stop DISTANCES stay constant
     // in daily-vol terms (per-bar ATR shrinks ~√bpd on lower TFs).
-    const dt = n > 1 ? Math.max(60, c[1].time - c[0].time) : 86400;
+    const dt = barDt(c);
     const bpd = 86400 / dt;
     const S = (days) => Math.max(2, Math.round(days * bpd));
     const sf = Math.max(0.8, Math.sqrt(bpd));   // floor: above-daily TFs keep a workable stop distance
@@ -670,12 +684,12 @@
       if (p.lbBtcMaDays > 0) {
         const B = p.btc;
         if (B && B.length > 1) {
-          const dB = Math.max(60, B[1].time - B[0].time), L = Math.max(2, Math.round(p.lbBtcMaDays * 86400 / dB));
+          const dB = barDt(B), L = Math.max(2, Math.round(p.lbBtcMaDays * 86400 / dB));
           const up = new Array(B.length).fill(false), maB = new Array(B.length).fill(NaN);
           let s = 0;
           for (let j = 0; j < B.length; j++) { s += B[j].close; if (j >= L) s -= B[j - L].close; if (j >= L - 1) { maB[j] = s / L; up[j] = B[j].close > maB[j]; } }
           for (let i = 0, j = -1; i < n; i++) {
-            while (j + 1 < B.length && B[j + 1].time + dB <= c[i].time + dt) j++;
+            while (j + 1 < B.length && barEnd(B[j + 1].time, dB) <= barEnd(c[i].time, dt)) j++;
             btcOk[i] = j >= 0 && up[j];
             if (i === n - 1 && j >= 0 && isFinite(maB[j])) btcRef = { ma: maB[j], px: B[j].close };   // where BTC stands now
           }
@@ -842,7 +856,7 @@
           levels: { ma: maL[i], ref },
           conds: [{ name: `Close above the ${p.tsmomMa}-day MA`, ok: px > maL[i] },
                   { name: `Close above the close ${p.tsmomLook} days back`, ok: px > ref },
-                  { name: dt >= 6 * 86400 ? `Both, ${persistN} weekly closes in a row` : `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
+                  { name: dt >= 6 * 86400 ? `Both, ${persistN} ${dt >= 27 * 86400 ? 'monthly' : 'weekly'} closes in a row` : `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
       } else if (p.strategy === 'donch') {
         advice.next = { path: 'break', trig: hiN[i], gap: pct(hiN[i]), run: 0, need: 1, unit: 'bar', blocked: [], entered,
           levels: { high: hiN[i] }, conds: [{ name: `Close above the ${p.donchIn}-day high`, ok: px > hiN[i] }] };
@@ -1210,7 +1224,7 @@
     return close / t.entry;
   }
 
-  const api = { markMult, detectAll, detectPivots, labelStructure, detectFVG, detectUnmitigated, detectLiquidity, detectLiqClusters, armOrder, pickTarget, simTrade, runQuant, walkStructure, aggregateHTF, computeHtfBias, atr, DEFAULTS };
+  const api = { markMult, barDt, detectAll, detectPivots, labelStructure, detectFVG, detectUnmitigated, detectLiquidity, detectLiqClusters, armOrder, pickTarget, simTrade, runQuant, walkStructure, aggregateHTF, computeHtfBias, atr, DEFAULTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.SMC = api;
 })(typeof window !== 'undefined' ? window : globalThis);
