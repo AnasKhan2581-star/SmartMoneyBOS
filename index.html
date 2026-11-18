@@ -50,6 +50,20 @@
   #cmpSyms:focus{outline:none;border-color:#1f6feb}
   #cmpCtl .cmpsw{flex-direction:row;align-items:center;gap:5px;white-space:nowrap}
   #cmpCtl .cmpRun{display:flex;gap:8px}                   /* Start and Stop wrap together, side by side */
+  .cmpTfField{font-size:11px;color:var(--muted);display:inline-flex;flex-direction:column;gap:2px;position:relative}
+  .tfDd>summary{list-style:none;cursor:pointer;background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:5px 24px 5px 8px;font:13px system-ui;white-space:nowrap;position:relative;min-width:60px}
+  .tfDd>summary::-webkit-details-marker{display:none}
+  .tfDd>summary::after{content:'▾';position:absolute;right:8px;color:var(--muted)}
+  .tfDd[open]>summary{border-color:#1f6feb}
+  .tfList{position:absolute;z-index:30;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:6px;display:flex;flex-direction:column;min-width:140px;box-shadow:0 8px 24px #0009}
+  .tfList label{flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--txt);padding:8px 8px;border-radius:6px;cursor:pointer}
+  .tfList label:hover{background:#1f6feb22}
+  .tfList input{width:17px;height:17px;margin:0}
+  .tfList button{margin-top:4px;padding:8px}
+  .spanhint.multi{white-space:normal;max-width:250px}
+  #cmpTable .tfTag{display:inline-block;margin-left:3px;padding:0 6px;border-radius:999px;background:#1f6feb26;color:#58a6ff;font-size:11px;font-weight:700}
   .stab{font-variant-numeric:tabular-nums}
   .stab small{color:var(--muted);font-size:10px;display:block;font-weight:400}
   .spanhint{color:var(--muted);font-size:11px;white-space:nowrap}
@@ -723,9 +737,20 @@
     <label>Strategy
       <select id="cmpStrat"><option value="all" selected>All strategies</option></select>
     </label>
-    <label>Timeframe
-      <select id="cmpTf"><option value="15m">15m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="1d">1d</option><option value="1w">1w</option></select>
-    </label>
+    <div class="cmpTfField" title="Tick one timeframe or several: every coin is read on each one, and its rows sit side by side.">Timeframe
+      <details id="cmpTfDd" class="tfDd">
+        <summary id="cmpTfSum">4h</summary>
+        <div class="tfList">
+          <label><input type="checkbox" value="15m" /> 15m</label>
+          <label><input type="checkbox" value="1h" /> 1h</label>
+          <label><input type="checkbox" value="2h" /> 2h</label>
+          <label><input type="checkbox" value="4h" /> 4h</label>
+          <label><input type="checkbox" value="1d" /> 1d</label>
+          <label><input type="checkbox" value="1w" /> 1w</label>
+          <button type="button" id="cmpTfDone">Done</button>
+        </div>
+      </details>
+    </div>
     <label title="Fetch the most recent N bars per symbol, or everything between two dates.">Fetch
       <select id="cmpRangeMode"><option value="bars" selected>Bars</option><option value="dates">Dates</option></select>
     </label>
@@ -1685,29 +1710,53 @@ let CMP_SYMS=CMP_DEFAULT.slice();
 try{ const saved=localStorage.getItem('smb.cmpSyms'); if(saved) CMP_SYMS=parseSyms(saved); }catch(e){}
 if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
 
+// ---- timeframes: one or several (Nov 2026, user request) -----------------------------------------------------------
+// Every coin is read on each ticked timeframe and every row carries its own (tf), so a coin's 1h, 4h and 1d sit side by
+// side. The list applies when it closes (Done, a tap outside), so ticking three boxes starts one run, not three.
+const CMP_TF_ORDER=['15m','1h','2h','4h','1d','1w'];
+let cmpTfs=['4h'];
+try{ const t=JSON.parse(localStorage.getItem('smb.cmpTfs')||'null');
+  if(Array.isArray(t)){ const ok=CMP_TF_ORDER.filter(x=>t.includes(x)); if(ok.length) cmpTfs=ok; } }catch(e){}
+const cmpMulti=()=> cmpTfs.length>1;
+function cmpTfBoxes(){ return [...document.querySelectorAll('#cmpTfDd input[type=checkbox]')]; }
+function cmpTfShow(){ for(const b of cmpTfBoxes()) b.checked=cmpTfs.includes(b.value); $('cmpTfSum').textContent=cmpTfs.join(' · '); }
+
 // ---- bar count ------------------------------------------------------------
-// Tracks the per-TF default until the user types a number, then holds whatever they set.
+// Tracks the per-TF default until the user types a number, then holds whatever they set. With several timeframes a
+// typed number holds on each (so they cover different periods; the readout and the Yrs column say how long), and an
+// empty box lets each read its own default. Dates gives them all one period.
 let cmpBarsTouched=false;
 try{ if(localStorage.getItem('smb.cmpBars')) cmpBarsTouched=true; }catch(e){}
-const cmpBars=()=>Math.max(300, Math.min(60000, Math.round(+$('cmpBars').value||CMP_BARS[$('cmpTf').value]||4500)));
-function setCmpBars(n){ $('cmpBars').value=Math.max(300,Math.min(60000,Math.round(n))); cmpSpan(); }
+const cmpClampBars=(n)=>Math.max(300, Math.min(60000, Math.round(n)));
+const cmpBarsFor=(tf)=>{ const v=+$('cmpBars').value; return cmpClampBars(v>0 ? v : (CMP_BARS[tf]||4500)); };
+function setCmpBars(n){ $('cmpBars').value=cmpClampBars(n); cmpSpan(); }
+// an untouched box shows a single timeframe's default; with several it stays empty, and each reads its own
+function cmpBarsDefault(){
+  if(cmpBarsTouched) return;
+  if(cmpMulti()){ $('cmpBars').value=''; cmpSpan(); } else setCmpBars(CMP_BARS[cmpTfs[0]]||4500);
+}
 // Spell out what the bar count buys in real time — the whole point of the Sep 2026 finding is
 // that people read "650 bars" without noticing it is 27 days.
 function cmpSpan(){
-  const tf=$('cmpTf').value, n=cmpBars();
-  const hrs={'15m':0.25,'1h':1,'2h':2,'4h':4,'1d':24,'1w':168}[tf]||24;
-  const d=n*hrs/24;
-  const txt = d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d`;
   const el=$('cmpSpan');
-  el.textContent = txt + (tf==='1w'||tf==='1d' ? '' : '');
+  const all=cmpTfs.map((tf)=>{ const n=cmpBarsFor(tf), d=n*(TF_MS[tf]||864e5)/864e5;
+    return { tf, n, d, txt: d>=730 ? `≈ ${(d/365).toFixed(1)} yrs` : d>=60 ? `≈ ${Math.round(d/30.44)} mo` : `≈ ${Math.round(d)} d` }; });
   // a swing system holding ~1-2 days needs months, not weeks, before any column means anything
-  el.classList.toggle('thin', d < 200);
-  el.title = d < 200
-    ? `${n} × ${tf} is only ${Math.round(d)} days — too short for a swing system to produce a readable sample. Expect single-digit trade counts.`
-    : `${n} × ${tf} ≈ ${Math.round(d)} days of history per symbol`;
+  const thin=all.filter(x=>x.d<200);
+  el.classList.toggle('thin', thin.length>0); el.classList.toggle('multi', cmpMulti());
+  if(!cmpMulti()){ const x=all[0];
+    el.textContent=x.txt;
+    el.title = x.d < 200
+      ? `${x.n} × ${x.tf} is only ${Math.round(x.d)} days — too short for a swing system to produce a readable sample. Expect single-digit trade counts.`
+      : `${x.n} × ${x.tf} ≈ ${Math.round(x.d)} days of history per symbol`;
+    return; }
+  el.textContent=all.map(x=>`${x.tf} ${x.txt.replace('≈ ','')}`).join(' · ');
+  el.title=`Each timeframe reads ${+$('cmpBars').value>0 ? `${cmpBarsFor(cmpTfs[0]).toLocaleString()} of its own candles` : 'its own default number of candles'}, so they cover different periods: the Yrs column shows each row's. Fetch by Dates to read them all over one period.`
+    + (thin.length ? ` Too short for a swing system: ${thin.map(x=>x.tf).join(', ')}.` : '');
 }
 try{ const b=localStorage.getItem('smb.cmpBars'); if(b) $('cmpBars').value=b; }catch(e){}
-cmpSpan();
+$('cmpBars').placeholder='per TF';
+cmpTfShow(); cmpBarsDefault(); cmpSpan();
 const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
 $('cmpSyms').value=cmpSymsText(CMP_SYMS);
 // strategy filter is generated, so removing a strategy can never leave a dead option behind
@@ -1768,23 +1817,24 @@ function pathStats(trades,c){
     expo: c.length ? inBars/c.length : 0,
     sweep, pos: sweep?sweep.pos:0 };
 }
-// One key for the computed rows, so runCompare and renderCmp can never look in different places.
-// A different bar count or a different date range is a different measurement.
-function cmpRowKey(){
-  const tf=$('cmpTf').value;
+// One key per timeframe's window (each coin's rows are kept under it) and one for the whole run (the table), so
+// runCompare and renderCmp can never look in different places. A different bar count, date range or set of
+// timeframes is a different measurement.
+function cmpKeyFor(tf){
   if($('cmpRangeMode').value==='dates'){
     const s=dateSpec('cmpFrom','cmpTo');
     return s ? `${tf}|d${s.from}-${s.to}` : `${tf}|dinvalid`;
   }
-  return `${tf}|${cmpBars()}`;
+  return `${tf}|${cmpBarsFor(tf)}`;
 }
-// how the user's window should be described in the pick panel
-function cmpWindowLabel(){
+function cmpRowKey(){ return cmpTfs.map(cmpKeyFor).join('+'); }
+// how a row's own window is described in the pick panel
+function cmpWindowLabel(tf){
   if($('cmpRangeMode').value==='dates'){
     const f=$('cmpFrom').value, t=$('cmpTo').value;
     return `${f} → ${t||'today'}`;
   }
-  return `${cmpBars().toLocaleString()} bars`;
+  return `${cmpBarsFor(tf).toLocaleString()} bars`;
 }
 // The ✓ test, shared by the table and the go-to picker so the two can never disagree.
 // An INVESTMENT test, not a backtest-looks-nice test: the decisive term is edge>0, because a
@@ -1794,10 +1844,10 @@ function cmpWindowLabel(){
 // market, sitting out is the system WORKING, not a missing sample. 1h and below: 12. Above: 20.
 // Cost of the lower floor: at 12 trades the win rate carries roughly ±14 points of noise, so PF,
 // beats-B&H and the 70% window-stability gate are what carry the verdict on thin rows.
-const minTrades=(tf)=> ['15m','30m','1h'].includes(tf||$('cmpTf').value) ? 12 : 20;
-function okRow(e, requireStable){
+const minTrades=(tf)=> ['15m','30m','1h'].includes(tf||cmpTfs[0]) ? 12 : 20;
+function okRow(e, requireStable, tf){
   if(!e) return false;
-  return e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=minTrades()
+  return e.net>0 && e.edge>0 && e.pf>=1.3 && e.wr>=0.30 && e.dd<=0.60 && e.n>=minTrades(tf)
       && (!requireStable || (e.sweep && e.sweep.pos>=0.70));
 }
 // ---- runs: start, replace, stop (Nov 2026, user request) ---------------------------------------------------------
@@ -1819,49 +1869,55 @@ function cmpAuto(){
 function cmpStop(){
   const run=cmpRun; if(!run) return;
   cmpCancel(); cmpStopped=run.rk+'|'+run.syms;
-  $('cmpStatus').textContent=`Stopped: ${run.done} of ${run.total} coins read. The table shows those; ▶ Start reads the rest.`;
+  // the table shows every read it holds: this run's, and earlier ones a ▶ Start refresh had not reached yet
+  const held=CMP_SYMS.flatMap(s=>cmpTfs.map(tf=>cmpCoin[cmpKeyFor(tf)+'|'+s])).filter(Boolean).length;
+  $('cmpStatus').textContent=`Stopped: ${run.done} of ${run.total} ${run.multi ? 'reads (coins × timeframes)' : 'coins'} done in this run. `
+    + (held>=run.total ? 'The table shows them all, the rest from an earlier run; ▶ Start brings those up to date.' : 'The table shows those; ▶ Start reads the rest.');
   renderCmp();
 }
 // the table fills in as coins finish, redrawn at most every 1.5 s (a 100-coin list would otherwise redraw 100 times)
 function cmpPaint(run){ if(cmpRun!==run) return; const t=Date.now(); if(t-cmpPaintAt<1500) return; cmpPaintAt=t; renderCmp(); }
 async function runCompare(force){
-  const tf=$('cmpTf').value, byDate=$('cmpRangeMode').value==='dates';
-  const bars=cmpBars();
-  // In date mode the user's window is the range, but the 10k reference still has to fit, so we
+  const byDate=$('cmpRangeMode').value==='dates', tfs=cmpTfs.slice(), multi=tfs.length>1;
+  // In date mode the user's window is the range, but each timeframe's 10k reference still has to fit, so we
   // fetch back to whichever is earlier and slice both out of the one result.
-  let dspec=null, refFrom=null;
+  let dspec=null;
   if(byDate){
     dspec=dateSpec('cmpFrom','cmpTo');
     if(!dspec){ $('cmpStatus').textContent='pick a start date earlier than the end date'; return; }
-    refFrom=Math.min(dspec.from, dspec.to - CMP_REF_BARS*(TF_MS[tf]||864e5));
   }
+  const refFromOf=(tf)=> Math.min(dspec.from, dspec.to - CMP_REF_BARS*(TF_MS[tf]||864e5));
   const rk = cmpRowKey();
-  const need=Math.max(bars, CMP_REF_BARS);
   // a request made while a run is in flight replaces it (cmpStart cancels first); a run still going here is the one
   // for these very settings (the tab was reopened), so let it finish
   if(cmpBusy) return;
   if(!force && cmpRowsTf[rk]){ renderCmp(); return; }
   const syms=CMP_SYMS.slice();
-  const run={ ctrl:new AbortController(), rk, syms:syms.join(), done:0, total:syms.length };
+  // one read = one coin on one timeframe; a coin's timeframes run one after another, so they finish together
+  const units=syms.flatMap(sym=>tfs.map(tf=>[sym,tf]));
+  const barsOf=Object.fromEntries(tfs.map(tf=>[tf, cmpBarsFor(tf)])), keyOf=Object.fromEntries(tfs.map(tf=>[tf, cmpKeyFor(tf)]));
+  const run={ ctrl:new AbortController(), rk, syms:syms.join(), done:0, total:units.length, multi };
   cmpRun=run; cmpBusy=true; cmpBusyUI();
+  delete cmpRowsTf[rk];        // the table now follows the reads (cmpCoin): this run's, and earlier ones not yet redone
   const live=()=> cmpRun===run;                         // false once stopped or replaced: it writes nothing more
   const say=(t)=>{ if(live()) $('cmpStatus').textContent=t; };
   const fresh=(at)=> !force || Date.now()-(at||0) < CMP_FRESH_MS;
-  renderCmp();                                          // the coins already read for this window, else "Loading…"
+  renderCmp();                                          // the reads already done for this window, else "Loading…"
   const rows=[], bad=[], short=[]; let noBtcD=false;
   const take=(o)=>{ rows.push(...o.rows); if(o.bad) bad.push(o.bad); if(o.short) short.push(o.short); if(o.noBtcD) noBtcD=true;
     run.done++; cmpPaint(run); };
-  // BIG LISTS (Top 100): 3 coins in flight, so network overlaps compute — fetchKlines already backs
+  // BIG LISTS (Top 100): 3 reads in flight, so network overlaps compute — fetchKlines already backs
   // off on 429/418, and 3 x ~5 req/s stays far inside Binance's 6000-weight/min budget. Up to 12
-  // coins keeps the old one-at-a-time behaviour exactly. Big lists also drop each coin's raw
+  // reads keeps the old one-at-a-time behaviour exactly. Big runs also drop each read's raw
   // candles once its rows are computed: 100 coins x 20k bars is ~2M candle objects, enough to kill
   // a phone tab. The rows (all the table needs) are tiny; changing Bars just refetches.
-  const N=syms.length, conc=N>12?3:1, keepCandles=N<=25;
+  const N=units.length, conc=N>12?3:1, keepCandles=N<=25;
   const tag=(i)=> N>1 ? `(${i+1}/${N}) ` : '';
-  const one = async (sym, i)=>{
+  const one = async (sym, tf, i)=>{
     await new Promise(r=>setTimeout(r,0));               // let the progress text paint
     if(!live()) return;
-    const kept=cmpCoin[rk+'|'+sym];
+    const bars=barsOf[tf], need=Math.max(bars, CMP_REF_BARS), name=sym.replace('USDT','')+(multi?' '+tf:'');
+    const kept=cmpCoin[keyOf[tf]+'|'+sym];
     if(kept && fresh(kept.at)){ take(kept); return; }
     say(tag(i)+'fetching '+sym+' '+tf+' × '+bars+'…');
     const out={ rows:[], bad:null, short:null, noBtcD:false, at:Date.now() };
@@ -1869,6 +1925,7 @@ async function runCompare(force){
       const key=sym+'|'+tf;
       // Always pull enough for BOTH the user's window and the fixed 10k reference, then slice.
       // One fetch serves both windows — the reference costs no extra requests.
+      const refFrom = byDate ? refFromOf(tf) : null;
       const ckey = byDate ? `${key}|d${refFrom}-${dspec.to}` : key;
       let ent=cmpCache[ckey];
       if(!ent || !fresh(ent.at) || (!byDate && ent.asked<need)){
@@ -1883,7 +1940,7 @@ async function runCompare(force){
       // user's window: the date range, or the last N bars
       const c = byDate ? full.filter(x=>x.time*1000>=dspec.from)
                        : (full.length>bars ? full.slice(-bars) : full);
-      if(c.length<250){ out.bad=sym+' (only '+c.length+' bars)'; if(!keepCandles) delete cmpCache[ckey]; }
+      if(c.length<250){ out.bad=name+' (only '+c.length+' bars)'; if(!keepCandles) delete cmpCache[ckey]; }
       else {
         const ref = full.length>CMP_REF_BARS ? full.slice(-CMP_REF_BARS) : full;
         const btc = await btcFor(tf, full, sym);            // liqbrk's market gate; null = skipped (flagged)
@@ -1894,7 +1951,7 @@ async function runCompare(force){
         // a start date earlier than the listing is clamped by the API — say so rather than
         // letting a short row look like a like-for-like comparison
         if(byDate && c.length && c[0].time*1000 > dspec.from + (TF_MS[tf]||864e5)*2){
-          out.short = `${sym.replace('USDT','')} from ${fmtDay(c[0].time)}`;
+          out.short = `${name} from ${fmtDay(c[0].time)}`;
         }
         for(const [st,label] of CMP_STRATS){
           const res=SMC.detectAll(c,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
@@ -1905,20 +1962,20 @@ async function runCompare(force){
             const rr=SMC.detectAll(ref,{strategy:st,longOnly:true,useLiq:false,btc,btcD});
             d=pathStats(rr.trades,ref);
           }
-          out.rows.push({sym,st,label,e,d,sameWin});
+          out.rows.push({sym,st,label,tf,e,d,sameWin});
         }
         if(!keepCandles) delete cmpCache[ckey];
       }
     }catch(e){
       if(!live()) return;                                 // stopped or replaced: not a data problem
-      bad.push(sym+' (no data)'); run.done++; cmpPaint(run); return;   // a failed read is not kept: next run tries again
+      bad.push(name+' (no data)'); run.done++; cmpPaint(run); return;   // a failed read is not kept: next run tries again
     }
     if(!live()) return;
-    cmpCoin[rk+'|'+sym]=out; take(out);
+    cmpCoin[keyOf[tf]+'|'+sym]=out; take(out);
   };
-  const queue=syms.map((sym,i)=>[sym,i]);
+  const queue=units.map(([sym,tf],i)=>[sym,tf,i]);
   await Promise.all(Array.from({length:conc}, async ()=>{
-    while(queue.length && live()){ const [sym,i]=queue.shift(); await one(sym,i); }
+    while(queue.length && live()){ const [sym,tf,i]=queue.shift(); await one(sym,tf,i); }
   }));
   if(!live()) return;
   cmpRowsTf[rk]=rows; cmpRun=null; cmpBusy=false; cmpBusyUI();
@@ -1933,16 +1990,19 @@ async function runCompare(force){
   renderCmp();
 }
 function renderCmp(){
-  const tf=$('cmpTf').value, rk=cmpRowKey(), whole=cmpRowsTf[rk];
-  // until a run has read the whole list, the table shows the coins finished so far (cmpCoin)
-  const doneN = whole ? CMP_SYMS.length : CMP_SYMS.filter(s=>cmpCoin[rk+'|'+s]).length;
-  const all = whole || CMP_SYMS.flatMap(s=>(cmpCoin[rk+'|'+s]||{}).rows||[]);
+  const rk=cmpRowKey(), whole=cmpRowsTf[rk], multi=cmpMulti();
+  // until a run has read the whole list, the table shows the reads finished so far (cmpCoin: a coin on a timeframe)
+  const reads=CMP_SYMS.flatMap(s=>cmpTfs.map(tf=>cmpCoin[cmpKeyFor(tf)+'|'+s]));
+  const doneN = whole ? reads.length : reads.filter(Boolean).length;
+  const all = whole || reads.flatMap(u=>(u||{}).rows||[]);
   const f=$('cmpStrat').value;
   const view=(f==='all'?all:all.filter(r=>r.st===f)).slice();
   const {k,d}=cmpSort, sweepOn=$('cmpSweep').checked;
   // ✓ sorts ticked rows first (or last), each group ordered by vs B&H — the next thing to read
-  const okv=(r)=>okRow(r.e, sweepOn)?1:0;
-  view.sort((a,b)=> k==='coin' ? d*a.sym.localeCompare(b.sym)
+  const okv=(r)=>okRow(r.e, sweepOn, r.tf)?1:0;
+  // by coin: then strategy, then timeframe, so one coin's timeframes sit next to each other
+  const sOrd=(r)=>CMP_STRATS.findIndex(x=>x[0]===r.st), tOrd=(r)=>CMP_TF_ORDER.indexOf(r.tf);
+  view.sort((a,b)=> k==='coin' ? (d*a.sym.localeCompare(b.sym) || sOrd(a)-sOrd(b) || tOrd(a)-tOrd(b))
     : k==='ok' ? (d*(okv(a)-okv(b)) || (b.e.edge||0)-(a.e.edge||0))
     : d*((a.e[k]||0)-(b.e[k]||0)));
   document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>{
@@ -1962,8 +2022,8 @@ function renderCmp(){
       + `<small>${sg(s.lo)} to ${sg(s.hi)}</small></span>`;
   };
   // trade count is the first thing that invalidates a row: under minTrades() nothing else counts
-  const nc=(e)=>{
-    const thin=e.n<minTrades();
+  const nc=(e, tf)=>{
+    const thin=e.n<minTrades(tf);
     return `<span style="color:${thin?'#f85149':'#8b949e'}"${thin?' title="too few trades to read the other columns"':''}>${e.n}${thin?' ⚠':''}</span>`;
   };
   // big returns need compact rendering: +1,240% not +1240.0%
@@ -1975,16 +2035,17 @@ function renderCmp(){
     return `<span style="color:${col};font-weight:700">${x.toFixed(2)}</span>`; };
   $('cmpBody').innerHTML=view.map(r=>{
     const e=r.e;
-    const ok = okRow(e, sweepOn);
-    return `<tr data-sym="${r.sym}" data-st="${r.st}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span></td><td>${vp(e.vol)}</td><td>${nc(e)}</td><td><b>${pcb(e.net)}</b></td><td>${pcb(e.edge)}</td><td>${pfc(e.pf)}</td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td style="color:#8b949e">${(e.expo*100).toFixed(0)}%</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
+    const ok = okRow(e, sweepOn, r.tf);
+    return `<tr data-sym="${r.sym}" data-st="${r.st}" data-tf="${r.tf}"><td><span class="coin">${r.sym.replace('USDT','')}</span> <span class="strat">${r.label}</span>${multi ? ` <span class="tfTag">${r.tf}</span>` : ''}</td><td>${vp(e.vol)}</td><td>${nc(e, r.tf)}</td><td><b>${pcb(e.net)}</b></td><td>${pcb(e.edge)}</td><td>${pfc(e.pf)}</td><td><span class="down">-${(e.dd*100).toFixed(0)}%</span></td><td>${(e.wr*100).toFixed(0)}%</td><td style="color:#8b949e">${(e.expo*100).toFixed(0)}%</td><td>${sc(e)}</td><td style="color:#8b949e">${e.yrs.toFixed(1)}</td><td>${ok?'<span class="up">✓</span>':'<span style="color:#8b949e">—</span>'}</td></tr>`;
   }).join('') || `<tr><td colspan="12" style="color:#8b949e;padding:14px">${cmpBusy ? 'Loading…' : 'No data — press ▶ Start.'}</td></tr>`;
-  renderPick(all, tf, whole ? null : { done:doneN, total:CMP_SYMS.length, running:cmpBusy });
+  renderPick(all, cmpTfs, whole ? null : { done:doneN, total:reads.length, running:cmpBusy, multi });
   $('cmpBody').querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>{
+    const tf=tr.dataset.tf;
     $('sym').value=tr.dataset.sym; $('strategy').value=tr.dataset.st; $('tf').value=tf;
     // open the chart on the same window the row was graded on, in whichever mode is active
     $('rangeMode').value=$('cmpRangeMode').value;
     if($('cmpRangeMode').value==='dates'){ $('fromDate').value=$('cmpFrom').value; $('toDate').value=$('cmpTo').value; }
-    else $('bars').value=cmpBars();
+    else $('bars').value=cmpBarsFor(tf);
     syncRangeMode();
     stratInfo(); chartRun();
   }));
@@ -1993,13 +2054,13 @@ function renderCmp(){
 // A combo must clear the full investment test in BOTH windows — the user's and the fixed 10k
 // reference. Ranked by the WEAKEST of its two edges over buy & hold, so the winner is the one
 // whose worst showing is best, never the one with a single spectacular window.
-function renderPick(rows, tf, partial){
+function renderPick(rows, tfs, partial){
   const el=$('cmpPick');
   // the pick (and its "nothing cleared" verdict) is about the whole list, so it waits until every coin is read
   if(partial && partial.done < partial.total){
     el.innerHTML=`<div class="pick none"><div class="pickhead">
         <span class="pickbadge">${partial.running ? 'READING' : 'STOPPED'}</span>
-        <h3 class="picktitle">${partial.done} of ${partial.total} coins read</h3>
+        <h3 class="picktitle">${partial.done} of ${partial.total} ${partial.multi ? 'reads (coins × timeframes)' : 'coins read'}</h3>
       </div><div class="pickbody"><div style="font-size:12.5px;line-height:1.6;color:var(--muted)">
         The go-to combo is picked from the whole list, so it waits until every coin is read.${partial.running ? '' : ' ▶ Start reads the rest; the coins already read are kept.'}
       </div></div></div>`;
@@ -2010,7 +2071,9 @@ function renderPick(rows, tf, partial){
     return d>=730? `${e.yrs.toFixed(1)} yrs` : d>=60? `${Math.round(d/30.44)} mo` : `${Math.round(d)} d`; };
   const sg=(x)=>(x>=0?'+':'−')+(Math.abs(x*100)>=1000? Math.round(Math.abs(x*100)).toLocaleString() : Math.abs(x*100).toFixed(1))+'%';
   const cls=(x)=>x>=0?'up':'down';
-  const sameWin = rows[0] && rows[0].sameWin;
+  const multi=tfs.length>1, tfOf=(r)=> multi ? ` · ${r.tf}` : '';
+  // the trade floor differs by timeframe (12 on 1h and below, 20 above)
+  const floors=[...new Set(tfs.map(minTrades))], floorTxt=floors.length>1 ? '12+ trades on 1h and below, 20+ above' : `${floors[0]}+ trades`;
 
   // The two windows carry DIFFERENT burdens, because a short recent window cannot carry the
   // same one. liqbrk takes ~7 trades a year on 4h, so 7 months holds ~4 — demanding the full trade floor
@@ -2021,7 +2084,7 @@ function renderPick(rows, tf, partial){
   // gates the pick but never decides its order.
   const okRecent=(e)=> !!e && e.n>=3 && e.net>0 && e.edge>0;
   const scored = rows
-    .filter(r=>okRow(r.d,true) && (r.sameWin || okRecent(r.e)))
+    .filter(r=>okRow(r.d,true,r.tf) && (r.sameWin || okRecent(r.e)))
     .map(r=>({...r, score:r.d.edge}))
     .sort((a,b)=>b.score-a.score);
 
@@ -2030,7 +2093,7 @@ function renderPick(rows, tf, partial){
     const near = rows.map(r=>{
       const fails=[];
       const d=r.d;
-      if(d.n<minTrades()) fails.push(`reference: only ${d.n} trades (needs ${minTrades()})`);
+      if(d.n<minTrades(r.tf)) fails.push(`reference: only ${d.n} trades (needs ${minTrades(r.tf)})`);
       else if(d.edge<=0) fails.push(`reference: lost to buy &amp; hold by ${sg(d.edge).replace('−','')}`);
       else if(d.pf<1.3) fails.push(`reference: PF ${d.pf.toFixed(2)}`);
       else if(d.wr<0.30) fails.push(`reference: win rate ${(d.wr*100).toFixed(0)}%`);
@@ -2045,25 +2108,25 @@ function renderPick(rows, tf, partial){
     }).filter(x=>x.fails.length).sort((a,b)=>b.near-a.near)[0];
     el.innerHTML=`<div class="pick none"><div class="pickhead">
         <span class="pickbadge">NO GO-TO COMBO</span>
-        <h3 class="picktitle">Nothing cleared both windows on <span class="picktf">${tf}</span></h3>
+        <h3 class="picktitle">Nothing cleared both windows on <span class="picktf">${tfs.join(', ')}</span></h3>
       </div><div class="pickbody">
         <div style="font-size:12.5px;line-height:1.6;color:var(--muted)">
           A combo is only suggested when it clears the full test on the <b style="color:var(--txt)">10,000-bar reference</b>
-          — beats buy &amp; hold, PF 1.3, ${minTrades()}+ trades, 30%+ win rate, 60% max drawdown, 70% window stability —
+          — beats buy &amp; hold, PF 1.3, ${floorTxt}, 30%+ win rate, 60% max drawdown, 70% window stability —
           <b style="color:var(--txt)">and</b> is still making money and still beating the coin in your window.
           None here did, which is itself the finding rather than a bug.
-          ${near?`<div style="margin-top:9px;color:var(--txt)">Closest was <b>${near.r.sym.replace('USDT','')} · ${near.r.label}</b> — failed on ${near.fails.slice(0,2).join('; ')}.</div>`:''}
+          ${near?`<div style="margin-top:9px;color:var(--txt)">Closest was <b>${near.r.sym.replace('USDT','')} · ${near.r.label}${tfOf(near.r)}</b> — failed on ${near.fails.slice(0,2).join('; ')}.</div>`:''}
         </div></div></div>`;
     return;
   }
 
-  const p=scored[0], e=p.e, d=p.d;
+  const p=scored[0], e=p.e, d=p.d, tf=p.tf, sameWin=p.sameWin;
   const kpi=(k,v,c,dim,tip)=>`<div class="kpi"><div class="k">${k}</div>`
     + `<div class="v ${dim?'':(c||'')}"${dim?' style="color:#6e7681;font-weight:600"':''}`
     + `${tip?` title="${tip}"`:''}>${v}${dim?' *':''}</div></div>`;
   // Below the trade floor, win rate and stability are arithmetic noise — shown, but muted,
   // so a 3-trade "33% stable" cannot be mistaken for a verdict sitting next to a 100% one.
-  const winBlock=(w,title,st)=>{ const thin=w.n<minTrades();
+  const winBlock=(w,title,st)=>{ const thin=w.n<minTrades(tf);
     const tip=thin?`only ${w.n} closed trades here — not enough for this to mean anything`:'';
     return `<div class="pickwin"><h4>${title}</h4>
       <div class="winspan">${st}${thin?` · <span style="color:#6e7681">* too few trades to read</span>`:''}</div>
@@ -2082,12 +2145,12 @@ function renderPick(rows, tf, partial){
   if(d.sweep) why.push(`Profitable in <b>${Math.round(d.sweep.pos*100)}%</b> of ${d.sweep.nw} sliding windows across the reference, so it works wherever you start rather than from one lucky date.`);
   why.push(`PF ${isFinite(d.pf)?d.pf.toFixed(2):'∞'} and a ${(d.wr*100).toFixed(0)}% win rate, with capital deployed only <b>${(d.expo*100).toFixed(0)}%</b> of the time at a ${(d.dd*100).toFixed(0)}% worst drawdown — the return came with the market risk switched off most of the time.`);
   if(!sameWin){
-    why.push(`Still working lately: <b>${sg(e.net)}</b> over your ${span(e)} window (${sg(e.edge)} vs holding) on ${e.n} trade${e.n===1?'':'s'}. ${e.n<minTrades()?`<b>${e.n} trades proves nothing on its own</b> — this is a form check that it has not broken down, not a second confirmation of the edge.`:'That window is long enough to carry weight of its own.'}`);
+    why.push(`Still working lately: <b>${sg(e.net)}</b> over your ${span(e)} window (${sg(e.edge)} vs holding) on ${e.n} trade${e.n===1?'':'s'}. ${e.n<minTrades(tf)?`<b>${e.n} trades proves nothing on its own</b> — this is a form check that it has not broken down, not a second confirmation of the edge.`:'That window is long enough to carry weight of its own.'}`);
   }
   if(d.yrs < 8) why.push({w:1,t:`Reference covers ${d.yrs.toFixed(1)} years — less than two full BTC cycles, so it has not met every regime this asset can produce.`});
 
   const runners=scored.slice(1,3).map(r=>
-    `<span class="r">${r.sym.replace('USDT','')} · ${r.label}</span> (${sg(r.score)} vs holding)`).join(' · ');
+    `<span class="r">${r.sym.replace('USDT','')} · ${r.label}${tfOf(r)}</span> (${sg(r.score)} vs holding)`).join(' · ');
 
   el.innerHTML=`<div class="pick"><div class="pickhead">
       <span class="pickbadge">✓ GO-TO COMBO</span>
@@ -2098,7 +2161,7 @@ function renderPick(rows, tf, partial){
         <div class="herolbl">versus buy &amp; hold over the <b>10,000-bar reference</b>. Picks are ranked on this window because it is the one with enough trades to mean anything; recent form only gates the list.</div>
       </div>
       <div class="pickcols">
-        ${winBlock(e, 'Your window — recent form', `${cmpWindowLabel()} × ${tf} · ${span(e)}`)}
+        ${winBlock(e, 'Your window — recent form', `${cmpWindowLabel(tf)} × ${tf} · ${span(e)}`)}
         ${sameWin
           ? `<div class="pickwin"><h4>10,000-bar reference — the edge</h4><div class="winspan">identical to your window</div>
              <div style="color:var(--muted);font-size:11.5px;line-height:1.5;padding-top:4px">
@@ -2119,16 +2182,29 @@ document.querySelectorAll('#cmpTable th[data-k]').forEach(th=>th.addEventListene
   renderCmp();
 }));
 $('cmpStrat').addEventListener('change',renderCmp);
-$('cmpTf').addEventListener('change',()=>{
-  // an untouched Bars box tracks the per-TF default, so switching TF keeps grading a sane span
-  if(!cmpBarsTouched) setCmpBars(CMP_BARS[$('cmpTf').value]||4500);
-  cmpSpan(); cmpStart(false);
-});
+// the timeframe list applies when it closes (Done, a tap outside it, or its button again)
+function cmpTfApply(){
+  const next=cmpTfBoxes().filter(b=>b.checked).map(b=>b.value);
+  if(!next.length || next.join()===cmpTfs.join()){ cmpTfShow(); return; }
+  cmpTfs=next; cmpTfShow();
+  try{ localStorage.setItem('smb.cmpTfs', JSON.stringify(cmpTfs)); }catch(e){}
+  // an untouched Bars box tracks the default (a single timeframe's, or each its own), so the spans stay sane
+  cmpBarsDefault(); cmpSpan(); cmpStart(false);
+}
+$('cmpTfDd').addEventListener('toggle',()=>{ if(!$('cmpTfDd').open) cmpTfApply(); });
+$('cmpTfDone').addEventListener('click',()=>{ $('cmpTfDd').open=false; });
+document.addEventListener('click',(e)=>{ const dd=$('cmpTfDd'); if(dd.open && !dd.contains(e.target)) dd.open=false; });
+for(const b of cmpTfBoxes()) b.addEventListener('change',()=>{ if(!cmpTfBoxes().some(x=>x.checked)) b.checked=true; });   // keep one
 $('cmpBars').addEventListener('change',()=>{
-  cmpBarsTouched=true;
-  setCmpBars(cmpBars());                                  // clamp what they typed, then persist
-  try{ localStorage.setItem('smb.cmpBars', String(cmpBars())); }catch(e){}
-  cmpStart(false);
+  if(!(+$('cmpBars').value>0)){                           // emptied: back to the defaults
+    cmpBarsTouched=false; try{ localStorage.removeItem('smb.cmpBars'); }catch(e){}
+    cmpBarsDefault();
+  } else {
+    cmpBarsTouched=true;
+    setCmpBars(+$('cmpBars').value);                      // clamp what they typed, then persist
+    try{ localStorage.setItem('smb.cmpBars', String($('cmpBars').value)); }catch(e){}
+  }
+  cmpSpan(); cmpStart(false);
 });
 $('cmpBars').addEventListener('input',cmpSpan);           // live span readout while typing
 $('cmpGo').addEventListener('click',()=>cmpStart(true));
@@ -3914,15 +3990,18 @@ async function buildTop100(){
 }
 // upper-bound cost of a run, so a 100-coin compare never starts as a surprise
 function cmpEstimate(n){
-  const tf=$('cmpTf').value, ms=TF_MS[tf]||864e5;
-  let bars;
-  if($('cmpRangeMode').value==='dates'){
-    const d=dateSpec('cmpFrom','cmpTo');
-    bars = d ? (d.to - Math.min(d.from, d.to - CMP_REF_BARS*ms))/ms : CMP_REF_BARS;
-  } else bars=Math.max(cmpBars(), CMP_REF_BARS);
-  const avail=(Date.now()-Date.UTC(2017,6,14))/ms;     // nothing on Binance predates mid-2017
-  const pages=n*Math.ceil(Math.min(bars, avail)/1000);
-  return { pages, mins:Math.max(1, Math.round(pages*0.3/3/60 + n*CMP_CPU_S/60)) };
+  let pages=0;
+  for(const tf of cmpTfs){                               // every ticked timeframe is its own read of every coin
+    const ms=TF_MS[tf]||864e5;
+    let bars;
+    if($('cmpRangeMode').value==='dates'){
+      const d=dateSpec('cmpFrom','cmpTo');
+      bars = d ? (d.to - Math.min(d.from, d.to - CMP_REF_BARS*ms))/ms : CMP_REF_BARS;
+    } else bars=Math.max(cmpBarsFor(tf), CMP_REF_BARS);
+    const avail=(Date.now()-Date.UTC(2017,6,14))/ms;     // nothing on Binance predates mid-2017
+    pages+=n*Math.ceil(Math.min(bars, avail)/1000);
+  }
+  return { pages, mins:Math.max(1, Math.round(pages*0.3/3/60 + n*cmpTfs.length*CMP_CPU_S/60)) };
 }
 $('cmpTop100').addEventListener('click', async ()=>{
   const btn=$('cmpTop100'); btn.disabled=true;
@@ -3941,7 +4020,7 @@ $('cmpTop100').addEventListener('click', async ()=>{
     const ok=confirm(`Compare the top ${t.syms.length} coins by ${t.source}?`
       + (t.fallback ? `\n\n${t.fallback}, so this list is ranked by trading volume instead.` : '')
       + (stale ? `\n\n${stale}.` : '')
-      + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
+      + `\n\nOn ${cmpTfs.join(', ')} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
       + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Keep this tab open until it finishes.`
       + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
     if(!ok){ $('cmpStatus').textContent=''; return; }
@@ -3982,7 +4061,7 @@ $('cmpGainers').addEventListener('click', async ()=>{
     const ok=confirm(`Compare Binance's top ${g.syms.length} gainers of the last 24 hours?`
       + `\n\n${g.syms.slice(0,5).map((s,i)=>s.replace(/USDT$/,'')+' '+pct(g.chg[i])).join(' · ')} … down to ${pct(g.chg[g.chg.length-1])}`
       + ` (USDT pairs with ≥ $1M traded in 24h; ${g.coins}).`
-      + `\n\nOn ${$('cmpTf').value} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
+      + `\n\nOn ${cmpTfs.join(', ')} this downloads up to ~${est.pages.toLocaleString()} pages of price history and runs every strategy `
       + `on every coin — roughly ${est.mins} minute${est.mins>1?'s':''}. Brand-new listings with too little history are skipped and named.`
       + `\n\nThis replaces your symbol list (Reset list brings back the default).`);
     if(!ok){ $('cmpStatus').textContent=''; return; }
