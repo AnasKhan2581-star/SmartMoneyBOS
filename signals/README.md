@@ -102,8 +102,8 @@ once: `RAY, STX, AR`), the timeframes that strategy suits and a bar count past i
 | strategy | timeframes | default bars | at least |
 | --- | --- | --- | --- |
 | `liqbrk` | 15m, 1h, 2h, 4h, 1d | 4500 | 600 |
-| `tsmom`, `donch` | 1h, 4h, 1d, 1w | 7200 on 1h, 4500 on 4h, 1500 on 1d, 1000 on 1w (all history) | 5000 on 1h, 1500 on 4h, 400 on 1d, 60 on 1w (the 200-day MA comes first) |
-| `cycle` | 4h, 1d, 1w | 3000 days: 18000 on 4h, 3000 on 1d, 429 on 1w | 1500 days: 9000 on 4h, 1500 on 1d, 215 on 1w (the 200-week MA needs ~1,400 days) |
+| `tsmom`, `donch` | 1h, 4h, 1d, 1w, 1M | 7200 on 1h, 4500 on 4h, 1500 on 1d, 1000 on 1w and 300 on 1M (all history) | 5000 on 1h, 1500 on 4h, 400 on 1d, 60 on 1w, 25 on 1M (the 200-day MA comes first) |
+| `cycle` | 4h, 1d, 1w, 1M | 3000 days: 18000 on 4h, 3000 on 1d, 429 on 1w; 300 on 1M (all history) | 1500 days: 9000 on 4h, 1500 on 1d, 215 on 1w, 50 on 1M (the 200-week MA needs ~1,400 days) |
 
 `cycle` (BTC Cycle) is a daily system: on a 4h watch it acts on **finished UTC days only**, so 4h and 1d
 give the same trades and the alert comes after the daily close (00:00 UTC). On alts it follows BTC's cycle
@@ -122,6 +122,18 @@ never fire, and the bot reports it as an error on every run.
 - A weekly watch needs 60 closed candles before it is read (300 on other timeframes), since most coins have only a
   few hundred weekly candles.
 - 1h alerts need the outside trigger below. On GitHub's own schedule a 1h signal can arrive hours after its candle.
+
+**Monthly** (Nov 2026):
+- Trend Follow, Turtle and BTC Cycle take 1M; liqbrk can't trade it (its 149-candle MA is 12 years of months). A
+  monthly candle closes at 00:00 UTC on the 1st (05:30 IST), so the alert comes on the bot's first run after that.
+- Backtest on 16 coins over all their history (ALGORITHM.md "Monthly alerts"): monthly made the least for Trend
+  Follow (median coin +64%, against +627% daily) and the Cycle (+232% against +586%). Turtle made more (+357% against
+  +102%), but on about 3 trades a coin.
+- On monthly candles the Turtle's 55-day high and 20-day low are both the 2-month high and low, and its 2×ATR stop can
+  sit under zero on a coin that fell hard. The message then says "No stop in effect", with no R: only the trail exit
+  applies.
+- A monthly watch needs 24 closed months, so a coin younger than two years is skipped (the log says so).
+- The OPEN TRADE note on a weekly or monthly watch gives the last close, which can be weeks old, not the live price.
 
 ## The trading book — 5 slots and a journal
 

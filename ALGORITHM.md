@@ -1380,6 +1380,38 @@ busy (and liqbrk BUYs journal-only) for a long time.
     repeat 4h.
   - liqbrk: no weekly. Its stop is 4×ATR of the chart, and on weekly candles that sits 21–192% under the price on 10
     alert coins. The 25% stop limit let through 1 trade since 2017; without the limit there were 0–2 a coin.
+- **Monthly alerts (Nov 2026, user request).**
+  - Trend Follow, Turtle and BTC Cycle take 1M. liqbrk can't trade it: its 149-candle MA is 12 years of months.
+  - A monthly candle closes at 00:00 UTC on the 1st (05:30 IST), so a monthly alert comes up to a month after the
+    daily one would.
+  - Measured on 16 coins over all their history, the same period on every timeframe: from each coin's first full month
+    to 2026-11-01. The 16 are 8 majors plus the coins on the Trend Follow, Turtle and Cycle alerts
+    (`research/tfcmp/monthly.js`, Compare's own `pathStats`).
+
+    | median coin | daily | weekly | monthly | monthly beats daily | closed trades a coin (d / w / m) |
+    |---|---|---|---|---|---|
+    | Trend Follow | +627% | +196% | +64% | 3 of 16 | 24 / 11 / 6 |
+    | Turtle | +102% | +264% | +357% | 10 of 16 | 17 / 13 / 3 |
+    | BTC Cycle | +586% | +515% | +232% | 2 of 16 | 9 / 6 / 3 |
+
+    Median max drawdowns, daily / weekly / monthly: Trend Follow −72% / −70% / −76%, Turtle −63% / −75% / −72%,
+    Cycle −61% / −59% / −55%. Monthly earns the least for Trend Follow and the Cycle.
+  - Turtle on monthly candles is a looser system, and its lead rests on about 3 trades a coin.
+    - Its 55-day high and 20-day low both become the 2-month high and low (2 candles is the least a lookback can be).
+    - Its 2×ATR stop averages 14 months of ranges, which on a coin that fell hard is more than the price. 19 of its 70
+      monthly trades had a stop at or under zero, which can never be hit, and 27 more had one over 50% under the entry.
+  - A stop at or under zero happens on monthly candles only: none of the 1d or 1w trades of these three strategies had
+    one. Such a trade has no stop in effect and no 1R:
+    - the bot says "No stop in effect", shows the move in %, and stores no R;
+    - a late OPEN TRADE note takes a slot only at or under the system's entry;
+    - the page says the Turtle sells on its 2-month low.
+  - The bot reads a monthly watch on the calendar:
+    - a candle closes on the 1st of the next month;
+    - the next candle, 28–31 days on, is one step, not a gap (the stale test allows 31 days there, 7 elsewhere);
+    - a watch needs 24 closed months.
+
+    Without these the bot skipped every monthly watch (it wanted 300 candles). With only that fixed, it sent a fresh
+    BUY as an OPEN TRADE note, re-baselined the coin every month and never sent the SELL.
 
 ## `gold` — long-term gold: the clean-trend system (Nov 2026, user request; SHIPPED)
 

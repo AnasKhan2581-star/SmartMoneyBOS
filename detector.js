@@ -450,7 +450,8 @@
       if (zK >= 2 && btcZ && !under) {
         adv.next = { path: 'zone', trig: h20[K], gap: pct(h20[K]), run: 0, need: 1, unit: 'day', blocked: [], entered, zone: zK,
           conds: [{ name: `In the buy zone (${zK} of 3 value signs)`, ok: true },
-                  { name: 'Close above the 20-day high, or a sweep and reclaim of the 4-month low', ok: x > h20[K] || !!swp[K] }] };
+                  { name: Z.dt >= 27 * 86400 ? 'Close above the 2-month high, or a sweep and reclaim of the 4-month low'   // 20 days = 2 months there
+                      : 'Close above the 20-day high, or a sweep and reclaim of the 4-month low', ok: x > h20[K] || !!swp[K] }] };
       } else {
         const T = 1.02 * ma280[K], blocked = [];
         if (cool) blocked.push({ why: 'cool' });
@@ -859,7 +860,7 @@
                   { name: dt >= 6 * 86400 ? `Both, ${persistN} ${dt >= 27 * 86400 ? 'monthly' : 'weekly'} closes in a row` : `Both, ${p.persist} days in a row`, ok: sigRun >= persistN }] };
       } else if (p.strategy === 'donch') {
         advice.next = { path: 'break', trig: hiN[i], gap: pct(hiN[i]), run: 0, need: 1, unit: 'bar', blocked: [], entered,
-          levels: { high: hiN[i] }, conds: [{ name: `Close above the ${p.donchIn}-day high`, ok: px > hiN[i] }] };
+          levels: { high: hiN[i] }, conds: [{ name: dt >= 27 * 86400 ? `Close above the ${inLen}-month high` : `Close above the ${p.donchIn}-day high`, ok: px > hiN[i] }] };
       } else if (lb) {
         // the close must clear every price rule at once: the 2-day high by lbBrkExt × ATR, the trend average, the 149 MA
         const brk = lb.hiB[i] + (p.lbBrkExt > 0 ? p.lbBrkExt * a[i] : 0);

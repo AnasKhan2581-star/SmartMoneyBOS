@@ -83,9 +83,11 @@ const WATCH_PATH = path.resolve(argOf('--watch', path.join(ROOT, 'signals', 'wat
 const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const ENDPOINTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
-const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5, '1w': 6048e5 };
+// 1M is the average month, for counting only: a monthly candle closes on the calendar (closeAt)
+const TF_MS = { '15m': 9e5, '30m': 18e5, '1h': 36e5, '2h': 72e5, '4h': 144e5, '1d': 864e5, '1w': 6048e5, '1M': 2629746e3 };
 // fewest closed candles a watch needs before it is read: 300, but 60 on weekly (a coin listed in 2021 has ~250 weeks)
-const minBarsOf = (tf) => ((TF_MS[tf] || 864e5) >= 6048e5 ? 60 : 300);
+// and 24 on monthly (two years, as in Compare; BTC has about 110 months)
+const minBarsOf = (tf) => (tf === '1M' ? 24 : (TF_MS[tf] || 864e5) >= 6048e5 ? 60 : 300);
 // bump a strategy's entry when ITS trading rules change, so stored positions are re-read under the new rules
 // (note 4). Per strategy, so a change to one never makes every alert of another re-baseline.
 const RULES = { liqbrk: 'liqbrk-2026-11-btc50-maxstop25-scale3R', cycle: 'cycle-2026-10-daily-btcled-half1.85' };
@@ -145,8 +147,16 @@ function syntheticKlines(symbol, n, drift) {
 const fmtPx = (x) => x == null || !isFinite(x) ? '—'
   : x >= 1000 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x >= 0.01 ? x.toFixed(4) : x.toPrecision(3);
 const fmtDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
-// candles are stamped with their OPEN time; a signal fills at the CLOSE, so that is the time a message names
-const closeAt = (w, sec) => sec + (TF_MS[w.tf] || 864e5) / 1000;
+// candles are stamped with their OPEN time; a signal fills at the CLOSE, so that is the time a message names. A monthly
+// candle closes on the 1st of the next month (UTC), not 30.44 days on.
+const closeAt = (w, sec) => {
+  if (w.tf !== '1M') return sec + (TF_MS[w.tf] || 864e5) / 1000;
+  const d = new Date(sec * 1000);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 1000;
+};
+// a lookback the rules count in days, as the engine reads it: on monthly candles a number of months, at least 2, so the
+// Turtle's 20-day low is the 2-month low there (weekly candles stay close to the days: 20 days = 3 weeks)
+const spanWord = (w, days) => (w.tf === '1M' ? `${Math.max(2, Math.round(days * 864e5 / TF_MS['1M']))}-month` : `${days}-day`);
 
 function gateLine(lb) {
   const g = lb.btcGate;
@@ -156,6 +166,10 @@ function gateLine(lb) {
     : g.leadPump > 0 ? `Market gate: BTC below its ${g.maDays}-day MA — allowed as a 30-day leader (+${Math.round(g.leadPump * 100)}%)`
     : `Market gate: BTC below its ${g.maDays}-day MA`;
 }
+// A stop at or under zero can never be hit. It happens on monthly candles only (Nov 2026: 19 of 70 Turtle trades and
+// 20 of 103 Trend Follow yardsticks on 16 coins, none on 1d or 1w): the 2×ATR averages 14 months, more than the price of a
+// coin that fell hard. Such a trade has no 1R either, so the messages show % and the journal stores no R.
+const hasStop = (trade) => !!trade && trade.stop > 0;
 // how far under the entry a stop sits, said next to the level so the risk is read at a glance
 const stopPct = (trade) => trade && trade.entry > 0 && isFinite(trade.stop) ? ` (${((1 - trade.stop / trade.entry) * 100).toFixed(1)}% under the entry)` : '';
 // 2h vs 4h on the same coin (measured Oct 2026, 32 coins, full history, shipped rules): a 2h buy
@@ -175,9 +189,9 @@ function pairLine(w, pair) {
 // 5-day break of the 40-week MA. The messages must say the rule of the strategy that actually fired.
 const isCycle = (w) => (w.strategy || 'liqbrk') === 'cycle';
 // the cycle's "N days under the 40-week MA" in the candles it is read on: days (4h and 1d are read as days), or weekly
-// closes on a weekly watch, where the engine turns the days into bars and keeps at least 2 (5 days = 2 weekly closes)
+// or monthly closes, where the engine turns the days into bars and keeps at least 2 (5 days = 2 weekly closes)
 const cyRun = (w) => { const d = SMC.DEFAULTS.cyclePersist, ms = TF_MS[w.tf] || 864e5;
-  return ms > 864e5 ? `${Math.max(2, Math.round(d * 864e5 / ms))} weekly closes` : `${d} days`; };
+  return ms > 864e5 ? `${Math.max(2, Math.round(d * 864e5 / ms))} ${w.tf === '1M' ? 'monthly' : 'weekly'} closes` : `${d} days`; };
 const halfWhy = (w) => isCycle(w) ? 'sell zone: 1.85 × the 200-day MA' : '+3R';
 const restRule = (w) => isCycle(w) ? `it rides to the Pi-Cycle top or ${cyRun(w)} under the 40-week MA`
   : 'stop as before, trail = close below the 1-day low';
@@ -191,7 +205,7 @@ const tagOf = (w) => stratOf(w) === 'liqbrk' ? '' : ` · ${STRAT_NAME[stratOf(w)
 function whyText(w, pool) {
   const s = stratOf(w);
   if (s === 'tsmom' && pool === 'TREND') return 'the trend broke (a close under the 200-day MA, or under the close 90 days back)';
-  if (s === 'donch' && pool === 'TRAIL') return 'closed below the 20-day low';
+  if (s === 'donch' && pool === 'TRAIL') return `closed below the ${spanWord(w, SMC.DEFAULTS.donchOut)} low`;
   if (s === 'cycle' && pool === 'TREND') return `${cyRun(w)} under the 40-week MA`;
   return WHY[pool] || String(pool || '').toLowerCase();
 }
@@ -204,8 +218,9 @@ function exitLines(w, trade, advice, open) {
     `              or under the close ${q.refDays || 90} days back (now ${fmtPx(q.ref)})`,
     'No stop: it holds until the trend breaks'];
   if (s === 'donch') return [
-    `${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`,
-    `Trail exit    close below the ${q.outDays || 20}-day low (now ${fmtPx(q.chanLow)})`];
+    hasStop(trade) ? `${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`
+      : 'No stop in effect: 2×ATR of these candles is more than the price',
+    `Trail exit    close below the ${spanWord(w, q.outDays || SMC.DEFAULTS.donchOut)} low (now ${fmtPx(q.chanLow)})`];
   return [`${open ? 'Stop         ' : 'Initial stop '} ${fmtPx(trade.stop)}${stopPct(trade)}`];
 }
 // what a cycle entry still has to do: the tranche program, the exit line, BTC's state for alts
@@ -264,7 +279,7 @@ function sellMessage(w, c, trade, slotLine) {
       ``,
       `Entered ${fmtPx(trade.entry)} on ${fmtDay(closeAt(w, c[trade.entryIdx].time))}`,
       trade.scale ? `First half sold at ${fmtPx(trade.scale.px)} on ${fmtDay(closeAt(w, c[trade.scale.idx].time))}` : null,
-      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%${stratOf(w) === 'tsmom' ? '' : `  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)`}${trade.scale ? ' — both halves' : ''}`,
+      `Result  ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%${stratOf(w) === 'tsmom' || !hasStop(trade) ? '' : `  (${trade.rr >= 0 ? '+' : ''}${trade.rr}R)`}${trade.scale ? ' — both halves' : ''}`,
       slotLine ? `` : null,
       slotLine || null,
     ].filter((x) => x !== null).join('\n'),
@@ -294,7 +309,8 @@ function openMessage(w, c, trade, advice, slot) {
   const lb = (advice && advice.lb) || {};
   const coin = w.symbol.replace(/USDT$/, '');
   const now = c[c.length - 1].close, R = trade.entry - trade.stop, inR = R > 0 ? (now - trade.entry) / R : 0;
-  const hrs = (c[c.length - 1].time - c[trade.entryIdx].time) / 3600;
+  // from the entry candle's close to now (it counted open to open, which on monthly said "30 days" for 49)
+  const hrs = Math.max(0, Date.now() / 1000 - closeAt(w, c[trade.entryIdx].time)) / 3600;
   const ago = hrs >= 48 ? `${Math.round(hrs / 24)} days` : `${Math.round(hrs)} hours`;
   const pc = (now / trade.entry - 1) * 100;
   return {
@@ -302,13 +318,16 @@ function openMessage(w, c, trade, advice, slot) {
     body: [
       ...(slot ? [slotText(slot), ''] : []),
       `${STRAT_NAME[w.strategy || 'liqbrk'] || w.strategy} has been long since ${fmtDay(closeAt(w, c[trade.entryIdx].time))} (${ago} ago)`,
-      `Entry ${fmtPx(trade.entry)} · now ${fmtPx(now)} (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)`,
+      // the bot reads closed candles: on a weekly or monthly watch the last close can be weeks old, so it says so
+      `Entry ${fmtPx(trade.entry)} · ${w.tf === '1w' || w.tf === '1M' ? 'last close' : 'now'} ${fmtPx(now)}` + (hasStop(trade) ? ` (${inR >= 0 ? '+' : ''}${inR.toFixed(1)}R)` : ''),
       ``,
       ...exitLines(w, trade, advice, true),
       trade.scale ? `Half already sold at ${fmtPx(trade.scale.px)}` : trade.tp ? `Take half     at ${isCycle(w) ? '≈ ' : ''}${fmtPx(trade.tp)} (${halfWhy(w)})` : null,
       lb.trailLow ? `Trail exit    close below ${fmtPx(lb.trailLow)} (1-day low)` : null,
       ``,
-      inR <= 1 ? 'Still within 1R of the entry — joining now is close to the system\'s own trade.'
+      !hasStop(trade) ? (pc <= 0 ? 'No stop in effect, so no 1R to measure by: price is at or under the system\'s entry, so joining now costs no more than its own trade.'
+                                 : `No stop in effect, so no 1R to measure by: joining now buys ${pc.toFixed(1)}% above the system's entry; usually better to wait for the next BUY.`)
+      : inR <= 1 ? 'Still within 1R of the entry — joining now is close to the system\'s own trade.'
                : 'Already well past the entry — joining now takes more risk than the system did; usually better to wait for the next BUY.',
       stratOf(w) === 'tsmom' || stratOf(w) === 'donch' ? 'You will get the SELL for this position as normal.'
         : 'You will get TAKE HALF / SELL for this position as normal.',
@@ -434,7 +453,7 @@ async function notify(msg) {
   };
 
   // 2h before 4h, so a 4h buy can see whether the same coin's 2h bought first (pairLine)
-  const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5, '1w': 6 };
+  const TF_RANK = { '15m': 0, '30m': 1, '1h': 2, '2h': 3, '4h': 4, '1d': 5, '1w': 6, '1M': 7 };
   const items = watch.watch.slice().sort((a, b) => (TF_RANK[a.tf] ?? 9) - (TF_RANK[b.tf] ?? 9));
   const pairOf = (w, entryTime) => {
     const strat = w.strategy || 'liqbrk', otherTf = w.tf === '2h' ? '4h' : w.tf === '4h' ? '2h' : null;
@@ -508,15 +527,14 @@ async function notify(msg) {
       // "fresh" = entered on a candle that closed after the previous persisted run, i.e. a signal no run
       // has been able to report yet. `noted` = this exact position has been journaled (BUY or OPEN TRADE).
       const lastRun = state._meta && state._meta.lastRun;
-      const tfSec = (TF_MS[w.tf] || RUN_EVERY_MS) / 1000;
-      const isFresh = (o) => !!o && (lastRun ? c[o.entryIdx].time + tfSec > lastRun
+      const isFresh = (o) => !!o && (lastRun ? closeAt(w, c[o.entryIdx].time) > lastRun
         : o.entryIdx >= c.length - Math.max(1, Math.ceil(RUN_EVERY_MS / (TF_MS[w.tf] || RUN_EVERY_MS))));
       let noted = !!(cur.inPosition && prev && prev.noted && prev.entryTime === cur.entryTime);
       // relative volume of the signal candle — how competing BUYs are ranked for the last free slot
       const strengthOf = (t) => { const i = t.entryIdx; let sum = 0, k = 0;
         for (let j = Math.max(0, i - 5); j <= i; j++) { sum += c[j].volume || 0; k++; }
         return sum > 0 ? (c[i].volume || 0) / (sum / k) : 1; };
-      const ctx = { w, c, key, tfSec, advice: res.advice };
+      const ctx = { w, c, key, advice: res.advice };
       const ev = (kind, trade, extra) => queue.push({ kind, trade, strength: trade ? strengthOf(trade) : 0, ...ctx, ...extra });
 
       // A STALE entry is as bad as no entry. Drop a coin from the watchlist, re-add it a month
@@ -525,7 +543,8 @@ async function notify(msg) {
       // 7 days, not "10 bars": on a 2h watch 10 bars is 20 hours, and a GitHub scheduler gap or
       // a short run of failed jobs would silently swallow a real flip. The case this guards
       // against — a coin removed and re-added — is a weeks-long gap, so give it weeks of room.
-      const stale = prev && (cur.lastBar - prev.lastBar) > 7 * 86400;
+      // On monthly the next candle is 28-31 days on: that is one step, not a gap.
+      const stale = prev && (cur.lastBar - prev.lastBar) > (w.tf === '1M' ? 31 : 7) * 86400;
 
       if (prev && !stale && rulesChanged) {
         // note 4: re-read under the new rules; speak only if long/flat actually changed
@@ -593,17 +612,17 @@ async function notify(msg) {
   // so two strategies entering one coin on the same candle never share a journal entry or an answer
   const idOf = (x) => `${x.w.symbol}|${x.w.tf}|${x.c[x.trade.entryIdx].time}` + (stratOf(x.w) === 'liqbrk' ? '' : `|${stratOf(x.w)}`);
   const newEntry = (x, late) => ({ id: idOf(x), symbol: x.w.symbol, tf: x.w.tf, strategy: x.w.strategy || 'liqbrk',
-    signalTime: x.c[x.trade.entryIdx].time + x.tfSec, entry: x.trade.entry, stop: x.trade.stop,
+    signalTime: closeAt(x.w, x.c[x.trade.entryIdx].time), entry: x.trade.entry, stop: x.trade.stop,
     tp: x.trade.scaleTarget || x.trade.tp || null, status: 'open', scale: null, late: !!late, alerted: false, skip: null,
     exit: null, exitRest: null, exitTime: null, ret: null, R: null, why: null, logged: Math.floor(Date.now() / 1000) });
   const applyScale = (e, x) => {
     const t = x.trade; if (!t.scale || e.scale) return false;
-    e.scale = { time: x.c[t.scale.idx].time + x.tfSec, px: t.scale.px }; if (e.status === 'open') e.status = 'half'; return true;
+    e.scale = { time: closeAt(x.w, x.c[t.scale.idx].time), px: t.scale.px }; if (e.status === 'open') e.status = 'half'; return true;
   };
   const applyClose = (e, x) => {
     const t = x.trade; applyScale(e, x);
     Object.assign(e, { status: 'closed', exit: t.exitPrice, exitRest: t.exitRest != null ? t.exitRest : t.exitPrice,
-      exitTime: x.c[t.exitIdx].time + x.tfSec, ret: t.exitPrice / t.entry * (1 - 0.001) / (1 + 0.001) - 1, R: t.rr, why: t.targetPool });
+      exitTime: closeAt(x.w, x.c[t.exitIdx].time), ret: t.exitPrice / t.entry * (1 - 0.001) / (1 + 0.001) - 1, R: hasStop(t) ? t.rr : null, why: t.targetPool });
   };
   const inUse = () => `${used()} of ${N} slots in use`;
 
@@ -644,19 +663,21 @@ async function notify(msg) {
     if (J.has(id)) continue;                                  // already journaled (a re-run)
     const e = newEntry(x, x.kind === 'open'); applyScale(e, x);
     const t = x.trade, now = x.c[x.c.length - 1].close, R = t.entry - t.stop;
-    const nearEntry = x.kind === 'buy' || (R > 0 && (now - t.entry) / R <= 1);
+    // with no stop in effect there is no 1R: a late note takes a slot only at or under the system's own entry
+    const nearEntry = x.kind === 'buy' || (hasStop(t) ? R > 0 && (now - t.entry) / R <= 1 : now <= t.entry);
     const free = N - used();
     J.set(id, e); jChanged = true;
     if (free > 0 && nearEntry) {
       e.alerted = true;
       const slot = { slot: used(), N };
       if (x.kind === 'buy') {
-        if (!(x.w.tf in regimeByTf)) regimeByTf[x.w.tf] = await btcRegime(x.w.tf);
+        // BTC's regime is its 200-day MA; monthly candles are too few for the read (liqbrk's warm-up), so weekly stands in
+        if (!(x.w.tf in regimeByTf)) regimeByTf[x.w.tf] = await btcRegime(x.w.tf === '1M' ? '1w' : x.w.tf);
         await notify(buyMessage(x.w, x.c, t, x.advice, regimeByTf[x.w.tf], pairOf(x.w, x.c[t.entryIdx].time), slot));
       } else await notify(openMessage(x.w, x.c, t, x.advice, slot));
       alerts++;
     } else {
-      e.skip = free <= 0 ? 'no free slot' : 'already past 1R when first seen';
+      e.skip = free <= 0 ? 'no free slot' : hasStop(t) ? 'already past 1R when first seen' : 'above the entry with no stop in effect when first seen';
       console.log(`${x.key}: ${x.kind.toUpperCase()} — journal only (${e.skip}; ${inUse()})`);
     }
   }
