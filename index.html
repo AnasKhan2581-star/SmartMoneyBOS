@@ -731,7 +731,7 @@
       <input id="cmpSyms" type="text" spellcheck="false"
              title="Comma-separated. Bare tickers get USDT appended, so 'INJ, ARB' means INJUSDT, ARBUSDT. Any Binance spot pair works." />
     </label>
-    <button id="cmpSymsReset" class="ghost" title="restore your default list (103 coins)">Reset list</button>
+    <button id="cmpSymsReset" class="ghost" title="restore your default list (PAXG, BTC)">Reset list</button>
     <button id="cmpTop100" class="ghost" title="Fill the list with the 100 largest coins by market cap that trade on Binance spot — ranked fresh on every click">Top 100</button>
     <button id="cmpGainers" class="ghost" title="Fill the list with Binance's 50 biggest gainers of the last 24 hours (USDT spot pairs) — fetched fresh on every click">Top 50 gainers</button>
     <label>Strategy
@@ -757,7 +757,7 @@
     </label>
     <label id="cmpBarsWrap" title="How many of the most recent bars to fetch per symbol, up to 60,000. There is no API ceiling — depth is limited only by how far the pair's history goes, so 4h at 20,000 reaches Binance's 2017 start (~9.1 years, two BTC cycles). Deep pulls take 20+ requests per symbol. Follows a sensible default per timeframe until you type your own, then stays put.">Bars
       <span style="display:inline-flex;align-items:baseline;gap:6px">
-        <input id="cmpBars" class="num" type="number" value="19096" min="300" max="60000" step="500" />
+        <input id="cmpBars" class="num" type="number" value="22500" min="300" max="60000" step="500" />
         <span id="cmpSpan" class="spanhint"></span>
       </span>
     </label>
@@ -1656,9 +1656,10 @@ function advisor(result){
 }
 let advisorOpen=false;   // remembered across recalcs so it doesn't snap shut while you read it
 // ---- Compare page: own controls (strategy filter, TF, refresh), sortable columns ----
-// The user's own list (Oct 2026), in their order — what a fresh browser starts with and what "Reset list"
-// brings back. XMR (data ends 2024-02-20) and LIT (Litentry, ends 2025-02-10) are delisted on Binance:
-// their rows grade history up to the delisting, and the Yrs column shows it.
+// The user's own 103-coin list (Oct 2026), in their order. Compare opened on it until Nov 2026 (now CMP_START, below).
+// Research scripts read it out of this file by this name (research/tfcmp, liqbrk15m, s15), so the name stays. XMR (data
+// ends 2024-02-20) and LIT (Litentry, ends 2025-02-10) are delisted on Binance: their rows grade history up to the
+// delisting, and the Yrs column shows it.
 const CMP_DEFAULT=[
   'BTC', 'ETH', 'BNB', 'XRP', 'SOL', 'TRX', 'ZEC', 'EPIC', '1INCH', 'HYPE', 'DOGE', 'XMR', 'LINK', 'ADA',
   'NEAR', 'XLM', 'BCH', 'LTC', 'UNI', 'AVAX', 'SUI', 'GRAM', 'HBAR', 'SHIB', 'TAO', 'QNT', 'ENA', 'AAVE',
@@ -1669,6 +1670,11 @@ const CMP_DEFAULT=[
   'OP', 'DCR', 'BONK', 'GRT', 'BAT', 'KAIA', 'LUNC', 'COMP', 'JTO', 'AR', 'ENS', 'CVX', 'KMNO', 'SYRUP',
   'FLOKI', 'JASMY', 'EIGEN', 'IOTA', 'RUNE', 'S', 'WIF', 'THETA', 'TWT', 'ZIL'
 ].map(s=>s+'USDT');
+// What a fresh browser opens on (Nov 2026, the user's own settings): PAXG and BTC, All strategies, on 4h, 1d, 1w and 1M
+// with 22,500 bars each (all history on every one of them), Window sweep on. "Reset list" brings this list back.
+const CMP_START=['PAXG','BTC'].map(s=>s+'USDT');
+const CMP_TFS_START=['4h','1d','1w','1M'];
+const CMP_BARS_START=22500;         // held on every ticked timeframe; BTC 4h has ~20,600 candles since Aug 2017
 const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtle'],['liqbrk','Liq Breakout']];
 // 1h and 4h both maxed at 10k bars — that is all Binance serves (~1.1y on 1h, ~4.6y on 4h)
 // Per-TF starting point for the Bars box, overridden the moment the user types a number.
@@ -1676,8 +1682,9 @@ const CMP_STRATS=[['cycle','BTC Cycle'],['tsmom','Trend Follow'],['donch','Turtl
 // 2017-08-17 to now (~9.1 years = two BTC halving cycles), which is the point: a 4.6-year
 // 4h window is bull-only and flatters every trend system in it.
 // 1h stays lower because most pairs' 1h history only begins 2022 anyway (~4.7y max).
-// Oct 2026 (user's settings): Compare opens on All strategies · 4h · 19,096 bars (≈8.7 years). 15m starts at
-// a year (35,040 bars, 36 pages a coin) — a 15m pull of a whole list is the heaviest thing this tab does.
+// These are each timeframe's own default, read when the Bars box is emptied ("per TF"); Compare opens on
+// CMP_BARS_START instead (Nov 2026). 4h's 19,096 (≈8.7 years) was the Oct 2026 opening setting. 15m is a year (35,040
+// bars, 36 pages a coin): a 15m pull of a whole list is the heaviest thing this tab does.
 // 1M (Nov 2026, user request): 300 is the box's floor and 25 years, so it reads every month a coin has (BTC: about 110).
 const CMP_BARS={ '15m':35040, '1h':10000, '2h':20000, '4h':19096, '1d':4500, '1w':600, '1M':300 };
 // The fewest candles a window may have: 250, or two years when that is fewer (Nov 2026, with monthly). A flat 250 skipped
@@ -1713,15 +1720,15 @@ function parseSyms(raw){
   }
   return out;
 }
-let CMP_SYMS=CMP_DEFAULT.slice();
+let CMP_SYMS=CMP_START.slice();
 try{ const saved=localStorage.getItem('smb.cmpSyms'); if(saved) CMP_SYMS=parseSyms(saved); }catch(e){}
-if(!CMP_SYMS.length) CMP_SYMS=CMP_DEFAULT.slice();
+if(!CMP_SYMS.length) CMP_SYMS=CMP_START.slice();
 
 // ---- timeframes: one or several (Nov 2026, user request) -----------------------------------------------------------
 // Every coin is read on each ticked timeframe and every row carries its own (tf), so a coin's 1h, 4h and 1d sit side by
 // side. The list applies when it closes (Done, a tap outside), so ticking three boxes starts one run, not three.
 const CMP_TF_ORDER=['15m','1h','2h','4h','1d','1w','1M'];
-let cmpTfs=['4h'];
+let cmpTfs=CMP_TFS_START.slice();
 try{ const t=JSON.parse(localStorage.getItem('smb.cmpTfs')||'null');
   if(Array.isArray(t)){ const ok=CMP_TF_ORDER.filter(x=>t.includes(x)); if(ok.length) cmpTfs=ok; } }catch(e){}
 const cmpMulti=()=> cmpTfs.length>1;
@@ -1729,15 +1736,16 @@ function cmpTfBoxes(){ return [...document.querySelectorAll('#cmpTfDd input[type
 function cmpTfShow(){ for(const b of cmpTfBoxes()) b.checked=cmpTfs.includes(b.value); $('cmpTfSum').textContent=cmpTfs.join(' · '); }
 
 // ---- bar count ------------------------------------------------------------
-// Tracks the per-TF default until the user types a number, then holds whatever they set. With several timeframes a
-// typed number holds on each (so they cover different periods; the readout and the Yrs column say how long), and an
-// empty box lets each read its own default. Dates gives them all one period.
-let cmpBarsTouched=false;
-try{ if(localStorage.getItem('smb.cmpBars')) cmpBarsTouched=true; }catch(e){}
+// Opens on CMP_BARS_START, and a number in the box holds on every ticked timeframe (so they cover different periods;
+// the readout and the Yrs column say how long). An emptied box lets each read its own CMP_BARS default ("per TF"), and
+// is saved as '' so a reload keeps it empty (a missing key means "never set": the opening value). Dates gives them all
+// one period.
+let cmpBarsTouched=true;
+try{ if(localStorage.getItem('smb.cmpBars')==='') cmpBarsTouched=false; }catch(e){}
 const cmpClampBars=(n)=>Math.max(300, Math.min(60000, Math.round(n)));
 const cmpBarsFor=(tf)=>{ const v=+$('cmpBars').value; return cmpClampBars(v>0 ? v : (CMP_BARS[tf]||4500)); };
 function setCmpBars(n){ $('cmpBars').value=cmpClampBars(n); cmpSpan(); }
-// an untouched box shows a single timeframe's default; with several it stays empty, and each reads its own
+// an emptied box shows a single timeframe's default; with several it stays empty, and each reads its own
 function cmpBarsDefault(){
   if(cmpBarsTouched) return;
   if(cmpMulti()){ $('cmpBars').value=''; cmpSpan(); } else setCmpBars(CMP_BARS[cmpTfs[0]]||4500);
@@ -1765,7 +1773,7 @@ function cmpSpan(){
     + (thin.length ? ` Too short for a swing system: ${thin.map(x=>x.tf).join(', ')}.` : '')
     + (all.some(x=>x.whole) ? ` "all": ${all.filter(x=>x.whole).map(x=>x.tf).join(', ')} ask for more than Binance has (its spot history starts in July 2017), so they read everything each coin has.` : '');
 }
-try{ const b=localStorage.getItem('smb.cmpBars'); if(b) $('cmpBars').value=b; }catch(e){}
+try{ const b=localStorage.getItem('smb.cmpBars'); $('cmpBars').value = b===null ? CMP_BARS_START : b; }catch(e){ $('cmpBars').value=CMP_BARS_START; }
 $('cmpBars').placeholder='per TF';
 cmpTfShow(); cmpBarsDefault(); cmpSpan();
 const cmpSymsText=(a)=>a.map(s=>s.replace(/USDT$/,'')).join(', ');
@@ -2211,7 +2219,7 @@ document.addEventListener('click',(e)=>{ const dd=$('cmpTfDd'); if(dd.open && !d
 for(const b of cmpTfBoxes()) b.addEventListener('change',()=>{ if(!cmpTfBoxes().some(x=>x.checked)) b.checked=true; });   // keep one
 $('cmpBars').addEventListener('change',()=>{
   if(!(+$('cmpBars').value>0)){                           // emptied: back to the defaults
-    cmpBarsTouched=false; try{ localStorage.removeItem('smb.cmpBars'); }catch(e){}
+    cmpBarsTouched=false; try{ localStorage.setItem('smb.cmpBars',''); }catch(e){}   // '' = per TF, kept on reload
     cmpBarsDefault();
   } else {
     cmpBarsTouched=true;
@@ -3936,7 +3944,7 @@ $('cmpSyms').addEventListener('change',()=>{ cmpListNote=''; applyCmpSyms(); });
 // GO on a phone keyboard is Enter: start with this list now (a run in flight is replaced), and drop the keyboard
 $('cmpSyms').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); cmpListNote=''; applyCmpSyms(true); e.target.blur(); } });
 $('cmpSymsReset').addEventListener('click',()=>{
-  cmpListNote=''; $('cmpSyms').value=cmpSymsText(CMP_DEFAULT); applyCmpSyms();
+  cmpListNote=''; $('cmpSyms').value=cmpSymsText(CMP_START); applyCmpSyms();
 });
 
 // ---- Top 100 by market cap ---------------------------------------------------
