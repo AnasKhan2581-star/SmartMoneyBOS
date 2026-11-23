@@ -1527,6 +1527,56 @@ sample). G2 anchor: its chosen setting tied the best out of sample, but it is an
 10% drawdown −42% to −43%); median 0.28. G4 breakout: weak in 1975-2000 at every setting (0.01-0.12); the wide stops
 that look fine after 2001 are just holding.
 
+### RESEARCH (Nov 2026, user request): gold accumulation in tranches, stop from the average (`research/goldacc/`; NOT shipped)
+
+The ask: one long-term gold accumulation strategy with a safe stop tied to the average entry, compared with the
+Compare tab's rows on PAXG at the user's settings (4h, 1d, 1w and 1M, all history from Aug 2020).
+
+**How it was chosen.**
+- The data: spot gold (XAUUSD daily) 2003-2019 only.
+- The candidates: four families of tranche buying, 468 settings in all:
+  - buy the dips of an uptrend (the dip ladder);
+  - add on strength (Turtle pyramiding);
+  - buy deep pullbacks to the 200-day MA;
+  - add every few weeks above the 10-month MA.
+- The rule, fixed before any later data was run: the best median return per drawdown of a setting and its one-step
+  neighbours, among settings that kept two-thirds of holding's yearly growth.
+- Lookbacks count calendar days, because gold trades on weekdays and PAXG every day.
+- Stats are Compare's own `pathStats`.
+
+**The winner: the dip ladder.**
+- Uptrend: the close is above the 200-day MA, and that MA is higher than 20 days ago.
+- Each dip, a close under the 50-day MA, buys one tranche of 25%, up to 4.
+- Stop: 8% under the average entry. After a close 10% above the average, the stop rises to the average.
+- Out: a close 3% under the 200-day MA.
+
+**Results.**
+- 2003-2019: +197% (+6.6%/yr) at a −26% worst fall, against +338% at −45% holding (return per drawdown 0.26 vs 0.20).
+  - 2003-11: +174% vs +352%.
+  - 2012-19: +8% vs −4%, at −11% vs −41%.
+- 2020 to Nov 2026, never seen: +131% at −20%, against +133% at −36% holding (0.64 vs 0.36). The same money for about
+  half the fall.
+- PAXG, the user's Compare settings:
+
+  | | 4h | 1d | 1w | 1M |
+  |---|---|---|---|---|
+  | Dip ladder | +100% / −26% | +121% / −20% | +92% / −20% | +58% / −26% |
+  | Best Compare row by money | Turtle +82% / −17% | Turtle +84% / −15% | BTC Cycle +93% / −14% | BTC Cycle +123% / −7% (1 trade) |
+  | Holding PAXG | +82% / −37% | +82% / −36% | +82% / −34% | +83% / −33% |
+
+  On 4h and 1d it made the most of anything, at a deeper fall than Turtle. On 1w and 1M it is behind; the shipped
+  `gold` rule made +58% to +62% on every timeframe.
+
+**What does the work.**
+- The uptrend filter, the dip entry and the break-even stop.
+- Not the tranches. Everything on the first dip made more on spot gold, +240% (2003-19) and +147% (2020-26), at the
+  same falls, and a little less on PAXG daily (+115% vs +121%).
+- Without the 8% stop and the break-even stop: +189% / +117% / +107%.
+- The 8% stop fired once in 2020-26, on gold's 9 Aug 2021 flash crash. It filled 3.4% under the close the trend exit
+  sold at that day, which cost 0.8% of the account. Compare's statistics count the close for both.
+- The break-even stop turned the 2022 and 2023 campaigns (−4.5%, −2.5% without it) into exits at cost.
+- Only 3-6 campaigns per PAXG timeframe.
+
 ## `cycle` — the BTC halving playbook (July 2026; rebuilt Oct 2026)
 
 ### Oct 2026 — a fill bug was faking the results; rebuilt and SHIPPED (user request)
