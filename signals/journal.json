@@ -312,6 +312,28 @@
    "R": -1,
    "why": "STOP",
    "logged": 1794335874
+  },
+  {
+   "id": "PROMUSDT|4h|1795435200|donch",
+   "symbol": "PROMUSDT",
+   "tf": "4h",
+   "strategy": "donch",
+   "signalTime": 1795449600,
+   "entry": 6.702,
+   "stop": 3.733196193271869,
+   "tp": null,
+   "status": "open",
+   "scale": null,
+   "late": false,
+   "alerted": true,
+   "skip": null,
+   "exit": null,
+   "exitRest": null,
+   "exitTime": null,
+   "ret": null,
+   "R": null,
+   "why": null,
+   "logged": 1795473866
   }
  ]
 }
