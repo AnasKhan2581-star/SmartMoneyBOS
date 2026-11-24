@@ -370,6 +370,8 @@
   .bkSlot.taken{border-color:#1d5234;background:#101c15}
   .bkAsk{margin-top:10px;padding:10px 12px;border:1px solid #4d3f17;background:#1b1810;border-radius:12px;font-size:12.5px;line-height:1.55}
   .bkBtns{display:flex;gap:8px;margin-top:8px}
+  .pfDust:empty{display:none}
+  .pfDust{margin-top:8px}
   .bkBtns button{flex:1;padding:8px;font-weight:700}
   .bkFilt{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .bkFilt button{padding:4px 10px;font-size:11.5px;border-radius:999px}
@@ -422,6 +424,10 @@
   /* wider screens: upgrade the mobile-first portfolio grid, hide the phone tab bar */
   @media(min-width:700px){
     #pfView{padding:20px 22px 24px}
+    /* wide screens (Nov 2026, user report: "weird on PC"): the Portfolio stays one centred column, as on a phone but
+       wider, instead of stretching edge to edge; #pfView stays the full-width scroller (its bar keeps to the edge) */
+    #pfView>:not(#pfLoadBar):not(dialog){max-width:1240px;margin-left:auto;margin-right:auto}
+    .bkBtns button{flex:0 0 auto;min-width:150px}
     .kpis{grid-template-columns:repeat(4,1fr)}
     .cards{grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
     .hero .v{font-size:56px}
@@ -538,6 +544,7 @@
 
     <div class="pfHead" style="margin-top:22px"><h2>What to do with what you hold</h2><span class="pfSub">tap a card for its chart</span></div>
     <div class="cards" id="pfCards"></div>
+    <div class="pfSub pfDust" id="pfDust"></div>
   </div>
 
   <div id="bookBox">
@@ -2291,14 +2298,15 @@ function replay(list){
   // OLDEST FIRST — the whole point. A snapshot sorts ahead of anything at the same instant.
   const sorted = list.slice().sort((a,b)=> a.time-b.time || (a.side==='open'?-1:b.side==='open'?1:0));
   for(const o of sorted){
-    const p = pos[o.sym] || (pos[o.sym] = { sym:o.sym, qty:0, avg:0, realized:0, short:0, superseded:0, orders:[] });
+    const p = pos[o.sym] || (pos[o.sym] = { sym:o.sym, qty:0, avg:0, peak:0, realized:0, short:0, superseded:0, orders:[] });
     const sup = snap[o.sym]!=null && o.time < snap[o.sym];
     p.orders.push({ ...o, superseded:sup });
     if(sup){ p.superseded++; continue; }
-    if(o.side==='open'){ p.qty = +o.qty; p.avg = +o.price; }
+    if(o.side==='open'){ p.qty = +o.qty; p.avg = +o.price; p.peak = p.qty; }
     else if(o.side==='buy'){
       p.avg = (p.qty*p.avg + o.qty*o.price) / (p.qty + o.qty);
       p.qty += +o.qty;
+      p.peak = Math.max(p.peak, p.qty);              // the most of this coin held since it was last sold out (dust test)
     } else {                                          // sell
       const q = Math.min(+o.qty, p.qty);
       // Selling more than the recorded buys means earlier buys are missing. Realise only what is
@@ -2306,12 +2314,26 @@ function replay(list){
       if(o.qty > p.qty*(1+1e-6) + 1e-12) p.short += o.qty - p.qty;
       p.realized += q * (o.price - p.avg);
       p.qty -= q;
-      if(p.qty < 1e-12){ p.qty = 0; p.avg = 0; }
+      if(p.qty < 1e-12){ p.qty = 0; p.avg = 0; p.peak = 0; }
     }
   }
   return pos;
 }
-const deriveHoldings = (lg)=> Object.values(lg).filter(p=>p.qty>0).map(p=>({ sym:p.sym, qty:p.qty, avg:p.avg }));
+const deriveHoldings = (lg)=> Object.values(lg).filter(p=>p.qty>0).map(p=>({ sym:p.sym, qty:p.qty, avg:p.avg, peak:p.peak }));
+// Dust (Nov 2026, user report: tiny leftovers were counted as holdings). A sell rarely leaves exactly zero: Binance takes
+// its fee in the coin, so the bought and sold quantities differ by a few grains. A balance is dust when it is a leftover
+// (at most 5% of the most this coin was held) AND worth under $5, Binance's smallest spot order, so it can't even be
+// sold. Dust is no holding: no card, not in the totals, movers or allocation, and the radar counts the coin as not held.
+// A whole position that crashed under $5 is still a holding: it was never sold down. Its orders stay in the ledger.
+const DUST_USD = 5, DUST_SHARE = 0.05;
+function isDust(h){
+  if(!(h.qty > 0) || !(h.peak > 0) || h.qty > DUST_SHARE * h.peak) return false;
+  const r = rowFor(h.sym), px = r ? r.c[r.c.length-1].close : h.avg;      // the live price once loaded, else the cost
+  return h.qty * px < DUST_USD;
+}
+const heldNow = ()=> holdings.filter(h=>!isDust(h));
+// a quantity without float residue (40 - 39.96 is 0.04000000000000057 in floating point)
+const pfQty = (x)=> String(+(+x).toPrecision(10));
 
 let orders = loadOrders();
 let ledger = replay(orders);
@@ -2465,7 +2487,7 @@ function rdClass(x, held, inBook){
   if(nx.entered && formingOf(x.c, x.loadTf).idx !== x.c.length - 1) return 'trade';   // bought on a closed candle
   return 'flat';
 }
-const rdSets = ()=> ({ held: new Set(holdings.map(h=>h.sym)), inBook: new Set(BK.entries.filter(bkIsOpen).map(e=>`${e.symbol}|${bkStrat(e)}`)) });
+const rdSets = ()=> ({ held: new Set(heldNow().map(h=>h.sym)), inBook: new Set(BK.entries.filter(bkIsOpen).map(e=>`${e.symbol}|${bkStrat(e)}`)) });
 function rdRank(){
   const { held, inBook } = rdSets();
   const best = new Map();
@@ -2746,7 +2768,8 @@ function renderPf(){
   let totVal = 0, totCost = 0;
   const HUE = ['#58a6ff','#bc8cff','#56d364','#e3c34c','#ff9e64','#7ee787'];
   const marks = [];
-  const cards = holdings.map((h, idx)=>{
+  const held = heldNow(), dust = holdings.filter(isDust);
+  const cards = held.map((h, idx)=>{
     const r = rowFor(h.sym);
     const last = r ? r.c[r.c.length-1].close : null;
     if(!r){
@@ -2770,7 +2793,7 @@ function renderPf(){
         <span class="badge ${act.cls}">${act.tag}</span>
         <span class="px"><b>${pfFmt(last)}</b><s class="${ch24>=0?'up':'down'}">${pfPc(ch24)} · 24h</s></span></div>
       ${sparkline(r.c, null, pl>=0)}
-      <div class="rowK"><span>Worth now</span><b>${pfMoney(value)} <span style="color:var(--muted);font-weight:400">· ${h.qty} @ ${pfFmt(last)}</span></b></div>
+      <div class="rowK"><span>Worth now</span><b>${pfMoney(value)} <span style="color:var(--muted);font-weight:400">· ${pfQty(h.qty)} @ ${pfFmt(last)}</span></b></div>
       <div class="rowK"><span>You paid</span><b>${pfMoney(cost)} <span style="color:var(--muted);font-weight:400">· avg ${pfFmt(h.avg)}</span></b></div>
       <div class="rowK"><span>Profit / loss</span><b class="${pl>=0?'up':'down'}">${pfMoney(pl)} · ${pfPc(plPc)}</b></div>
       <div class="actLine ${act.cls}">${act.line}</div>
@@ -2778,6 +2801,8 @@ function renderPf(){
   }).join('');
   $('pfCards').innerHTML = cards || (has ? `<div class="card">No open positions — everything is sold.
     Realised so far: <b class="${realizedTotal()>=0?'up':'down'}">${pfMoney(realizedTotal())}</b>.</div>` : '');
+  $('pfDust').innerHTML = dust.length ? `Not counted: ${dust.map(h=>`${coin(h.sym)} ${pfQty(h.qty)}`).join(', ')}, `
+    + `${dust.length > 1 ? 'leftovers' : 'a leftover'} under $${DUST_USD} (Binance's smallest order), too small to sell.` : '';
 
   if(has){
     const pl = totVal - totCost;
@@ -2786,12 +2811,12 @@ function renderPf(){
       + ` <span style="color:var(--muted);font-weight:400">unrealised, against ${pfMoney(totCost)} invested</span>`;
     $('kOpen').innerHTML = `<span class="${pl>=0?'up':'down'}">${pfMoney(pl)}</span>`;
     const rz = realizedTotal();
-    $('kOpenS').innerHTML = `${holdings.length} holding${holdings.length===1?'':'s'}`
+    $('kOpenS').innerHTML = `${held.length} holding${held.length===1?'':'s'}`
       + (Math.abs(rz)>1e-9 ? ` · realised <span class="${rz>=0?'up':'down'}">${pfMoney(rz)}</span>` : '');
     $('kDep').textContent = pfMoney(totCost);
     $('kDepS').textContent = 'total cost basis';
     // best / worst mover by % — a two-value comparison, so the numbers ARE the chart
-    const movers = holdings.map(h=>{ const r=rowFor(h.sym); if(!r||!(h.avg>0)) return null;
+    const movers = held.map(h=>{ const r=rowFor(h.sym); if(!r||!(h.avg>0)) return null;
       const last=r.c[r.c.length-1].close; return { n:h.sym.replace('USDT',''), p:(last/h.avg-1)*100 }; }).filter(Boolean)
       .sort((a,b)=>b.p-a.p);
     if(!movers.length){ $('kCash').textContent='—'; $('kCashS').textContent='no open positions'; }
@@ -3210,7 +3235,7 @@ function renderHoldEditor(){
   const rows = Object.values(ledger).sort((a,b)=> (b.qty>0)-(a.qty>0) || a.sym.localeCompare(b.sym));
   const openNow = new Set([...document.querySelectorAll('#holdList details[open]')].map(d=>d.dataset.sym));
   $('holdList').innerHTML = rows.map(p=>{
-    const closed = p.qty===0;
+    const closed = p.qty===0, dust = isDust(p);
     const warns = [];
     if(p.short>0) warns.push(`Sold ${pfFmt(p.short)} more ${coin(p.sym)} than your recorded buys — some earlier buys are missing. Add them, or this coin's profit is incomplete.`);
     if(p.superseded>0) warns.push(`${p.superseded} order${p.superseded>1?'s':''} dated before your opening balance ${p.superseded>1?'are':'is'} already counted in it, so ${p.superseded>1?'they are':'it is'} struck through. Delete the opening balance to calculate purely from orders.`);
@@ -3222,10 +3247,10 @@ function renderHoldEditor(){
         <td><button class="oDel ghost" data-id="${o.id}" aria-label="Delete this order">✕</button></td></tr>`;
     }).join('');
     const rz = p.realized;
-    return `<details class="coinRow${closed?' closed':''}" data-sym="${p.sym}"${openNow.has(p.sym)?' open':''}>
+    return `<details class="coinRow${closed||dust?' closed':''}" data-sym="${p.sym}"${openNow.has(p.sym)?' open':''}>
       <summary><span class="c">${coin(p.sym)}</span>
-        <span class="q">${closed ? 'sold out' : pfFmt(p.qty)}</span>
-        ${closed ? '' : `<span class="m">avg ${pfFmt(p.avg)}</span>`}
+        <span class="q">${closed ? 'sold out' : dust ? `${pfQty(p.qty)} left, not counted (under $${DUST_USD})` : pfFmt(p.qty)}</span>
+        ${closed || dust ? '' : `<span class="m">avg ${pfFmt(p.avg)}</span>`}
         ${Math.abs(rz)>1e-9 ? `<span class="${rz>=0?'up':'down'}">realised ${pfMoney(rz)}</span>` : ''}
         <span class="m">${p.orders.length} order${p.orders.length>1?'s':''}</span><span class="chev">▸</span></summary>
       ${warns.map(w=>`<div class="warnChip">${w}</div>`).join('')}
