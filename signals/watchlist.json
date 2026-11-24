@@ -42,6 +42,48 @@
       "tf": "1d",
       "bars": 3000,
       "strategy": "cycle"
+    },
+    {
+      "symbol": "ARBUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
+    },
+    {
+      "symbol": "STXUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
+    },
+    {
+      "symbol": "ARBUSDT",
+      "tf": "1h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "STXUSDT",
+      "tf": "1h",
+      "bars": 4500,
+      "strategy": "liqbrk"
+    },
+    {
+      "symbol": "CAKEUSDT",
+      "tf": "4h",
+      "bars": 4500,
+      "strategy": "donch"
     }
   ]
 }
