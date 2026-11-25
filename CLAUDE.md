@@ -164,6 +164,9 @@ Columns (Oct 2026, rebuilt for investment comparison — CAGR/6M/1Y/Sharpe remov
   - The shape fires about once per 20,000 candles on every timeframe, so 4h and 1d have 0–3 setups on 8 coins.
   - Its only edge was 1h on smaller coins in 2020–24: fat-tailed, and losing in 2025–26 on 295 Binance coins never
     used to choose.
+  - Coin by coin (`coins.js`, the 103 coins on 15m–1d): 1h is the only timeframe ahead on average. The best pairs
+    (BAT, FET, DCR, PENDLE and LDO on 1h) rest on one or two big trades. A coin's first half predicts its second only
+    weakly: on 1h the best 10 at p 0.01, on 15m not at all.
   - `data.js` keeps 3m data as Float64 binaries (research/cache/reclaim, ~580 MB). The lab's `show SYM TF` lists the
     setups of one chart.
 - **Research random numbers come from `research/rng.js` (mulberry32).** The `(seed * 1103515245 + 12345) >>> 0` generator that labs used until Nov 2026 overflows JavaScript's 53-bit numbers and loops after a few thousand draws (419 values for most seeds). A random-times control or a bootstrap drawn from it reuses the same few hundred numbers. Every lab was moved to mulberry32 and re-drawn in Nov 2026. The NY-open macro-candle p-values and the flush bootstrap's drawdown range moved (both corrected in ALGORITHM.md); nothing else changed in substance. `scripts/signal-bot.js` keeps the old formula for its `--selftest` fixture only, where it only needs to be deterministic.

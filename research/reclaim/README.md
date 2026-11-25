@@ -98,6 +98,25 @@ fresh coins even with BTC above it.
 **What is worth keeping**: the liquidation logic is real, but the money in it is at the flush itself (the flush
 playbook, `research/flush/`), not at the late retest of its bottom.
 
+## Coin by coin (the 103-coin list)
+
+[RESULTS_reclaim_coins_2026-11.md](RESULTS_reclaim_coins_2026-11.md) ranks every coin on 15m, 1h, 4h and 1d, for the
+chosen rules and the 8-ATR version.
+- **1h is the only timeframe ahead on average:** +0.91% a trade over 911 trades, against −0.07% on 15m and −0.21% on
+  4h. On 1h, 40 of 97 coins end ahead by Net P/L.
+- **The best pairs:**
+  - BAT 1h: +350%, 25 trades, 48% winners.
+  - FET 1h: +129%, 13 trades, 69%.
+  - DCR 1h: +100%, 12 trades, 58%.
+  - PENDLE 1h: +94%, 9 trades, 67%.
+  - EPIC 15m: +91%, 15 trades, 53%.
+  - LDO 1h: +90%, 15 trades, 53%.
+
+  Each rests on one or two big trades: without its single best trade BAT makes +172% and DCR +16%.
+- **Picking coins by their first half** is no use on 15m. On 1h the 10 best first-half coins kept an above-average
+  second half (+2.89% against +0.75% a trade, p 0.01), but the best 5 and the best 20 did not stand out. That is a
+  hint, not proof.
+
 ## Run it
 
 ```
@@ -108,6 +127,8 @@ node research/reclaim/reclaim_lab.js run; node research/reclaim/reclaim_lab.js r
 for c in "" gross slip2; do node research/reclaim/reclaim_lab.js broad $c; node research/reclaim/reclaim_lab.js fresh $c; done
 node research/reclaim/diag_1h.js; node research/reclaim/regime_1h.js
 node research/reclaim/reclaim_lab.js report > research/reclaim/RESULTS_reclaim_2026-11.md
+NODE_USE_ENV_PROXY=1 node research/reclaim/data.js broad 15m         # 15m for the 103 coins (~6 min, 1.2 GB with the rest)
+node research/reclaim/coins.js > research/reclaim/RESULTS_reclaim_coins_2026-11.md
 node research/reclaim/reclaim_lab.js show ETHUSDT 1h                 # the setups and trades of one chart, by eye
 ```
 

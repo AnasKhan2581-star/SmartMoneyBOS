@@ -1401,6 +1401,12 @@ research/reclaim/: `data.js` (3m history of the 8 coins, built up to 15m/1h/4h/1
   - On the fresh coins: +3.24% / +0.99% (p 0.029, losing median), and −1.7% in 2026 (92 trades).
   - BTC over its 50-day average helped everywhere, but not enough to make 2026 positive on the fresh coins.
 - **4h and 1d on the wider lists:** nothing holds in both halves on both lists.
+- **Coin by coin** (`coins.js` → RESULTS_reclaim_coins_2026-11.md; the 103 coins on 15m, 1h, 4h and 1d).
+  - 1h is the only timeframe ahead on average: +0.91% a trade (15m −0.07%, 4h −0.21%).
+  - Best: BAT 1h +350% (25 trades, 48% winners), FET 1h +129% (13, 69%), DCR 1h +100% (12, 58%). Each rests on one
+    or two big trades.
+  - A coin's first half doesn't predict its second on 15m. On 1h the best 10 by first half stayed above average
+    (+2.89% vs +0.75% a trade, p 0.01); the best 5 and the best 20 were not significant.
 - **Why not shipped:** no edge on the coins the user named, before or after costs. The only edge was on 1h smaller
   coins from 2020 to 2024, and it lost in 2025–26 on coins never used to choose. The liquidation edge this repo has
   measured is at the flush itself (research/flush/), not at the late retest of its bottom. Don't re-test the zone tap
