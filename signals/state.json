@@ -12,7 +12,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1788436800,
     "noted": false
@@ -201,7 +201,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1789473600,
     "noted": false
@@ -639,7 +639,7 @@
     "noted": false
   },
   "_meta": {
-    "lastRun": 1795574074
+    "lastRun": 1795606805
   },
   "1INCHUSDT|4h|liqbrk": {
     "inPosition": false,
@@ -915,7 +915,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "donch",
     "lastEntry": 1787342400,
     "noted": false
@@ -1014,7 +1014,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "tsmom",
     "lastEntry": 1787529600,
     "noted": false
@@ -1050,7 +1050,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795568400,
+    "lastBar": 1795600800,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791680400,
     "noted": false
@@ -1059,7 +1059,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795568400,
+    "lastBar": 1795600800,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791129600,
     "noted": false
@@ -1068,7 +1068,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "donch",
     "lastEntry": 1787140800,
     "noted": false
@@ -1077,7 +1077,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795579200,
     "rules": "donch",
     "lastEntry": 1787068800,
     "noted": false
