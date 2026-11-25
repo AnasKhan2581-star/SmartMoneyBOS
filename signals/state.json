@@ -12,7 +12,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795521600,
+    "lastBar": 1795550400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1788436800,
     "noted": false
@@ -201,7 +201,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795521600,
+    "lastBar": 1795550400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1789473600,
     "noted": false
@@ -639,7 +639,7 @@
     "noted": false
   },
   "_meta": {
-    "lastRun": 1795541382
+    "lastRun": 1795574074
   },
   "1INCHUSDT|4h|liqbrk": {
     "inPosition": false,
@@ -915,7 +915,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795521600,
+    "lastBar": 1795550400,
     "rules": "donch",
     "lastEntry": 1787342400,
     "noted": false
@@ -987,7 +987,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795464000,
+    "lastBar": 1795550400,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
     "lastEntry": 1772654400,
     "noted": false
@@ -996,7 +996,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795392000,
+    "lastBar": 1795478400,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
     "lastEntry": 1772582400,
     "noted": false
@@ -1005,7 +1005,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795392000,
+    "lastBar": 1795478400,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
     "lastEntry": 1787616000,
     "noted": false
@@ -1014,7 +1014,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795521600,
+    "lastBar": 1795550400,
     "rules": "tsmom",
     "lastEntry": 1787529600,
     "noted": false
@@ -1023,7 +1023,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795392000,
+    "lastBar": 1795478400,
     "rules": "tsmom",
     "lastEntry": 1787443200,
     "noted": false
@@ -1032,7 +1032,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795392000,
+    "lastBar": 1795478400,
     "rules": "donch",
     "lastEntry": 1786320000,
     "noted": false
@@ -1044,6 +1044,42 @@
     "lastBar": 1794787200,
     "rules": "donch",
     "lastEntry": 1786924800,
+    "noted": false
+  },
+  "ARBUSDT|1h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1795568400,
+    "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
+    "lastEntry": 1791680400,
+    "noted": false
+  },
+  "STXUSDT|1h|liqbrk": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1795568400,
+    "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
+    "lastEntry": 1791129600,
+    "noted": false
+  },
+  "BTCUSDT|4h|donch": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1795550400,
+    "rules": "donch",
+    "lastEntry": 1787140800,
+    "noted": false
+  },
+  "CAKEUSDT|4h|donch": {
+    "inPosition": false,
+    "entryTime": null,
+    "scaled": false,
+    "lastBar": 1795550400,
+    "rules": "donch",
+    "lastEntry": 1787068800,
     "noted": false
   }
 }
