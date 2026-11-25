@@ -155,6 +155,17 @@ Columns (Oct 2026, rebuilt for investment comparison — CAGR/6M/1Y/Sharpe remov
   - Leaders is the strongest: India +31.8% a year at a −27% worst fall against +24.7% / −39% for holding the list; US +16.4% / −33% against +17.7% / −45%. US dips bounce (daily Pullback beats random days at 6.8 standard errors), Indian stocks trend, and hourly charts add nothing.
   - Both lists are today's picks, so every return is too high; the US list's Shariah compliance is not verified. Prices come from Yahoo (`research/stocks/fetch.js`; `query1`/`query2.finance.yahoo.com` were added to the Default environment's allowlist in Nov 2026): daily from 2000 (US) and 2010 (India), hourly only from Dec 2023.
   - Every test window starts fresh (`simulate(…, from)`). An early version left out positions bought before a window, which hid US Trend's −51% fall after 2000. Every comparison in the report is checked against the run (`need()`), so a re-run that changes a conclusion stops the report instead of printing a stale sentence.
+- **The reclaim zone has no edge on the user's coins (Nov 2026, ALGORITHM.md RESEARCH, `research/reclaim/`; NOT shipped).**
+  - The pattern: a sudden drop that takes the range low, a close back above the high it fell from, then a limit buy at
+    the first touch of the untouched bottom of the drop.
+  - On PAXG, BTC, ETH, SOL, STX, XRP, BNB and ARB, on 3m/15m/1h/4h/1d (3m history to 25 Nov 2026, built up to the
+    others), it does no better than the same order at random times, even before costs. After costs it loses:
+    −0.30% / −0.28% / −0.97% a trade on 3m / 15m / 1h in the second halves.
+  - The shape fires about once per 20,000 candles on every timeframe, so 4h and 1d have 0–3 setups on 8 coins.
+  - Its only edge was 1h on smaller coins in 2020–24: fat-tailed, and losing in 2025–26 on 295 Binance coins never
+    used to choose.
+  - `data.js` keeps 3m data as Float64 binaries (research/cache/reclaim, ~580 MB). The lab's `show SYM TF` lists the
+    setups of one chart.
 - **Research random numbers come from `research/rng.js` (mulberry32).** The `(seed * 1103515245 + 12345) >>> 0` generator that labs used until Nov 2026 overflows JavaScript's 53-bit numbers and loops after a few thousand draws (419 values for most seeds). A random-times control or a bootstrap drawn from it reuses the same few hundred numbers. Every lab was moved to mulberry32 and re-drawn in Nov 2026. The NY-open macro-candle p-values and the flush bootstrap's drawdown range moved (both corrected in ALGORITHM.md); nothing else changed in substance. `scripts/signal-bot.js` keeps the old formula for its `--selftest` fixture only, where it only needs to be deterministic.
 - **Day trading is dead on this pair (tested July 2026).** Three day-trade variants (intraday breakout, momentum pullback, squeeze expansion) all lost to the swing system (best PF 1.28 vs 2.66). At a ~0.6% average move the 0.2% round-trip fee eats 34% of it, and a 12h hold cap destroys the fat tail that carries the edge (top-5 trades = 44% of gross profit). Don't retry without maker rebates or a proven higher-frequency edge.
 - **ZEC 15m is a momentum market, not a mean-reversion one.** A forward-return scan (ALGORITHM.md `liqbrk`) shows top-of-range / above-VWAP / high-RSI states return 2–3× baseline monotonically, while buying "discount" returns *less than random*. Don't build dip-buying or sweep-fade intraday strategies here — three were built and all lost in every fold.

@@ -1351,6 +1351,61 @@ printed. Numbers below are US / India unless marked.
   it is small. Daily Trend is a sound way to hold Indian stocks; in the US it fell −51% after 2000. Stay off hourly
   charts.
 
+## RESEARCH (Nov 2026): the reclaim zone — buy the first return to the bottom of a reclaimed flush (NOT shipped)
+
+User, with a 27-year chart: "sudden drop then close above last major high (strong high) then market reverses after a tap
+back from unmitigated lower region … think according to liquidation trading logic … backtest on PAXG, BTC, ETH, SOL, STX
+and 3 other coins on 3m, 15m, 1h, 4h, 1d". Research only: detector.js, the webapp and the bot are unchanged.
+research/reclaim/: `data.js` (3m history of the 8 coins, built up to 15m/1h/4h/1d; `broad` and `fresh` lists),
+`reclaim_lab.js` (`run` / `broad` / `fresh` / `show` / `report`), `diag_1h.js`, `regime_1h.js` → RESULTS_reclaim_2026-11.md.
+- **The logic.**
+  - The drop is a liquidation cascade through the range's stops.
+  - The close above the strong high runs the breakdown shorts' stops, so the fall was liquidity, not news.
+  - The untouched bottom of the drop is where the absorbers' unfilled bids rest, under every later long's stop.
+- **The rules** (fixed before any result; chart candles and the chart's ATR, since the shape is drawn the same way on
+  every timeframe):
+  - Strong high: the highest of 50 candles.
+  - Drop: ≥ 5 ATR within 12 candles, taking the 50-candle low.
+  - Reclaim: a close above the high within 36 candles.
+  - Zone: the bottom third, unmitigated.
+  - Trade: a limit buy at the zone top on its first touch (valid 500 candles); stop 0.1 ATR under the low; target the
+    post-reclaim high; out after 100 candles.
+- **How it was tested.**
+  - Coins: PAXG, BTC, ETH, SOL, STX plus XRP, BNB and ARB, all 3m history to 25 Nov 2026.
+  - 19 one-step variants, chosen on the first half of each coin's history. Kept: a 6-candle drop, a 20-candle high, a
+    36-candle reclaim, the bottom half as the zone, out after 300 candles, and revisits allowed.
+  - Judged on the second halves.
+  - Costs: 0.1% a side plus 0.05/0.15% slippage.
+  - Control: each trade's exact order at 50 random times on the same chart.
+- **On the 8 coins: no edge on any timeframe.** Second halves, avg trade after costs (the same order at random times):
+
+  | | trades | avg trade | random times |
+  |---|---|---|---|
+  | 3m | 1,397 | −0.30% | −0.28% |
+  | 15m | 351 | −0.28% | −0.29% |
+  | 1h | 70 | −0.97% | −0.24% |
+  | 4h | 19 | −2.85% | +0.55% |
+  | 1d | 1 | – | – |
+
+  - Before costs too: 3m −0.03% vs 0.00%, 15m −0.01% vs −0.02%.
+  - On 3m the 0.2% of fees is half the median stop (0.39%).
+  - Every variant loses on 3m in both halves.
+- **Rare on high timeframes.** The shape fires about once per 20,000 candles on every timeframe. BTC's daily chart
+  since 2017 has none; the 8 coins' 4h charts have 3.
+- **Wider lists, 1h** (the 103-coin Compare list; 295 other Binance USDT coins never used for any choice).
+  - The chosen rules beat random times on the 103 in both halves: +1.33% / +0.56% vs 0.00% / −0.33%.
+  - On the fresh coins only in the first half: +1.26% / −0.37% vs +0.11% / −0.39%.
+  - Fat-tailed: the median trade loses 2.4–3.2%, and about half the coins lose.
+  - Fading: −0.2% / −0.9% a trade in 2025 / 2026 on the fresh coins.
+- **An 8-ATR fall** stood out among the 103-coin neighbours (+3.96% / +5.21%, found after looking).
+  - On the fresh coins: +3.24% / +0.99% (p 0.029, losing median), and −1.7% in 2026 (92 trades).
+  - BTC over its 50-day average helped everywhere, but not enough to make 2026 positive on the fresh coins.
+- **4h and 1d on the wider lists:** nothing holds in both halves on both lists.
+- **Why not shipped:** no edge on the coins the user named, before or after costs. The only edge was on 1h smaller
+  coins from 2020 to 2024, and it lost in 2025–26 on coins never used to choose. The liquidation edge this repo has
+  measured is at the flush itself (research/flush/), not at the late retest of its bottom. Don't re-test the zone tap
+  without a new idea.
+
 ## The trading book — 5 slots, journal, Taken/Skipped (Oct 2026, user decision)
 
 Execution rules on top of the strategies on the alert lists; they never change which trades a strategy takes, only which
