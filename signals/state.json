@@ -12,7 +12,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1788436800,
     "noted": false
@@ -201,7 +201,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1789473600,
     "noted": false
@@ -639,7 +639,7 @@
     "noted": false
   },
   "_meta": {
-    "lastRun": 1795639286
+    "lastRun": 1795662741
   },
   "1INCHUSDT|4h|liqbrk": {
     "inPosition": false,
@@ -915,7 +915,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "donch",
     "lastEntry": 1787342400,
     "noted": false
@@ -987,7 +987,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795550400,
+    "lastBar": 1795636800,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
     "lastEntry": 1772654400,
     "noted": false
@@ -996,16 +996,16 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795478400,
+    "lastBar": 1795564800,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
-    "lastEntry": 1772582400,
+    "lastEntry": 1764547200,
     "noted": false
   },
   "ETHUSDT|1d|cycle": {
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795478400,
+    "lastBar": 1795564800,
     "rules": "cycle-2026-10-daily-btcled-half1.85",
     "lastEntry": 1787616000,
     "noted": false
@@ -1014,7 +1014,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "tsmom",
     "lastEntry": 1787529600,
     "noted": false
@@ -1023,7 +1023,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795478400,
+    "lastBar": 1795564800,
     "rules": "tsmom",
     "lastEntry": 1787443200,
     "noted": false
@@ -1032,7 +1032,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795478400,
+    "lastBar": 1795564800,
     "rules": "donch",
     "lastEntry": 1786320000,
     "noted": false
@@ -1050,7 +1050,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795633200,
+    "lastBar": 1795658400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791680400,
     "noted": false
@@ -1059,7 +1059,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795633200,
+    "lastBar": 1795658400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791129600,
     "noted": false
@@ -1068,7 +1068,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "donch",
     "lastEntry": 1787140800,
     "noted": false
@@ -1077,7 +1077,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795622400,
+    "lastBar": 1795636800,
     "rules": "donch",
     "lastEntry": 1787068800,
     "noted": false
