@@ -639,7 +639,7 @@
     "noted": false
   },
   "_meta": {
-    "lastRun": 1795839019
+    "lastRun": 1795844658
   },
   "1INCHUSDT|4h|liqbrk": {
     "inPosition": false,
@@ -1050,7 +1050,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795834800,
+    "lastBar": 1795838400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791680400,
     "noted": false
@@ -1059,7 +1059,7 @@
     "inPosition": false,
     "entryTime": null,
     "scaled": false,
-    "lastBar": 1795834800,
+    "lastBar": 1795838400,
     "rules": "liqbrk-2026-11-btc50-maxstop25-scale3R",
     "lastEntry": 1791129600,
     "noted": false
